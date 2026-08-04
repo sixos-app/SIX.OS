@@ -2,6 +2,14 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.23.3] - 2026-08-04
+
+### Planejamento
+
+- Roadmap priorizado para permissões, administração, projetos, biblioteca, missões, agenda, perfis, IA e feed.
+- Integrações com Runrun.it, Google/Outlook Calendar e Slack movidas para a fase final.
+- Estratégia de arquivos definida com Cloudflare R2 como origem e prova de conceito opcional para links compartilhados do MEGA.nz.
+
 ## [0.23.2] - 2026-08-04
 
 ### Segurança

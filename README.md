@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.23.2`
+**Versão atual:** `0.23.3`
 
 ## O que já está implementado
 
@@ -57,4 +57,6 @@ As entregas seguem o processo descrito em `VERSIONING.md`. Os marcos recuperáve
 
 ## Próximas etapas
 
-1. Integrar eventos do Runrun.it à regra de gamificação.
+O plano completo de entregas, dependências e critérios de avanço está em [ROADMAP.md](ROADMAP.md).
+
+A prioridade atual é concluir a validação de acesso e fundação. As integrações com Runrun.it, Google/Outlook Calendar e Slack foram reservadas para a fase final.
