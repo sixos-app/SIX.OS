@@ -1,7 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { dashboardSeed, type AgendaEvent, type AnalyticsData, type AppNotification, type DashboardData, type LibraryResource, type Mission, type Project, type TeamMember } from './data/dashboard'
 import { getAccessSession, loginWithPassword, type AccessSession } from './data/accessRepository'
-import { adminOverviewPreview, getAdminOverview, type AdminOverview } from './data/adminRepository'
+import { adminOverviewPreview, createAdminClient, createAdminUser, getAdminOverview, type AdminOverview, type CreateAdminUserInput } from './data/adminRepository'
 import { completeMission as persistMissionCompletion, getDashboard } from './data/dashboardRepository'
 
 type IconName =
@@ -659,6 +659,7 @@ function AppShell() {
 function AdminPage({ preview = false }: { preview?: boolean }) {
   const [overview, setOverview] = useState<AdminOverview | null>(preview ? adminOverviewPreview : null)
   const [error, setError] = useState('')
+  const [dialog, setDialog] = useState<'user' | 'client' | null>(null)
 
   useEffect(() => {
     if (preview) return
@@ -667,10 +668,20 @@ function AdminPage({ preview = false }: { preview?: boolean }) {
 
   const data = overview ?? adminOverviewPreview
 
+  async function handleCreateUser(input: CreateAdminUserInput) {
+    const member = await createAdminUser(input)
+    setOverview((current) => ({ ...(current ?? adminOverviewPreview), team: [...(current ?? adminOverviewPreview).team, member] }))
+  }
+
+  async function handleCreateClient(name: string) {
+    await createAdminClient(name)
+    setOverview((current) => ({ ...(current ?? adminOverviewPreview), clientCount: (current ?? adminOverviewPreview).clientCount + 1 }))
+  }
+
   return <div className="admin-page">
     <section className="admin-intro">
       <div><span>PAINEL ADMINISTRATIVO</span><h1>Controle a <em>operação.</em></h1><p>Colaboradores, cargos e configurações centrais da Agência SIX em um só lugar.</p></div>
-      <div className="admin-status"><i /><span>{preview ? 'PRÉVIA LOCAL' : 'ACESSO ADMINISTRATIVO'}</span><b>{preview ? 'Painel em demonstração' : 'Permissões verificadas'}</b></div>
+      <div className="admin-intro-side"><div className="admin-status"><i /><span>{preview ? 'PRÉVIA LOCAL' : 'ACESSO ADMINISTRATIVO'}</span><b>{preview ? 'Painel em demonstração' : 'Permissões verificadas'}</b></div>{!preview && <div className="admin-actions"><button onClick={() => setDialog('user')}>NOVO COLABORADOR <span>+</span></button><button onClick={() => setDialog('client')}>NOVO CLIENTE <span>+</span></button></div>}</div>
     </section>
 
     {error ? <p className="admin-error">{error}</p> : <>
@@ -686,7 +697,56 @@ function AdminPage({ preview = false }: { preview?: boolean }) {
         <article className="admin-card"><div className="admin-card-head"><div><span>RBAC</span><h2>Cargos e <em>regras.</em></h2></div><b>{data.roles.reduce((total, role) => total + role.permissionCount, 0)} permissões</b></div><div className="admin-role-list">{data.roles.map((role) => <div key={role.code}><p><b>{role.name}</b><small>{role.description}</small></p><span>{role.permissionCount}</span></div>)}</div></article>
       </section>
     </>}
+    {dialog === 'user' && <AdminUserDialog roles={data.roles} onClose={() => setDialog(null)} onCreate={handleCreateUser} />}
+    {dialog === 'client' && <AdminClientDialog onClose={() => setDialog(null)} onCreate={handleCreateClient} />}
   </div>
+}
+
+function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOverview['roles']; onClose: () => void; onCreate: (input: CreateAdminUserInput) => Promise<void> }) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
+  const [role, setRole] = useState('specialist')
+  const [error, setError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSaving(true)
+    setError('')
+    try {
+      await onCreate({ name: name.trim(), email: email.trim(), username: username.trim(), role })
+      onClose()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível salvar o colaborador.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo colaborador"><form className="mission-create-dialog admin-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de colaborador">×</button><span className="mission-create-icon"><Icon name="people" size={21} /></span><p>NOVO COLABORADOR</p><h2>Quem vai tornar<br /><em>possível?</em></h2><label><span>NOME</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} required /></label><label><span>E-MAIL</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required /></label><div className="mission-create-row"><label><span>LOGIN (OPCIONAL)</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="nome.sobrenome" /></label><label><span>CARGO</span><select value={role} onChange={(event) => setRole(event.target.value)}>{roles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label></div>{error && <p className="admin-dialog-error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR COLABORADOR <span>→</span></>}</button></form></div>
+}
+
+function AdminClientDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => Promise<void> }) {
+  const [name, setName] = useState('')
+  const [error, setError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSaving(true)
+    setError('')
+    try {
+      await onCreate(name.trim())
+      onClose()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível salvar o cliente.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo cliente"><form className="mission-create-dialog admin-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de cliente">×</button><span className="mission-create-icon"><Icon name="folder" size={21} /></span><p>NOVO CLIENTE</p><h2>Uma nova parceria<br /><em>começa aqui.</em></h2><label><span>NOME DO CLIENTE</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} required /></label>{error && <p className="admin-dialog-error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR CLIENTE <span>→</span></>}</button></form></div>
 }
 
 function Dashboard({

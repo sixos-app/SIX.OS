@@ -13,6 +13,7 @@ MVP inicial do sistema operacional gamificado da Agência SIX.
 - Painel inicial da SIX AI.
 - Camada de dados tipada, preparada para consumir a API do produto.
 - Migração inicial e rotas de API para Cloudflare D1.
+- Painel administrativo com cadastros protegidos de colaboradores e clientes.
 
 ## Executar localmente
 

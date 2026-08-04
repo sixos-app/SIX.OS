@@ -19,6 +19,13 @@ export type AdminOverview = {
   clientCount: number
 }
 
+export type CreateAdminUserInput = {
+  name: string
+  email: string
+  role: string
+  username: string
+}
+
 export const adminOverviewPreview: AdminOverview = {
   clientCount: 3,
   team: [
@@ -39,4 +46,24 @@ export async function getAdminOverview(): Promise<AdminOverview> {
   const response = await fetch('/api/admin/overview', { headers: { Accept: 'application/json' } })
   if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error('Não foi possível carregar a administração.')
   return response.json() as Promise<AdminOverview>
+}
+
+async function requestAdmin<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const payload = response.headers.get('content-type')?.includes('application/json') ? await response.json() as T & { error?: string } : null
+  if (!response.ok) throw new Error(payload?.error ?? 'Não foi possível salvar o cadastro.')
+  return payload as T
+}
+
+export async function createAdminUser(input: CreateAdminUserInput) {
+  const payload = await requestAdmin<{ member: AdminTeamMember }>('/api/admin/users', input)
+  return payload.member
+}
+
+export async function createAdminClient(name: string) {
+  return requestAdmin<{ client: { id: string; name: string } }>('/api/admin/clients', { name })
 }

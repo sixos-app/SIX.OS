@@ -2,6 +2,18 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.26.0] - 2026-08-04
+
+### Adicionado
+
+- Cadastro administrativo de colaboradores com nome, e-mail, login opcional e cargo RBAC.
+- Cadastro administrativo de clientes com atualização imediata dos indicadores do painel.
+
+### Segurança
+
+- Novos endpoints verificam sessão e permissões no servidor antes de gravar dados no D1.
+- Validações de formato, cargo e duplicidade de e-mail ou login retornam erros seguros ao painel.
+
 ## [0.25.0] - 2026-08-04
 
 ### Adicionado
