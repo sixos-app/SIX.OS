@@ -352,6 +352,7 @@ export default function App() {
 
 function AppShell() {
   const [activeSection, setActiveSection] = useState('home')
+  const [libraryProjectId, setLibraryProjectId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'today' | 'urgent'>('all')
   const [completed, setCompleted] = useState<string[]>(getStoredCompletedMissions)
   const [isAiOpen, setIsAiOpen] = useState(false)
@@ -640,7 +641,7 @@ function AppShell() {
             onUpdateMission={updateMission}
           />
         ) : activeSection === 'projects' ? (
-          <ProjectsPage projects={projectsWithMissionProgress} missions={dashboardData.missions} completed={completed} team={dashboardData.team} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
+          <ProjectsPage projects={projectsWithMissionProgress} clients={clientIdentities} initialSelectedProjectId={libraryProjectId} missions={dashboardData.missions} completed={completed} team={dashboardData.team} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
         ) : activeSection === 'agenda' ? (
           <AgendaPage events={dashboardData.agenda} missions={dashboardData.missions} projects={projectsWithMissionProgress} team={dashboardData.team} completed={completed} />
         ) : activeSection === 'team' ? (
@@ -648,7 +649,7 @@ function AppShell() {
         ) : activeSection === 'analytics' ? (
           <AnalyticsPage analytics={dashboardData.analytics} projects={projectsWithMissionProgress} missions={dashboardData.missions} team={dashboardData.team} completed={completed} totalXp={totalXp} baseXp={dashboardData.profile.xp} />
         ) : activeSection === 'library' ? (
-          <LibraryPage resources={dashboardData.library} />
+          <LibraryPage resources={dashboardData.library} clients={clientIdentities} projects={projectsWithMissionProgress} onOpenProject={(projectId) => { setLibraryProjectId(projectId); setActiveSection('projects') }} />
         ) : activeSection === 'admin' && accessSession?.role === 'admin' ? (
           <AdminPage onClientCreated={(client) => setClientIdentities((current) => [...current.filter((item) => item.id !== client.id), client])} />
         ) : (
@@ -1138,7 +1139,7 @@ function AnalyticsPage({ analytics, projects, missions, team, completed, totalXp
   )
 }
 
-function LibraryPage({ resources }: { resources: LibraryResource[] }) {
+function LibraryPage({ resources, clients, projects, onOpenProject }: { resources: LibraryResource[]; clients: ClientIdentity[]; projects: Project[]; onOpenProject: (projectId: string) => void }) {
   const [libraryFilter, setLibraryFilter] = useState<'all' | LibraryResource['type']>('all')
   const [selectedResourceId, setSelectedResourceId] = useState(resources[0]?.id ?? '')
   const visibleResources = resources.filter((resource) => libraryFilter === 'all' || resource.type === libraryFilter)
@@ -1148,7 +1149,8 @@ function LibraryPage({ resources }: { resources: LibraryResource[] }) {
 
   return (
     <section className="library-page">
-      <div className="library-intro"><div><p className="eyebrow">BIBLIOTECA SIX <span>✦</span></p><h1>Referências que<br /><em>viram repertório.</em></h1></div><div className="library-summary"><span>ACERVO ATIVO</span><b>{resources.length} itens</b><small>Materiais que aceleram boas decisões.</small></div></div>
+      <div className="library-intro"><div><p className="eyebrow">BIBLIOTECA UNIFICADA <span>✦</span></p><h1>Clientes, projetos<br /><em>e repertório.</em></h1></div><div className="library-summary"><span>EM ÓRBITA</span><b>{projects.length} projetos</b><small>Cliente → projeto → arquivos.</small></div></div>
+      <section className="client-library-index"><div className="client-library-index-head"><div><span>BIBLIOTECAS DOS CLIENTES</span><p>Os arquivos vivem no contexto certo: primeiro o cliente, depois a frente.</p></div><b>{clients.length} clientes</b></div><div className="client-library-grid">{clients.map((client) => { const clientProjects = projects.filter((project) => project.client === client.name); return <article key={client.id}><div className={`client-library-mark ${client.imageUrl ? 'has-image' : ''}`}>{client.imageUrl ? <img src={client.imageUrl} alt="" /> : client.shortCode ?? client.name.slice(0, 3).toLocaleUpperCase('pt-BR')}</div><div><span>CLIENTE</span><h2>{client.name}</h2><p>{clientProjects.length} projeto{clientProjects.length === 1 ? '' : 's'} vinculado{clientProjects.length === 1 ? '' : 's'}</p></div><div className="client-library-projects">{clientProjects.length > 0 ? clientProjects.map((project) => <button onClick={() => onOpenProject(project.id)} key={project.id}><b>{project.name}</b><small>{project.status} · {project.progress}%</small><i>↗</i></button>) : <p>Nenhum projeto ativo para este cliente.</p>}</div></article> })}</div></section>
       <div className="library-toolbar"><div className="segmented-control" aria-label="Filtrar biblioteca"><button className={libraryFilter === 'all' ? 'selected' : ''} onClick={() => setLibraryFilter('all')}>Todos</button><button className={libraryFilter === 'Referência' ? 'selected' : ''} onClick={() => setLibraryFilter('Referência')}>Referências</button><button className={libraryFilter === 'Modelo' ? 'selected' : ''} onClick={() => setLibraryFilter('Modelo')}>Modelos</button><button className={libraryFilter === 'Playbook' ? 'selected' : ''} onClick={() => setLibraryFilter('Playbook')}>Playbooks</button><button className={libraryFilter === 'Documento' ? 'selected' : ''} onClick={() => setLibraryFilter('Documento')}>Documentos</button></div><span>{visibleResources.length} itens nesta visão</span></div>
 
       <div className="library-workspace"><div className="library-grid">{visibleResources.map((resource) => { const isSelected = resource.id === selectedResource.id; return <button className={`library-card tone-${resource.tone} ${isSelected ? 'selected' : ''}`} onClick={() => setSelectedResourceId(resource.id)} aria-pressed={isSelected} key={resource.id}><span className="library-card-type">{resource.type}</span><b>{resource.title}</b><p>{resource.description}</p><small>{resource.updatedAt}</small></button> })}{visibleResources.length === 0 && <p className="empty-state">Nenhum material nesse filtro.</p>}</div><aside className={`library-detail tone-${selectedResource.tone}`}><div className="library-detail-head"><span>{selectedResource.type}</span><b>↗</b></div><h2>{selectedResource.title}</h2><p>{selectedResource.description}</p><div className="library-detail-section"><span>RESPONSÁVEL</span><b>{selectedResource.owner}</b></div><div className="library-detail-section"><span>ATUALIZAÇÃO</span><b>{selectedResource.updatedAt}</b></div><div className="library-detail-section"><span>TÓPICOS</span><div className="library-tags">{selectedResource.tags.map((tag) => <b key={tag}>{tag}</b>)}</div></div><button className="library-open-button">ABRIR MATERIAL <span>↗</span></button></aside></div>
@@ -1156,8 +1158,8 @@ function LibraryPage({ resources }: { resources: LibraryResource[] }) {
   )
 }
 
-function ProjectsPage({ projects, missions, completed, team, onCreateProject, onCreateMission, onUpdateProjectLifecycle }: { projects: Project[]; missions: Mission[]; completed: string[]; team: TeamMember[]; onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void; onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void; onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => void }) {
-  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id ?? '')
+function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, completed, team, onCreateProject, onCreateMission, onUpdateProjectLifecycle }: { projects: Project[]; clients: ClientIdentity[]; initialSelectedProjectId: string | null; missions: Mission[]; completed: string[]; team: TeamMember[]; onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void; onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void; onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => void }) {
+  const [selectedProjectId, setSelectedProjectId] = useState(initialSelectedProjectId ?? projects[0]?.id ?? '')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isMissionCreateOpen, setIsMissionCreateOpen] = useState(false)
   const [isLifecycleOpen, setIsLifecycleOpen] = useState(false)
@@ -1166,6 +1168,10 @@ function ProjectsPage({ projects, missions, completed, team, onCreateProject, on
   const projectMissions = missions.filter((mission) => mission.projectId === selectedProject?.id)
   const projectCollaborators = selectedProject ? getProjectCollaborators(selectedProject, missions, team) : []
   const projectHealth = selectedProject ? getProjectHealth(selectedProject, missions, completed) : { label: 'A INICIAR', tone: 'neutral' }
+
+  useEffect(() => {
+    if (initialSelectedProjectId && projects.some((project) => project.id === initialSelectedProjectId)) setSelectedProjectId(initialSelectedProjectId)
+  }, [initialSelectedProjectId, projects])
 
   if (!selectedProject) return <section className="projects-page"><p className="empty-state">Ainda não há projetos para acompanhar.</p></section>
 
@@ -1204,7 +1210,7 @@ function ProjectsPage({ projects, missions, completed, team, onCreateProject, on
           <div className="project-detail-footer"><div className="avatars">{projectCollaborators.slice(0, 3).map((member, index) => <Avatar initials={member.initials} tone={index === 1 ? 'lime' : member.tone} small key={member.id} />)}{projectCollaborators.length > 3 && <span>+{projectCollaborators.length - 3}</span>}</div><small>{projectCollaborators.length === 1 ? '1 pessoa na frente' : `${projectCollaborators.length} pessoas na frente`}</small></div>
         </aside>
       </div>
-      {isCreateOpen && <ProjectCreateModal onClose={() => setIsCreateOpen(false)} onCreate={(input) => { onCreateProject(input); setIsCreateOpen(false) }} />}
+      {isCreateOpen && <ProjectCreateModal clients={clients} onClose={() => setIsCreateOpen(false)} onCreate={(input) => { onCreateProject(input); setIsCreateOpen(false) }} />}
       {isMissionCreateOpen && <MissionCreateModal projects={projects} team={team} initialProjectId={selectedProject.id} onClose={() => setIsMissionCreateOpen(false)} onCreate={(input) => { onCreateMission(input); setIsMissionCreateOpen(false) }} />}
       {isLifecycleOpen && <ProjectLifecycleModal project={selectedProject} onClose={() => setIsLifecycleOpen(false)} onUpdate={(input) => { onUpdateProjectLifecycle(selectedProject.id, input); setIsLifecycleOpen(false) }} />}
       {isLibraryOpen && <ProjectLibraryModal project={selectedProject} onClose={() => setIsLibraryOpen(false)} />}
@@ -1318,9 +1324,9 @@ function ProjectLifecycleModal({ project, onClose, onUpdate }: { project: Projec
   return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Gerenciar ciclo do projeto"><form className="mission-create-dialog project-lifecycle-dialog" onSubmit={(event) => { event.preventDefault(); if (status && deadline.trim() && nextStep.trim()) onUpdate({ status, deadline: deadline.trim(), nextStep: nextStep.trim() }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar ciclo do projeto">×</button><span className="mission-create-icon"><Icon name="folder" size={21} /></span><p>CICLO DO PROJETO</p><h2>O que move<br /><em>{project.name}?</em></h2><label><span>STATUS DA FRENTE</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option>EM CONCEPÇÃO</option><option>EM PRODUÇÃO</option><option>EM APROVAÇÃO</option><option>PAUSADO</option><option>CONCLUÍDO</option></select></label><label><span>PRÓXIMO MARCO</span><input autoFocus value={deadline} onChange={(event) => setDeadline(event.target.value)} required /></label><label><span>PRÓXIMO MOVIMENTO</span><textarea value={nextStep} onChange={(event) => setNextStep(event.target.value)} required /></label><button className="mission-create-submit" type="submit">ATUALIZAR CICLO <span>→</span></button></form></div>
 }
 
-function ProjectCreateModal({ onClose, onCreate }: { onClose: () => void; onCreate: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void }) {
+function ProjectCreateModal({ clients, onClose, onCreate }: { clients: ClientIdentity[]; onClose: () => void; onCreate: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void }) {
   const [name, setName] = useState('')
-  const [client, setClient] = useState('')
+  const [client, setClient] = useState(clients[0]?.name ?? '')
   const [deadline, setDeadline] = useState('Próximo marco · em definição')
   const [tone, setTone] = useState<Project['tone']>('lime')
 
@@ -1333,7 +1339,7 @@ function ProjectCreateModal({ onClose, onCreate }: { onClose: () => void; onCrea
     return () => window.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
-  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Criar projeto"><form className="mission-create-dialog project-create-dialog" onSubmit={(event) => { event.preventDefault(); if (name.trim() && client.trim() && deadline.trim()) onCreate({ name: name.trim(), client: client.trim(), deadline: deadline.trim(), tone }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de projeto">×</button><span className="mission-create-icon"><Icon name="folder" size={21} /></span><p>NOVA FRENTE</p><h2>Qual projeto vamos<br /><em>colocar em órbita?</em></h2><label><span>NOME DO PROJETO</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Campanha de Natal" required /></label><label><span>CLIENTE</span><input value={client} onChange={(event) => setClient(event.target.value)} placeholder="Ex.: Novo cliente" required /></label><div className="mission-create-row"><label><span>PRÓXIMO MARCO</span><input value={deadline} onChange={(event) => setDeadline(event.target.value)} placeholder="Próximo marco · em definição" required /></label><label><span>IDENTIDADE</span><select value={tone} onChange={(event) => setTone(event.target.value as Project['tone'])}><option value="lime">Lima</option><option value="purple">Roxo</option><option value="orange">Laranja</option></select></label></div><button className="mission-create-submit" type="submit">CRIAR PROJETO <span>→</span></button></form></div>
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Criar projeto"><form className="mission-create-dialog project-create-dialog" onSubmit={(event) => { event.preventDefault(); if (name.trim() && client && deadline.trim()) onCreate({ name: name.trim(), client, deadline: deadline.trim(), tone }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de projeto">×</button><span className="mission-create-icon"><Icon name="folder" size={21} /></span><p>NOVA FRENTE</p><h2>Qual projeto vamos<br /><em>colocar em órbita?</em></h2><label><span>NOME DO PROJETO</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Campanha de Natal" required /></label><label><span>CLIENTE VINCULADO</span><select value={client} onChange={(event) => setClient(event.target.value)} required>{clients.map((item) => <option value={item.name} key={item.id}>{item.name} · {item.shortCode ?? 'SEM SIGLA'}</option>)}</select><small className="project-create-client-note">Para cadastrar outro cliente, use Administração → Novo cliente.</small></label><div className="mission-create-row"><label><span>PRÓXIMO MARCO</span><input value={deadline} onChange={(event) => setDeadline(event.target.value)} placeholder="Próximo marco · em definição" required /></label><label><span>IDENTIDADE</span><select value={tone} onChange={(event) => setTone(event.target.value as Project['tone'])}><option value="lime">Lima</option><option value="purple">Roxo</option><option value="orange">Laranja</option></select></label></div><button className="mission-create-submit" type="submit" disabled={clients.length === 0}>CRIAR PROJETO <span>→</span></button></form></div>
 }
 
 function ProjectCard({ project, missions, team, onOpen }: { project: Project; missions: Mission[]; team: TeamMember[]; onOpen: () => void }) {

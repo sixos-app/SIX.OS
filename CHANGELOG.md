@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.31.0] - 2026-08-04
+
+### Alterado
+
+- Biblioteca transformada em central unificada de clientes e projetos, com acesso direto às frentes de cada cliente.
+- Criação de projetos agora exige selecionar um cliente já cadastrado, preservando sigla e imagem em toda a operação.
+
 ## [0.30.0] - 2026-08-04
 
 ### Adicionado
