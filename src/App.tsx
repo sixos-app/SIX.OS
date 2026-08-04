@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { dashboardSeed, type AgendaEvent, type AnalyticsData, type AppNotification, type DashboardData, type LibraryResource, type Mission, type Project, type TeamMember } from './data/dashboard'
 import { getAccessSession, type AccessSession } from './data/accessRepository'
 import { completeMission as persistMissionCompletion, getDashboard } from './data/dashboardRepository'
@@ -248,7 +248,78 @@ function getProjectHealth(project: Project, missions: Mission[], completed: stri
   return { label: 'NO RITMO', tone: 'healthy' }
 }
 
+function LoginPreview() {
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
+  const phrases = [
+    'Tornar possível é viver o extraordinário.',
+    'Ideias fortes merecem execução extraordinária.',
+    'A próxima grande entrega começa por aqui.',
+  ]
+  const phrase = phrases[new Date().getDate() % phrases.length]
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const normalizedEmail = email.trim()
+
+    if (!normalizedEmail) {
+      setMessage('Informe seu e-mail para continuar.')
+      return
+    }
+
+    setMessage(`Quando a proteção for reativada, enviaremos um código para ${normalizedEmail}.`)
+  }
+
+  return (
+    <main className="login-preview">
+      <a className="login-back" href="/">← Voltar ao app</a>
+      <div className="login-preview-shell">
+        <section className="login-art">
+          <div className="login-brand">
+            <span>SIX</span>
+            <small>OS</small>
+          </div>
+          <p className="login-eyebrow">SISTEMA OPERACIONAL DA AGÊNCIA</p>
+          <h1>Onde a operação encontra o <em>extraordinário.</em></h1>
+          <p className="login-phrase">“{phrase}”</p>
+          <div className="login-orbits" aria-hidden="true">
+            <i className="login-orbit login-orbit-one" />
+            <i className="login-orbit login-orbit-two" />
+            <b>+</b>
+          </div>
+        </section>
+
+        <section className="login-form-panel" aria-labelledby="login-title">
+          <span className="login-panel-kicker">ACESSO SIX.OS</span>
+          <h2 id="login-title">Entre para fazer o <em>impossível.</em></h2>
+          <p>Use seu e-mail profissional para acessar a operação da SIX.</p>
+          <form className="login-form" onSubmit={handleSubmit}>
+            <label>
+              <span>E-MAIL PROFISSIONAL</span>
+              <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" placeholder="voce@agenciasix.com.br" />
+            </label>
+            <button className="login-primary-action" type="submit">Continuar com e-mail <span>→</span></button>
+          </form>
+          {message && <p className="login-message" role="status">{message}</p>}
+          <div className="login-divider"><span>OU, EM BREVE</span></div>
+          <div className="login-provider-grid">
+            <button className="login-provider-button" type="button" disabled>Google <small>EM BREVE</small></button>
+            <button className="login-provider-button" type="button" disabled>Microsoft <small>EM BREVE</small></button>
+          </div>
+          <p className="login-notice">Prévia visual da autenticação. O acesso público de testes permanece ativo temporariamente.</p>
+        </section>
+      </div>
+    </main>
+  )
+}
+
 export default function App() {
+  const isLoginPreview = new URLSearchParams(window.location.search).get('preview') === 'login'
+
+  return isLoginPreview ? <LoginPreview /> : <AppShell />
+}
+
+function AppShell() {
   const [activeSection, setActiveSection] = useState('home')
   const [filter, setFilter] = useState<'all' | 'today' | 'urgent'>('all')
   const [completed, setCompleted] = useState<string[]>(getStoredCompletedMissions)

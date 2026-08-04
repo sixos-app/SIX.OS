@@ -2,6 +2,17 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.24.0] - 2026-08-04
+
+### Adicionado
+
+- Fundação de RBAC com cinco cargos, permissões versionadas e atribuição de cargo por usuário na migration `0003_rbac_foundation.sql`.
+- Prévia visual da tela de login alinhada à identidade SIX, disponível com `?preview=login`.
+
+### Observações
+
+- A prévia de login não envia e-mails nem substitui o Cloudflare Access enquanto o teste público temporário estiver ativo.
+
 ## [0.23.4] - 2026-08-04
 
 ### Segurança

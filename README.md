@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.23.3`
+**Versão atual:** `0.24.0`
 
 ## O que já está implementado
 
@@ -26,6 +26,10 @@ Para gerar a versão de produção:
 ```bash
 pnpm build
 ```
+
+### Prévia da tela de login
+
+Com o servidor local em execução, abra `http://127.0.0.1:5173/?preview=login`. Esta é uma prévia visual: o fluxo real de autenticação continuará sob Cloudflare Access quando os testes públicos forem encerrados.
 
 ## Publicação no Cloudflare Pages
 
