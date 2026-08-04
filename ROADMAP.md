@@ -28,7 +28,7 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 
 - Status: em andamento. Identidade de cliente, biblioteca persistida por projeto e upload versionado para R2 validados localmente; criação do bucket remoto e publicação permanecem pendentes.
 - Adicionar arquivos do cliente diretamente no projeto e organizá-los automaticamente na Biblioteca.
-- Criar pastas padronizadas: Logo, KV, Vídeos, Artes, Briefing, Contrato e categorias personalizadas.
+- Criar pastas padronizadas: Logo, KV, Vídeos, Artes, Briefing, Contrato e categorias personalizadas. Concluído localmente.
 - Implementar metadados, histórico e versionamento de arquivos.
 - Integrar uploads ao Cloudflare R2 com regras de acesso por projeto e cargo.
 - Realizar a prova de conceito do MEGA.nz para associar links compartilhados a pastas ou versões de arquivos; manter R2 como armazenamento oficial caso a integração não atenda aos requisitos de segurança e automação.

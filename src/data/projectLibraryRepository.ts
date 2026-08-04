@@ -28,6 +28,17 @@ export type UploadProjectLibraryFileInput = {
   file: File
 }
 
+export async function createProjectLibraryFolder(projectId: string, name: string): Promise<ProjectLibraryFolder> {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/library/folders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  const payload = await response.json().catch(() => ({})) as { error?: string; folder?: ProjectLibraryFolder }
+  if (!response.ok || !payload.folder) throw new Error(payload.error ?? 'Não foi possível criar a pasta')
+  return payload.folder
+}
+
 const standardFolders = [
   ['Logo', 'logo'],
   ['KV', 'kv'],

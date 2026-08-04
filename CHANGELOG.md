@@ -2,6 +2,17 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.30.0] - 2026-08-04
+
+### Adicionado
+
+- Criação de pastas personalizadas dentro da Biblioteca do Projeto.
+- Validação de nome, prevenção de duplicidade e ordenação das novas categorias no D1.
+
+### Segurança
+
+- Apenas Administração e Gestão podem criar categorias personalizadas.
+
 ## [0.29.0] - 2026-08-04
 
 ### Adicionado
