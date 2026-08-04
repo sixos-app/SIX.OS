@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.31.0`
+**Versão atual:** `0.32.0`
 
 ## O que já está implementado
 
@@ -16,7 +16,7 @@ MVP inicial do sistema operacional gamificado da Agência SIX.
 - Painel administrativo com cadastros protegidos de colaboradores e clientes.
 - Identidade de cliente com sigla e imagem de perfil aplicada aos projetos.
 - Biblioteca por projeto com pastas padrão, metadados de armazenamento e estrutura de histórico de versões no D1.
-- Central de Biblioteca unificada por cliente e projeto; novos projetos sempre selecionam um cliente existente.
+- Diretório de Biblioteca por cliente, com seletor de todos os clientes ativos e acesso às bibliotecas de cada projeto.
 
 ## Executar localmente
 

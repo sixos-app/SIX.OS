@@ -2,6 +2,14 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.32.0] - 2026-08-04
+
+### Alterado
+
+- Biblioteca do Ecossistema reposicionada como diretório de arquivos por cliente.
+- Seletor “Todos os clientes” adicionado à Biblioteca; a visão agora lista apenas os projetos do cliente escolhido.
+- Campo Cliente na criação de projeto passa a iniciar sem seleção e exige a escolha explícita de um cliente cadastrado.
+
 ## [0.31.0] - 2026-08-04
 
 ### Alterado

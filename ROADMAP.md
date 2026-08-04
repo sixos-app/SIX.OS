@@ -27,7 +27,7 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 ## Fase 2 — Projetos, clientes e biblioteca de arquivos
 
 - Status: em andamento. Identidade de cliente, biblioteca persistida por projeto e upload versionado para R2 validados localmente; criação do bucket remoto e publicação permanecem pendentes.
-- Estrutura de navegação definida: Cliente → Projetos → Biblioteca. A Central de Biblioteca atua como índice, sem duplicar arquivos dos projetos.
+- Estrutura de navegação definida: Biblioteca do Ecossistema → Cliente → Projetos → Arquivos. O seletor de clientes controla o diretório e evita duplicação dos arquivos dos projetos.
 - Adicionar arquivos do cliente diretamente no projeto e organizá-los automaticamente na Biblioteca.
 - Criar pastas padronizadas: Logo, KV, Vídeos, Artes, Briefing, Contrato e categorias personalizadas. Concluído localmente.
 - Implementar metadados, histórico e versionamento de arquivos.
