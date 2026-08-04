@@ -5,7 +5,7 @@ INSERT OR IGNORE INTO teams (id, organization_id, name) VALUES
   ('team-six', 'org-six', 'Time SIX');
 
 INSERT OR IGNORE INTO users (id, organization_id, team_id, name, email, role) VALUES
-  ('team-guilherme', 'org-six', 'team-six', 'Guilherme', 'six.criacao@icloud.com', 'admin'),
+  ('team-guilherme', 'org-six', 'team-six', 'Guilherme', 'six.guimell@gmail.com', 'admin'),
   ('team-lorraine', 'org-six', 'team-six', 'Lorraine', 'lorraine@sixos.app', 'collaborator'),
   ('team-mateus', 'org-six', 'team-six', 'Mateus', 'mateus@sixos.app', 'collaborator'),
   ('team-vitoria', 'org-six', 'team-six', 'Vitória', 'vitoria@sixos.app', 'collaborator'),

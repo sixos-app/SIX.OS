@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.23.2] - 2026-08-04
+
+### Segurança
+
+- Cloudflare Access ativado para `six-os.pages.dev`, com política de acesso exclusiva para `six.guimell@gmail.com`.
+- Usuário administrador inicial do D1 alinhado ao e-mail autorizado pelo Cloudflare Access.
+
 ## [0.23.1] - 2026-08-04
 
 ### Infraestrutura
