@@ -41,7 +41,9 @@ O projeto de produção já está vinculado ao banco D1 `six-os` pela variável 
 
 ### Acesso compartilhado com Cloudflare Access
 
-O ambiente de produção já tem a aplicação **SIX.OS** do tipo **Self-hosted** protegendo `six-os.pages.dev`. A política **SIX.OS — Guilherme** permite apenas `six.guimell@gmail.com`.
+O ambiente de produção tem a aplicação **SIX.OS** do tipo **Self-hosted** para `six-os.pages.dev`. A política **SIX.OS — Guilherme** permite apenas `six.guimell@gmail.com` e está preservada para reativação.
+
+Durante os testes compartilhados, a política **SIX.OS — Teste público temporário** usa bypass para liberar o acesso direto ao app. Não envie dados reais ou confidenciais enquanto essa política estiver ativa.
 
 Para adicionar alguém ao time:
 

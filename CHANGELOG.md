@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.23.4] - 2026-08-04
+
+### Segurança
+
+- Cloudflare Access temporariamente liberado para testes públicos por meio da política `SIX.OS — Teste público temporário`.
+- Política restrita de Guilherme preservada para reativação após os testes.
+
 ## [0.23.3] - 2026-08-04
 
 ### Planejamento
