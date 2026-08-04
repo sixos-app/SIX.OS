@@ -2,6 +2,23 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.29.0] - 2026-08-04
+
+### Adicionado
+
+- Upload de arquivos de até 25 MB direto na Biblioteca do Projeto, com download autenticado.
+- Armazenamento de conteúdo no binding Cloudflare R2 `FILES` e metadados no D1.
+- Versionamento automático ao reenviar um arquivo com o mesmo nome para a mesma pasta.
+- Permissão de upload para Administração e Gestão, além de colaboradores com missão atribuída ao projeto.
+
+### Segurança
+
+- Consulta, envio e download da biblioteca agora exigem gestão da biblioteca ou vínculo por missão com a frente solicitada.
+
+### Observações
+
+- O R2 foi validado apenas no ambiente local do Wrangler. O bucket remoto `six-os-files` ainda não foi criado nem vinculado a uma publicação.
+
 ## [0.28.0] - 2026-08-04
 
 ### Adicionado

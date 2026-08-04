@@ -7,3 +7,7 @@ binding = "DB"
 database_name = "six-os"
 database_id = "de5f9b02-a8a3-4602-943f-f61bdb524f74"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "six-os-files"

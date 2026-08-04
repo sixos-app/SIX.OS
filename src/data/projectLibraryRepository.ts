@@ -22,6 +22,12 @@ export type ProjectLibrary = {
   files: ProjectLibraryFile[]
 }
 
+export type UploadProjectLibraryFileInput = {
+  projectId: string
+  folderId: string
+  file: File
+}
+
 const standardFolders = [
   ['Logo', 'logo'],
   ['KV', 'kv'],
@@ -46,4 +52,15 @@ export async function getProjectLibrary(projectId: string): Promise<ProjectLibra
     folders: Array.isArray(payload.folders) ? payload.folders : projectLibrarySeed.folders,
     files: Array.isArray(payload.files) ? payload.files : [],
   }
+}
+
+export async function uploadProjectLibraryFile({ projectId, folderId, file }: UploadProjectLibraryFileInput): Promise<ProjectLibraryFile> {
+  const form = new FormData()
+  form.append('folderId', folderId)
+  form.append('file', file)
+
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/library/upload`, { method: 'POST', body: form })
+  const payload = await response.json().catch(() => ({})) as { error?: string; file?: ProjectLibraryFile }
+  if (!response.ok || !payload.file) throw new Error(payload.error ?? 'Não foi possível enviar o arquivo')
+  return payload.file
 }

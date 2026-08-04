@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.28.0`
+**Versão atual:** `0.29.0`
 
 ## O que já está implementado
 
@@ -44,7 +44,7 @@ O cadastro de cliente exige uma sigla de 2 a 6 caracteres. Ela é o fallback vis
 
 ### Biblioteca do projeto
 
-Cada projeto recebe as pastas `Logo`, `KV`, `Vídeos`, `Artes`, `Briefing`, `Contrato` e `Outros`. O D1 já guarda a organização, a versão e o histórico de cada arquivo; o upload físico e as regras de download entram com a integração do Cloudflare R2. Links do MEGA.nz serão apenas referências compartilhadas opcionais.
+Cada projeto recebe as pastas `Logo`, `KV`, `Vídeos`, `Artes`, `Briefing`, `Contrato` e `Outros`. É possível enviar arquivos de até 25 MB pela Biblioteca do Projeto; um reenvio com o mesmo nome na mesma pasta cria uma nova versão. O D1 guarda organização e histórico, enquanto o conteúdo vai para o Cloudflare R2. A integração foi validada localmente; o bucket remoto `six-os-files` deve ser criado antes da próxima publicação. Links do MEGA.nz serão apenas referências compartilhadas opcionais.
 
 ## Publicação no Cloudflare Pages
 
