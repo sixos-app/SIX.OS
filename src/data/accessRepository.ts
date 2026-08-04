@@ -5,6 +5,8 @@ export type AccessSession = {
   role: string
 }
 
+type LoginResult = { user?: AccessSession; error?: string }
+
 export async function getAccessSession(): Promise<AccessSession | null> {
   try {
     const response = await fetch('/api/session', { headers: { Accept: 'application/json' } })
@@ -14,5 +16,21 @@ export async function getAccessSession(): Promise<AccessSession | null> {
     return payload.user ?? null
   } catch {
     return null
+  }
+}
+
+export async function loginWithPassword(username: string, password: string): Promise<LoginResult> {
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+    if (!response.headers.get('content-type')?.includes('application/json')) return { error: 'O serviço de acesso não está disponível neste ambiente.' }
+
+    const payload = await response.json() as LoginResult
+    return response.ok ? payload : { error: payload.error ?? 'Não foi possível entrar.' }
+  } catch {
+    return { error: 'O serviço de acesso não está disponível neste ambiente.' }
   }
 }

@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { dashboardSeed, type AgendaEvent, type AnalyticsData, type AppNotification, type DashboardData, type LibraryResource, type Mission, type Project, type TeamMember } from './data/dashboard'
-import { getAccessSession, type AccessSession } from './data/accessRepository'
+import { getAccessSession, loginWithPassword, type AccessSession } from './data/accessRepository'
+import { adminOverviewPreview, getAdminOverview, type AdminOverview } from './data/adminRepository'
 import { completeMission as persistMissionCompletion, getDashboard } from './data/dashboardRepository'
 
 type IconName =
@@ -249,8 +250,10 @@ function getProjectHealth(project: Project, missions: Mission[], completed: stri
 }
 
 function LoginPreview() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const phrases = [
     'Tornar possível é viver o extraordinário.',
     'Ideias fortes merecem execução extraordinária.',
@@ -258,16 +261,25 @@ function LoginPreview() {
   ]
   const phrase = phrases[new Date().getDate() % phrases.length]
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const normalizedEmail = email.trim()
+    const normalizedUsername = username.trim()
 
-    if (!normalizedEmail) {
-      setMessage('Informe seu e-mail para continuar.')
+    if (!normalizedUsername || !password) {
+      setMessage('Informe seu login e senha para continuar.')
       return
     }
 
-    setMessage(`Quando a proteção for reativada, enviaremos um código para ${normalizedEmail}.`)
+    setIsSubmitting(true)
+    setMessage('')
+    const result = await loginWithPassword(normalizedUsername, password)
+    setIsSubmitting(false)
+    if (result.user) {
+      window.location.assign('/')
+      return
+    }
+
+    setMessage(result.error ?? 'Não foi possível entrar.')
   }
 
   return (
@@ -292,13 +304,17 @@ function LoginPreview() {
         <section className="login-form-panel" aria-labelledby="login-title">
           <span className="login-panel-kicker">ACESSO SIX.OS</span>
           <h2 id="login-title">Entre para fazer o <em>impossível.</em></h2>
-          <p>Use seu e-mail profissional para acessar a operação da SIX.</p>
+          <p>Use seu login profissional para acessar a operação da SIX.</p>
           <form className="login-form" onSubmit={handleSubmit}>
             <label>
-              <span>E-MAIL PROFISSIONAL</span>
-              <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" placeholder="voce@agenciasix.com.br" />
+              <span>LOGIN OU E-MAIL</span>
+              <input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" placeholder="seu.login" />
             </label>
-            <button className="login-primary-action" type="submit">Continuar com e-mail <span>→</span></button>
+            <label>
+              <span>SENHA</span>
+              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Sua senha" />
+            </label>
+            <button className="login-primary-action" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Entrando…' : <>Continuar <span>→</span></>}</button>
           </form>
           {message && <p className="login-message" role="status">{message}</p>}
           <div className="login-divider"><span>OU, EM BREVE</span></div>
@@ -306,7 +322,7 @@ function LoginPreview() {
             <button className="login-provider-button" type="button" disabled>Google <small>EM BREVE</small></button>
             <button className="login-provider-button" type="button" disabled>Microsoft <small>EM BREVE</small></button>
           </div>
-          <p className="login-notice">Prévia visual da autenticação. O acesso público de testes permanece ativo temporariamente.</p>
+          <p className="login-notice">O acesso público de testes permanece ativo temporariamente. Esta entrada é destinada ao painel administrativo.</p>
         </section>
       </div>
     </main>
@@ -314,9 +330,11 @@ function LoginPreview() {
 }
 
 export default function App() {
-  const isLoginPreview = new URLSearchParams(window.location.search).get('preview') === 'login'
+  const preview = new URLSearchParams(window.location.search).get('preview')
 
-  return isLoginPreview ? <LoginPreview /> : <AppShell />
+  if (preview === 'login') return <LoginPreview />
+  if (preview === 'admin') return <AdminPage preview />
+  return <AppShell />
 }
 
 function AppShell() {
@@ -542,6 +560,13 @@ function AppShell() {
               <span>{item.label}</span>
             </button>
           ))}
+          {accessSession?.role === 'admin' && <>
+            <p className="nav-caption nav-caption-lower">GESTÃO</p>
+            <button className={`nav-item ${activeSection === 'admin' ? 'active' : ''}`} onClick={() => setActiveSection('admin')}>
+              <Icon name="people" />
+              <span>Administração</span>
+            </button>
+          </>}
         </nav>
 
         <button className="ai-prompt" onClick={() => setIsAiOpen(true)}>
@@ -552,7 +577,7 @@ function AppShell() {
 
         <button className="account">
           <Avatar initials={accessSession ? getInitials(accessSession.name) : 'GS'} tone="photo" small />
-          <span><b>{accessSession?.name ?? 'Guilherme'}</b><small>{accessSession ? 'Cloudflare Access' : 'Modo local'}</small></span>
+          <span><b>{accessSession?.name ?? 'Guilherme'}</b><small>{accessSession ? accessSession.role === 'admin' ? 'Administrador' : 'Sessão SIX' : 'Modo local'}</small></span>
           <span>•••</span>
         </button>
       </aside>
@@ -607,6 +632,8 @@ function AppShell() {
           <AnalyticsPage analytics={dashboardData.analytics} projects={projectsWithMissionProgress} missions={dashboardData.missions} team={dashboardData.team} completed={completed} totalXp={totalXp} baseXp={dashboardData.profile.xp} />
         ) : activeSection === 'library' ? (
           <LibraryPage resources={dashboardData.library} />
+        ) : activeSection === 'admin' && accessSession?.role === 'admin' ? (
+          <AdminPage />
         ) : (
           <ComingSoon title={sectionLabels[activeSection]} onBack={() => setActiveSection('home')} />
         )}
@@ -627,6 +654,39 @@ function AppShell() {
       {completionMessage && <div className="completion-toast" role="status"><span>✦</span>{completionMessage}<button onClick={() => setCompletionMessage('')} aria-label="Fechar aviso">×</button></div>}
     </main>
   )
+}
+
+function AdminPage({ preview = false }: { preview?: boolean }) {
+  const [overview, setOverview] = useState<AdminOverview | null>(preview ? adminOverviewPreview : null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (preview) return
+    void getAdminOverview().then(setOverview).catch((reason: Error) => setError(reason.message))
+  }, [preview])
+
+  const data = overview ?? adminOverviewPreview
+
+  return <div className="admin-page">
+    <section className="admin-intro">
+      <div><span>PAINEL ADMINISTRATIVO</span><h1>Controle a <em>operação.</em></h1><p>Colaboradores, cargos e configurações centrais da Agência SIX em um só lugar.</p></div>
+      <div className="admin-status"><i /><span>{preview ? 'PRÉVIA LOCAL' : 'ACESSO ADMINISTRATIVO'}</span><b>{preview ? 'Painel em demonstração' : 'Permissões verificadas'}</b></div>
+    </section>
+
+    {error ? <p className="admin-error">{error}</p> : <>
+      <section className="admin-metrics">
+        <article><span>COLABORADORES</span><b>{data.team.length}</b><small>Perfis ativos na organização</small></article>
+        <article><span>CARGOS CONFIGURADOS</span><b>{data.roles.length}</b><small>Escopos prontos para aplicar</small></article>
+        <article><span>CLIENTES CADASTRADOS</span><b>{data.clientCount}</b><small>Base operacional atual</small></article>
+        <article className="admin-metric-highlight"><span>CONTA ADMIN</span><b>agsix</b><small>Perfil administrativo criado</small></article>
+      </section>
+
+      <section className="admin-grid">
+        <article className="admin-card admin-team-card"><div className="admin-card-head"><div><span>EQUIPE</span><h2>Perfis e <em>acessos.</em></h2></div><b>{data.team.length} pessoas</b></div><div className="admin-team-list">{data.team.map((member) => <div key={member.id}><i>{member.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</i><p><b>{member.name}</b><small>{member.username ? `@${member.username}` : member.email}</small></p><span>{member.role === 'admin' ? 'ADMIN' : member.role.toUpperCase()}</span></div>)}</div></article>
+        <article className="admin-card"><div className="admin-card-head"><div><span>RBAC</span><h2>Cargos e <em>regras.</em></h2></div><b>{data.roles.reduce((total, role) => total + role.permissionCount, 0)} permissões</b></div><div className="admin-role-list">{data.roles.map((role) => <div key={role.code}><p><b>{role.name}</b><small>{role.description}</small></p><span>{role.permissionCount}</span></div>)}</div></article>
+      </section>
+    </>}
+  </div>
 }
 
 function Dashboard({

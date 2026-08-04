@@ -2,6 +2,19 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.25.0] - 2026-08-04
+
+### Adicionado
+
+- Perfil administrador `agsix` criado pela migration `0004_admin_credentials.sql`, com credencial derivada por PBKDF2 e sessão HTTP-only de 12 horas.
+- Endpoints de login, logout e sessão complementar ao Cloudflare Access.
+- Painel administrativo restrito ao cargo Administrador, com visão de colaboradores, cargos, permissões e clientes.
+
+### Segurança
+
+- Tokens de sessão são aleatórios, armazenados apenas como hash no D1 e removidos ao expirar ou sair.
+- A senha inicial não é exposta no frontend nem registrada em texto neste repositório.
+
 ## [0.24.0] - 2026-08-04
 
 ### Adicionado

@@ -18,6 +18,7 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 
 ## Fase 1 — Administração e controle por cargo
 
+- Status: em andamento. Fundação RBAC, perfil administrador e painel de leitura já entregues localmente.
 - Criar o painel administrativo exclusivo para administradores.
 - Permitir cadastro de colaboradores, clientes e cargos.
 - Implementar as permissões de Administrador, Gestão, Coordenador, Atendimento e Especialistas (Designer, Motion e Social Media).

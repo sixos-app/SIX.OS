@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.24.0`
+**Versão atual:** `0.25.0`
 
 ## O que já está implementado
 
@@ -29,7 +29,11 @@ pnpm build
 
 ### Prévia da tela de login
 
-Com o servidor local em execução, abra `http://127.0.0.1:5173/?preview=login`. Esta é uma prévia visual: o fluxo real de autenticação continuará sob Cloudflare Access quando os testes públicos forem encerrados.
+Com o servidor local em execução, abra `http://127.0.0.1:5173/?preview=login`. A interface usa os endpoints de sessão do Pages quando o app é servido por `wrangler pages dev` ou Cloudflare Pages.
+
+### Administrador inicial
+
+A migration `0004_admin_credentials.sql` cria o perfil administrativo `agsix`, as tabelas de credenciais e sessões, e o associa ao cargo Administrador. A senha fornecida para a configuração inicial é armazenada apenas como derivação PBKDF2 com salt individual. Troque-a antes de aplicar a migration no ambiente remoto.
 
 ## Publicação no Cloudflare Pages
 
@@ -55,7 +59,7 @@ Para adicionar alguém ao time:
 2. Insira no D1 o usuário com o mesmo e-mail e crie o respectivo perfil em `gamification_profiles`.
 3. As Functions usam o cabeçalho verificado `Cf-Access-Authenticated-User-Email` para identificar a pessoa e limitar os dados à sua organização.
 
-Sem uma sessão Access válida, o frontend continua no modo local e as APIs recusam acesso ao banco.
+Sem uma sessão Cloudflare Access ou SIX válida, o frontend continua no modo local e as APIs recusam acesso ao banco. Enquanto a política pública temporária estiver ativa, não cadastre dados reais ou confidenciais.
 
 ## Versões
 
