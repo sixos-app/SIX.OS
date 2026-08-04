@@ -2,6 +2,18 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.27.0] - 2026-08-04
+
+### Adicionado
+
+- Identidade do cliente com sigla obrigatória de 2 a 6 caracteres, usada automaticamente nos cartões e detalhes de projetos.
+- Imagem de perfil opcional para o cliente; quando presente, ela substitui a sigla nas referências visuais do projeto.
+- API autenticada para consultar identidades de clientes na operação.
+
+### Observações
+
+- Enquanto o Cloudflare R2 não entra na Fase 2, imagens pequenas de perfil ficam no D1 como data URL, limitadas a 250 KB e aos formatos PNG, JPEG e WebP.
+
 ## [0.26.0] - 2026-08-04
 
 ### Adicionado

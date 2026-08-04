@@ -1,6 +1,6 @@
 import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../_access'
 
-type CreateClientPayload = { name?: unknown }
+type CreateClientPayload = { name?: unknown; shortCode?: unknown; imageDataUrl?: unknown }
 
 export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
@@ -15,9 +15,16 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   }
 
   const name = typeof payload.name === 'string' ? payload.name.trim() : ''
-  if (!name || name.length > 120) return Response.json({ error: 'Informe o nome do cliente' }, { status: 400 })
+  const shortCode = typeof payload.shortCode === 'string' ? payload.shortCode.trim().toLocaleUpperCase('en-US') : ''
+  const imageUrl = typeof payload.imageDataUrl === 'string' && payload.imageDataUrl ? payload.imageDataUrl : null
+  const imageIsValid = imageUrl === null || (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(imageUrl) && imageUrl.length <= 350000)
+  if (!name || name.length > 120 || !/^[A-Z0-9]{2,6}$/.test(shortCode) || !imageIsValid) return Response.json({ error: 'Informe nome, sigla de 2 a 6 caracteres e uma imagem válida de até 250 KB' }, { status: 400 })
 
   const id = `client-${crypto.randomUUID()}`
-  await env.DB.prepare('INSERT INTO clients (id, organization_id, name) VALUES (?, ?, ?)').bind(id, user.organizationId, name).run()
-  return Response.json({ client: { id, name } }, { status: 201 })
+  try {
+    await env.DB.prepare('INSERT INTO clients (id, organization_id, name, short_code, image_url) VALUES (?, ?, ?, ?, ?)').bind(id, user.organizationId, name, shortCode, imageUrl).run()
+  } catch {
+    return Response.json({ error: 'Esta sigla já está em uso' }, { status: 409 })
+  }
+  return Response.json({ client: { id, name, shortCode, imageUrl } }, { status: 201 })
 }

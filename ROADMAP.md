@@ -26,6 +26,7 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 
 ## Fase 2 — Projetos, clientes e biblioteca de arquivos
 
+- Status: em andamento. Identidade de cliente com sigla, imagem de perfil e exibição em projetos entregue localmente.
 - Adicionar arquivos do cliente diretamente no projeto e organizá-los automaticamente na Biblioteca.
 - Criar pastas padronizadas: Logo, KV, Vídeos, Artes, Briefing, Contrato e categorias personalizadas.
 - Implementar metadados, histórico e versionamento de arquivos.

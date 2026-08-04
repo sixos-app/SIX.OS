@@ -1,3 +1,5 @@
+import type { ClientIdentity } from './clientRepository'
+
 export type AdminTeamMember = {
   id: string
   name: string
@@ -24,6 +26,12 @@ export type CreateAdminUserInput = {
   email: string
   role: string
   username: string
+}
+
+export type CreateAdminClientInput = {
+  name: string
+  shortCode: string
+  imageDataUrl: string | null
 }
 
 export const adminOverviewPreview: AdminOverview = {
@@ -64,6 +72,7 @@ export async function createAdminUser(input: CreateAdminUserInput) {
   return payload.member
 }
 
-export async function createAdminClient(name: string) {
-  return requestAdmin<{ client: { id: string; name: string } }>('/api/admin/clients', { name })
+export async function createAdminClient(input: CreateAdminClientInput) {
+  const payload = await requestAdmin<{ client: ClientIdentity }>('/api/admin/clients', input)
+  return payload.client
 }

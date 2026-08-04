@@ -2,6 +2,7 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 're
 import { dashboardSeed, type AgendaEvent, type AnalyticsData, type AppNotification, type DashboardData, type LibraryResource, type Mission, type Project, type TeamMember } from './data/dashboard'
 import { getAccessSession, loginWithPassword, type AccessSession } from './data/accessRepository'
 import { adminOverviewPreview, createAdminClient, createAdminUser, getAdminOverview, type AdminOverview, type CreateAdminUserInput } from './data/adminRepository'
+import { clientIdentitySeed, getClientIdentities, type ClientIdentity } from './data/clientRepository'
 import { completeMission as persistMissionCompletion, getDashboard } from './data/dashboardRepository'
 
 type IconName =
@@ -207,6 +208,12 @@ function applyStoredProjectEdits(projects: Project[]) {
   return projects.map((project) => ({ ...project, ...edits[project.id] }))
 }
 
+function enrichProjectClientIdentity(project: Project, clients: ClientIdentity[]) {
+  const client = clients.find((item) => item.name === project.client)
+  if (!client) return project
+  return { ...project, code: client.shortCode ?? project.code, clientImageUrl: client.imageUrl }
+}
+
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
     home: <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10Z" />,
@@ -228,6 +235,11 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
 
 function Avatar({ initials, tone = 'dark', small = false }: { initials: string; tone?: 'dark' | 'lime' | 'purple' | 'photo'; small?: boolean }) {
   return <span className={`avatar avatar-${tone} ${small ? 'avatar-small' : ''}`}>{initials}</span>
+}
+
+function ClientMark({ project, className }: { project: Project; className: string }) {
+  if (project.clientImageUrl) return <span className={`${className} client-mark has-image`}><img src={project.clientImageUrl} alt={`Perfil de ${project.client}`} /></span>
+  return <span className={`${className} client-mark`}>{project.code}</span>
 }
 
 function getInitials(name: string) {
@@ -348,11 +360,13 @@ function AppShell() {
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>(getStoredReadNotifications)
   const [completionMessage, setCompletionMessage] = useState('')
   const [accessSession, setAccessSession] = useState<AccessSession | null>(null)
+  const [clientIdentities, setClientIdentities] = useState<ClientIdentity[]>(clientIdentitySeed)
   const [dashboardData, setDashboardData] = useState(() => ({ ...dashboardSeed, missions: applyStoredMissionAssignees([...dashboardSeed.missions, ...getStoredCustomMissions()]), projects: applyStoredProjectEdits([...dashboardSeed.projects, ...getStoredCustomProjects()]) }))
 
   useEffect(() => {
     void getDashboard().then((dashboard) => setDashboardData({ ...dashboard, missions: applyStoredMissionAssignees([...dashboard.missions, ...getStoredCustomMissions()]), projects: applyStoredProjectEdits([...dashboard.projects, ...getStoredCustomProjects()]) }))
     void getAccessSession().then(setAccessSession)
+    void getClientIdentities().then(setClientIdentities).catch(() => undefined)
   }, [])
 
   useEffect(() => {
@@ -375,17 +389,17 @@ function AppShell() {
 
   const projectsWithMissionProgress = useMemo(() => dashboardData.projects.map((project) => {
     const projectMissions = dashboardData.missions.filter((mission) => mission.projectId === project.id)
-    if (projectMissions.length === 0) return project
+    if (projectMissions.length === 0) return enrichProjectClientIdentity(project, clientIdentities)
 
     const completedProjectMissions = projectMissions.filter((mission) => completed.includes(mission.id)).length
     const isComplete = completedProjectMissions === projectMissions.length
 
-    return {
+    return enrichProjectClientIdentity({
       ...project,
       progress: Math.round((completedProjectMissions / projectMissions.length) * 100),
       status: isComplete ? 'CONCLUÍDO' : project.status,
-    }
-  }), [completed, dashboardData.missions, dashboardData.projects])
+    }, clientIdentities)
+  }), [clientIdentities, completed, dashboardData.missions, dashboardData.projects])
 
   const earnedXp = completed.reduce((total, id) => total + (dashboardData.missions.find((mission) => mission.id === id)?.xp ?? 0), 0)
   const totalXp = dashboardData.profile.xp + earnedXp
@@ -499,7 +513,8 @@ function AppShell() {
   }
 
   function createProject(input: { name: string; client: string; deadline: string; tone: Project['tone'] }) {
-    const code = input.name.split(/\s+/).map((part) => part.charAt(0)).join('').toLocaleUpperCase('pt-BR').slice(0, 3) || 'NEW'
+    const clientIdentity = clientIdentities.find((item) => item.name === input.client)
+    const code = clientIdentity?.shortCode ?? (input.client.split(/\s+/).map((part) => part.charAt(0)).join('').toLocaleUpperCase('pt-BR').slice(0, 6) || 'NEW')
     const project: Project = {
       id: `project-local-${Date.now()}`,
       code,
@@ -512,6 +527,7 @@ function AppShell() {
       members: ['GS'],
       nextStep: 'Definir a primeira direção e organizar o briefing inicial.',
       activity: 'Projeto criado agora e pronto para receber as primeiras missões.',
+      clientImageUrl: clientIdentity?.imageUrl,
     }
     const nextCustomProjects = [...getStoredCustomProjects(), project]
 
@@ -633,7 +649,7 @@ function AppShell() {
         ) : activeSection === 'library' ? (
           <LibraryPage resources={dashboardData.library} />
         ) : activeSection === 'admin' && accessSession?.role === 'admin' ? (
-          <AdminPage />
+          <AdminPage onClientCreated={(client) => setClientIdentities((current) => [...current.filter((item) => item.id !== client.id), client])} />
         ) : (
           <ComingSoon title={sectionLabels[activeSection]} onBack={() => setActiveSection('home')} />
         )}
@@ -656,7 +672,7 @@ function AppShell() {
   )
 }
 
-function AdminPage({ preview = false }: { preview?: boolean }) {
+function AdminPage({ preview = false, onClientCreated = () => undefined }: { preview?: boolean; onClientCreated?: (client: ClientIdentity) => void }) {
   const [overview, setOverview] = useState<AdminOverview | null>(preview ? adminOverviewPreview : null)
   const [error, setError] = useState('')
   const [dialog, setDialog] = useState<'user' | 'client' | null>(null)
@@ -673,9 +689,10 @@ function AdminPage({ preview = false }: { preview?: boolean }) {
     setOverview((current) => ({ ...(current ?? adminOverviewPreview), team: [...(current ?? adminOverviewPreview).team, member] }))
   }
 
-  async function handleCreateClient(name: string) {
-    await createAdminClient(name)
+  async function handleCreateClient(input: { name: string; shortCode: string; imageDataUrl: string | null }) {
+    const client = await createAdminClient(input)
     setOverview((current) => ({ ...(current ?? adminOverviewPreview), clientCount: (current ?? adminOverviewPreview).clientCount + 1 }))
+    onClientCreated(client)
   }
 
   return <div className="admin-page">
@@ -727,8 +744,10 @@ function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOverview['r
   return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo colaborador"><form className="mission-create-dialog admin-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de colaborador">×</button><span className="mission-create-icon"><Icon name="people" size={21} /></span><p>NOVO COLABORADOR</p><h2>Quem vai tornar<br /><em>possível?</em></h2><label><span>NOME</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} required /></label><label><span>E-MAIL</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required /></label><div className="mission-create-row"><label><span>LOGIN (OPCIONAL)</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="nome.sobrenome" /></label><label><span>CARGO</span><select value={role} onChange={(event) => setRole(event.target.value)}>{roles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label></div>{error && <p className="admin-dialog-error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR COLABORADOR <span>→</span></>}</button></form></div>
 }
 
-function AdminClientDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => Promise<void> }) {
+function AdminClientDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (input: { name: string; shortCode: string; imageDataUrl: string | null }) => Promise<void> }) {
   const [name, setName] = useState('')
+  const [shortCode, setShortCode] = useState('')
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -737,7 +756,7 @@ function AdminClientDialog({ onClose, onCreate }: { onClose: () => void; onCreat
     setIsSaving(true)
     setError('')
     try {
-      await onCreate(name.trim())
+      await onCreate({ name: name.trim(), shortCode: shortCode.trim().toLocaleUpperCase('en-US'), imageDataUrl })
       onClose()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível salvar o cliente.')
@@ -746,7 +765,15 @@ function AdminClientDialog({ onClose, onCreate }: { onClose: () => void; onCreat
     }
   }
 
-  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo cliente"><form className="mission-create-dialog admin-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de cliente">×</button><span className="mission-create-icon"><Icon name="folder" size={21} /></span><p>NOVO CLIENTE</p><h2>Uma nova parceria<br /><em>começa aqui.</em></h2><label><span>NOME DO CLIENTE</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} required /></label>{error && <p className="admin-dialog-error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR CLIENTE <span>→</span></>}</button></form></div>
+  function readImage(file: File | undefined) {
+    if (!file) return
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 250000) { setError('Use PNG, JPEG ou WebP de até 250 KB.'); return }
+    const reader = new FileReader()
+    reader.onload = () => setImageDataUrl(typeof reader.result === 'string' ? reader.result : null)
+    reader.readAsDataURL(file)
+  }
+
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo cliente"><form className="mission-create-dialog admin-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de cliente">×</button><span className="mission-create-icon"><Icon name="folder" size={21} /></span><p>NOVO CLIENTE</p><h2>Uma nova parceria<br /><em>começa aqui.</em></h2><label><span>NOME DO CLIENTE</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} required /></label><label><span>SIGLA DO CLIENTE</span><input value={shortCode} onChange={(event) => setShortCode(event.target.value.toLocaleUpperCase('en-US').slice(0, 6))} placeholder="Ex.: SHO" maxLength={6} required /></label><label className="client-image-input"><span>IMAGEM DO PERFIL (OPCIONAL)</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => readImage(event.target.files?.[0])} /><small>PNG, JPEG ou WebP · até 250 KB</small>{imageDataUrl && <img src={imageDataUrl} alt="Prévia do perfil do cliente" />}</label>{error && <p className="admin-dialog-error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR CLIENTE <span>→</span></>}</button></form></div>
 }
 
 function Dashboard({
@@ -1154,7 +1181,7 @@ function ProjectsPage({ projects, missions, completed, team, onCreateProject, on
             {projects.map((project) => {
               const isSelected = project.id === selectedProject.id
               return <button className={`project-list-card tone-${project.tone} ${isSelected ? 'selected' : ''}`} onClick={() => setSelectedProjectId(project.id)} aria-pressed={isSelected} key={project.id}>
-                <span className="project-list-code">{project.code}</span>
+                <ClientMark project={project} className="project-list-code" />
                 <span className="project-list-copy"><small>{project.status}</small><b>{project.name}</b><em>{project.deadline}</em></span>
                 <span className="project-list-progress"><b>{project.progress}%</b><i><span style={{ width: `${project.progress}%` }} /></i></span>
               </button>
@@ -1163,7 +1190,7 @@ function ProjectsPage({ projects, missions, completed, team, onCreateProject, on
         </div>
 
         <aside className={`project-detail tone-${selectedProject.tone}`}>
-          <div className="project-detail-header"><span>{selectedProject.status}</span><b>{selectedProject.code}</b></div>
+          <div className="project-detail-header"><span>{selectedProject.status}</span><ClientMark project={selectedProject} className="project-detail-client-mark" /></div>
           <h2>{selectedProject.name}</h2><p className="project-client">{selectedProject.client}</p>
           <div className="project-detail-progress"><div><span>PROGRESSO GERAL</span><b>{selectedProject.progress}%</b></div><i><span style={{ width: `${selectedProject.progress}%` }} /></i></div>
           <div className={`project-health project-health-${projectHealth.tone}`}><span>SAÚDE DA FRENTE</span><b>{projectHealth.label}</b></div>
@@ -1220,7 +1247,7 @@ function ProjectCard({ project, missions, team, onOpen }: { project: Project; mi
   const coverTone = project.tone === 'lime' ? 'project-green' : `project-${project.tone}`
   const collaborators = getProjectCollaborators(project, missions, team)
 
-  return <article className={`project-card ${coverTone}`}><div className="project-cover"><span>{project.code}</span><i /><p>TORNAR<br />POSSÍVEL</p></div><div className="project-details"><div><p>{project.status}</p><h3>{project.name}</h3></div><b>{project.progress}%</b></div><div className="project-progress"><i style={{ width: `${project.progress}%` }} /></div><div className="project-footer"><div className="avatars">{collaborators.slice(0, 3).map((member, index) => <Avatar initials={member.initials} tone={index === 1 ? 'lime' : member.tone} small key={member.id} />)}{collaborators.length > 3 && <span>+{collaborators.length - 3}</span>}</div><button onClick={onOpen}>ABRIR PROJETO <span>↗</span></button></div></article>
+  return <article className={`project-card ${coverTone}`}><div className="project-cover"><ClientMark project={project} className="project-cover-mark" /><i /><p>TORNAR<br />POSSÍVEL</p></div><div className="project-details"><div><p>{project.status}</p><h3>{project.name}</h3></div><b>{project.progress}%</b></div><div className="project-progress"><i style={{ width: `${project.progress}%` }} /></div><div className="project-footer"><div className="avatars">{collaborators.slice(0, 3).map((member, index) => <Avatar initials={member.initials} tone={index === 1 ? 'lime' : member.tone} small key={member.id} />)}{collaborators.length > 3 && <span>+{collaborators.length - 3}</span>}</div><button onClick={onOpen}>ABRIR PROJETO <span>↗</span></button></div></article>
 }
 
 function AgendaItem({ event }: { event: AgendaEvent }) {

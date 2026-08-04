@@ -27,6 +27,7 @@ export type Project = {
   members: string[]
   nextStep: string
   activity: string
+  clientImageUrl?: string | null
 }
 
 export type AgendaEvent = {

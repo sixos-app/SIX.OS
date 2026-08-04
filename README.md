@@ -14,6 +14,7 @@ MVP inicial do sistema operacional gamificado da Agência SIX.
 - Camada de dados tipada, preparada para consumir a API do produto.
 - Migração inicial e rotas de API para Cloudflare D1.
 - Painel administrativo com cadastros protegidos de colaboradores e clientes.
+- Identidade de cliente com sigla e imagem de perfil aplicada aos projetos.
 
 ## Executar localmente
 
@@ -35,6 +36,10 @@ Com o servidor local em execução, abra `http://127.0.0.1:5173/?preview=login`.
 ### Administrador inicial
 
 A migration `0004_admin_credentials.sql` cria o perfil administrativo `agsix`, as tabelas de credenciais e sessões, e o associa ao cargo Administrador. A senha fornecida para a configuração inicial é armazenada apenas como derivação PBKDF2 com salt individual. Troque-a antes de aplicar a migration no ambiente remoto.
+
+### Imagem de cliente
+
+O cadastro de cliente exige uma sigla de 2 a 6 caracteres. Ela é o fallback visual em projetos quando não há imagem. Até a integração com Cloudflare R2, a imagem de perfil aceita PNG, JPEG e WebP de até 250 KB e é guardada temporariamente no D1.
 
 ## Publicação no Cloudflare Pages
 
