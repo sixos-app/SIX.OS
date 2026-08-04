@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.25.0`
+**Versão atual:** `0.28.0`
 
 ## O que já está implementado
 
@@ -15,6 +15,7 @@ MVP inicial do sistema operacional gamificado da Agência SIX.
 - Migração inicial e rotas de API para Cloudflare D1.
 - Painel administrativo com cadastros protegidos de colaboradores e clientes.
 - Identidade de cliente com sigla e imagem de perfil aplicada aos projetos.
+- Biblioteca por projeto com pastas padrão, metadados de armazenamento e estrutura de histórico de versões no D1.
 
 ## Executar localmente
 
@@ -40,6 +41,10 @@ A migration `0004_admin_credentials.sql` cria o perfil administrativo `agsix`, a
 ### Imagem de cliente
 
 O cadastro de cliente exige uma sigla de 2 a 6 caracteres. Ela é o fallback visual em projetos quando não há imagem. Até a integração com Cloudflare R2, a imagem de perfil aceita PNG, JPEG e WebP de até 250 KB e é guardada temporariamente no D1.
+
+### Biblioteca do projeto
+
+Cada projeto recebe as pastas `Logo`, `KV`, `Vídeos`, `Artes`, `Briefing`, `Contrato` e `Outros`. O D1 já guarda a organização, a versão e o histórico de cada arquivo; o upload físico e as regras de download entram com a integração do Cloudflare R2. Links do MEGA.nz serão apenas referências compartilhadas opcionais.
 
 ## Publicação no Cloudflare Pages
 

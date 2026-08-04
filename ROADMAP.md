@@ -26,7 +26,7 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 
 ## Fase 2 — Projetos, clientes e biblioteca de arquivos
 
-- Status: em andamento. Identidade de cliente com sigla, imagem de perfil e exibição em projetos entregue localmente.
+- Status: em andamento. Identidade de cliente e biblioteca persistida por projeto com pastas padrão e estrutura de versões entregue localmente; upload físico para R2 permanece pendente.
 - Adicionar arquivos do cliente diretamente no projeto e organizá-los automaticamente na Biblioteca.
 - Criar pastas padronizadas: Logo, KV, Vídeos, Artes, Briefing, Contrato e categorias personalizadas.
 - Implementar metadados, histórico e versionamento de arquivos.

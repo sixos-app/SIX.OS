@@ -4,6 +4,7 @@ import { getAccessSession, loginWithPassword, type AccessSession } from './data/
 import { adminOverviewPreview, createAdminClient, createAdminUser, getAdminOverview, type AdminOverview, type CreateAdminUserInput } from './data/adminRepository'
 import { clientIdentitySeed, getClientIdentities, type ClientIdentity } from './data/clientRepository'
 import { completeMission as persistMissionCompletion, getDashboard } from './data/dashboardRepository'
+import { getProjectLibrary, projectLibrarySeed, type ProjectLibrary } from './data/projectLibraryRepository'
 
 type IconName =
   | 'home'
@@ -1160,6 +1161,7 @@ function ProjectsPage({ projects, missions, completed, team, onCreateProject, on
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isMissionCreateOpen, setIsMissionCreateOpen] = useState(false)
   const [isLifecycleOpen, setIsLifecycleOpen] = useState(false)
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false)
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0]
   const projectMissions = missions.filter((mission) => mission.projectId === selectedProject?.id)
   const projectCollaborators = selectedProject ? getProjectCollaborators(selectedProject, missions, team) : []
@@ -1197,6 +1199,7 @@ function ProjectsPage({ projects, missions, completed, team, onCreateProject, on
           <div className="project-detail-section"><span>PRÓXIMO MOVIMENTO</span><p>{selectedProject.nextStep}</p></div>
           <div className="project-detail-section"><span>ÚLTIMA ATUALIZAÇÃO</span><p>{selectedProject.activity}</p></div>
           <div className="project-detail-section"><div className="project-missions-heading"><span>MISSÕES ATRIBUÍDAS</span><button onClick={() => setIsMissionCreateOpen(true)}>NOVA MISSÃO <b>+</b></button></div><div className="project-mission-list">{projectMissions.length > 0 ? projectMissions.map((mission) => { const assignee = team.find((member) => member.id === mission.assigneeId); const isComplete = completed.includes(mission.id); return <article className={isComplete ? 'completed' : ''} key={mission.id}><div><b>{mission.title}</b><small>{assignee ? assignee.name : 'Responsável a definir'}</small></div><span>{isComplete ? 'FEITA' : 'EM ABERTO'}</span></article> }) : <p className="project-mission-empty">Esta frente ainda não tem missões. Crie a primeira nesta frente.</p>}</div></div>
+          <button className="project-library-button" onClick={() => setIsLibraryOpen(true)}>BIBLIOTECA DO PROJETO <span>↗</span></button>
           <button className="project-lifecycle-button" onClick={() => setIsLifecycleOpen(true)}>GERENCIAR CICLO DA FRENTE <span>↗</span></button>
           <div className="project-detail-footer"><div className="avatars">{projectCollaborators.slice(0, 3).map((member, index) => <Avatar initials={member.initials} tone={index === 1 ? 'lime' : member.tone} small key={member.id} />)}{projectCollaborators.length > 3 && <span>+{projectCollaborators.length - 3}</span>}</div><small>{projectCollaborators.length === 1 ? '1 pessoa na frente' : `${projectCollaborators.length} pessoas na frente`}</small></div>
         </aside>
@@ -1204,8 +1207,49 @@ function ProjectsPage({ projects, missions, completed, team, onCreateProject, on
       {isCreateOpen && <ProjectCreateModal onClose={() => setIsCreateOpen(false)} onCreate={(input) => { onCreateProject(input); setIsCreateOpen(false) }} />}
       {isMissionCreateOpen && <MissionCreateModal projects={projects} team={team} initialProjectId={selectedProject.id} onClose={() => setIsMissionCreateOpen(false)} onCreate={(input) => { onCreateMission(input); setIsMissionCreateOpen(false) }} />}
       {isLifecycleOpen && <ProjectLifecycleModal project={selectedProject} onClose={() => setIsLifecycleOpen(false)} onUpdate={(input) => { onUpdateProjectLifecycle(selectedProject.id, input); setIsLifecycleOpen(false) }} />}
+      {isLibraryOpen && <ProjectLibraryModal project={selectedProject} onClose={() => setIsLibraryOpen(false)} />}
     </section>
   )
+}
+
+function ProjectLibraryModal({ project, onClose }: { project: Project; onClose: () => void }) {
+  const [library, setLibrary] = useState<ProjectLibrary>(projectLibrarySeed)
+  const [selectedFolderSlug, setSelectedFolderSlug] = useState(projectLibrarySeed.folders[0]?.slug ?? '')
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasRemoteLibrary, setHasRemoteLibrary] = useState(false)
+
+  useEffect(() => {
+    let isCurrent = true
+    setIsLoading(true)
+    setHasRemoteLibrary(false)
+    setSelectedFolderSlug(projectLibrarySeed.folders[0]?.slug ?? '')
+
+    void getProjectLibrary(project.id).then((nextLibrary) => {
+      if (!isCurrent) return
+      setLibrary(nextLibrary)
+      setSelectedFolderSlug(nextLibrary.folders[0]?.slug ?? '')
+      setHasRemoteLibrary(true)
+    }).catch(() => {
+      if (isCurrent) setLibrary(projectLibrarySeed)
+    }).finally(() => {
+      if (isCurrent) setIsLoading(false)
+    })
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      isCurrent = false
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [onClose, project.id])
+
+  const selectedFolder = library.folders.find((folder) => folder.slug === selectedFolderSlug) ?? library.folders[0]
+  const visibleFiles = library.files.filter((file) => file.folderId === selectedFolder?.id)
+
+  return <div className="mission-create-overlay project-library-overlay" role="dialog" aria-modal="true" aria-label={`Biblioteca do projeto ${project.name}`}><section className="project-library-dialog"><button className="close-button" type="button" onClick={onClose} aria-label="Fechar biblioteca do projeto">×</button><div className="project-library-head"><div><span>BIBLIOTECA DO PROJETO</span><h2>{project.name}</h2><p>{project.client} · {project.code}</p></div><ClientMark project={project} className="project-library-client-mark" /></div><div className="project-library-status"><span>ARMAZENAMENTO</span><b>Cloudflare R2 entra na próxima entrega</b><small>As pastas, o histórico e as versões já estão estruturados no D1.</small></div><div className="project-library-layout"><div className="project-library-folders"><span>PASTAS DO CLIENTE</span><div>{library.folders.map((folder) => <button className={folder.slug === selectedFolder?.slug ? 'selected' : ''} onClick={() => setSelectedFolderSlug(folder.slug)} aria-pressed={folder.slug === selectedFolder?.slug} key={folder.id}><i>⌁</i><b>{folder.name}</b><small>{folder.fileCount} arquivo{folder.fileCount === 1 ? '' : 's'}</small></button>)}</div></div><div className="project-library-files"><div className="project-library-files-head"><div><span>{selectedFolder?.name ?? 'Pasta'}</span><b>{visibleFiles.length} arquivo{visibleFiles.length === 1 ? '' : 's'}</b></div>{isLoading && <small>Sincronizando estrutura…</small>}</div>{visibleFiles.length > 0 ? <div className="project-library-file-list">{visibleFiles.map((file) => <article key={file.id}><i>{file.fileType}</i><div><b>{file.name}</b><small>Versão {file.version} · {file.historyCount} registro{file.historyCount === 1 ? '' : 's'} no histórico</small></div></article>)}</div> : <div className="project-library-empty"><b>Nenhum arquivo nesta pasta</b><p>{hasRemoteLibrary ? 'A estrutura está pronta para receber os arquivos do cliente. O upload seguro para R2 será a próxima entrega desta fase.' : 'Faça login para consultar a biblioteca persistida deste projeto.'}</p></div>}</div></div><div className="project-library-footer"><span>MEGA.nz será tratado como link compartilhado opcional, nunca como origem principal.</span><b>VERSÕES PRONTAS PARA R2</b></div></section></div>
 }
 
 function ProjectLifecycleModal({ project, onClose, onUpdate }: { project: Project; onClose: () => void; onUpdate: (input: { status: string; deadline: string; nextStep: string }) => void }) {

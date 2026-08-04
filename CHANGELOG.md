@@ -2,6 +2,20 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.28.0] - 2026-08-04
+
+### Adicionado
+
+- Biblioteca individual por projeto, acessível pela Central de Projetos.
+- Pastas padrão para Logo, KV, Vídeos, Artes, Briefing, Contrato e Outros.
+- Estrutura no D1 para metadados de arquivo, fornecedor de armazenamento e histórico versionado.
+- Endpoint autenticado e isolado por organização para consultar a biblioteca de cada projeto.
+
+### Observações
+
+- O upload físico para Cloudflare R2 ainda não foi habilitado; a interface informa claramente este próximo passo e não simula arquivos armazenados.
+- MEGA.nz segue planejado somente como link compartilhado opcional após prova de conceito.
+
 ## [0.27.0] - 2026-08-04
 
 ### Adicionado
