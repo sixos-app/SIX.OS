@@ -1,0 +1,9 @@
+name = "six-os"
+compatibility_date = "2026-08-04"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "six-os"
+database_id = "de5f9b02-a8a3-4602-943f-f61bdb524f74"
+migrations_dir = "migrations"

@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.0.2`
+**Versão atual:** `0.23.1`
 
 ## O que já está implementado
 
@@ -37,7 +37,16 @@ Depois de enviar este repositório ao GitHub, no Cloudflare Pages selecione **Cr
 - **Node.js:** a versão `22.16.0` já está fixada em `.node-version`.
 - **pnpm:** defina `PNPM_VERSION` como `11.9.0` nas variáveis de ambiente do Pages.
 
-Após o primeiro deploy, em **Settings → Bindings → Add → D1 database bindings**, conecte o banco com o nome de variável `DB` e faça um novo deploy. As rotas em `functions/api` passarão a usar os dados reais.
+O projeto de produção já está vinculado ao banco D1 `six-os` pela variável `DB`. A configuração reproduzível fica em `wrangler.toml`; as migrations incluem a estrutura e os dados iniciais do SIX.OS.
+
+### Acesso compartilhado com Cloudflare Access
+
+1. Em **Cloudflare Zero Trust → Access → Applications**, crie uma aplicação do tipo **Self-hosted** para o domínio do SIX.OS.
+2. Crie uma política permitindo apenas os e-mails do time SIX.
+3. Mantenha a proteção ativa para `/api/*`: as Functions usam o cabeçalho verificado `Cf-Access-Authenticated-User-Email` para identificar a pessoa e limitar os dados à sua organização.
+4. Insira no D1 os usuários com o mesmo e-mail usado no Cloudflare Access e crie o respectivo perfil em `gamification_profiles`.
+
+Sem uma sessão Access válida, o frontend continua no modo local e as APIs recusam acesso ao banco.
 
 ## Versões
 
@@ -45,7 +54,5 @@ As entregas seguem o processo descrito em `VERSIONING.md`. Os marcos recuperáve
 
 ## Próximas etapas
 
-1. Copie `wrangler.toml.example` para `wrangler.toml` e informe o banco D1 da Agência SIX.
-2. Aplique `migrations/0001_initial.sql` no banco com o Wrangler.
-3. Conecte a autenticação para substituir o perfil temporário usado pelas rotas de API.
-4. Integrar eventos do Runrun.it à regra de gamificação.
+1. Configure o Cloudflare Access seguindo as instruções acima.
+2. Integrar eventos do Runrun.it à regra de gamificação.

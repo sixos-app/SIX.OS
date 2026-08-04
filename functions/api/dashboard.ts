@@ -1,9 +1,11 @@
-type Bindings = { DB: D1Database }
+import { accessRequiredResponse, getAccessUser, type Bindings } from './_access'
 
 type MissionRow = {
-  id: number
+  id: string
   title: string
   client: string
+  projectId: string
+  assigneeId: string | null
   deadline: string
   xp: number
   ideas: number
@@ -11,13 +13,16 @@ type MissionRow = {
   urgent: number
 }
 
-export const onRequestGet: PagesFunction<Bindings> = async ({ env }) => {
+export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
+  const user = await getAccessUser(request, env)
+  if (!user) return accessRequiredResponse()
+
   const profile = await env.DB.prepare(`
     SELECT xp, ideas, level
     FROM gamification_profiles
-    ORDER BY updated_at DESC
+    WHERE user_id = ?
     LIMIT 1
-  `).first<{ xp: number; ideas: number; level: string }>()
+  `).bind(user.id).first<{ xp: number; ideas: number; level: string }>()
 
   if (!profile) return Response.json({ error: 'Nenhum perfil disponível' }, { status: 404 })
 
@@ -26,6 +31,8 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env }) => {
       missions.id,
       missions.title,
       clients.name AS client,
+      missions.project_id AS projectId,
+      MIN(mission_assignees.user_id) AS assigneeId,
       CASE
         WHEN date(missions.due_at) = date('now', 'localtime') THEN 'Hoje · ' || time(missions.due_at, 'localtime')
         WHEN date(missions.due_at) = date('now', 'localtime', '+1 day') THEN 'Amanhã · ' || time(missions.due_at, 'localtime')
@@ -37,10 +44,14 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env }) => {
       CASE WHEN missions.priority = 'urgent' THEN 1 ELSE 0 END AS urgent
     FROM missions
     JOIN clients ON clients.id = missions.client_id
+    JOIN projects ON projects.id = missions.project_id
+    LEFT JOIN mission_assignees ON mission_assignees.mission_id = missions.id
     WHERE missions.status IN ('open', 'in_progress')
+      AND projects.organization_id = ?
+    GROUP BY missions.id, missions.title, clients.name, missions.project_id, missions.due_at, missions.xp_reward, missions.ideas_reward, missions.visual_tone, missions.priority
     ORDER BY missions.due_at ASC
     LIMIT 8
-  `).all<MissionRow>()
+  `).bind(user.organizationId).all<MissionRow>()
 
   return Response.json({
     profile,

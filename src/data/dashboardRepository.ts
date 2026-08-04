@@ -7,7 +7,8 @@ export async function getDashboard(): Promise<DashboardData> {
     const response = await fetch(`${apiBase}/dashboard`, { headers: { Accept: 'application/json' } })
     if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error('Dashboard indisponível')
 
-    return await response.json() as DashboardData
+    const remoteDashboard = await response.json() as Omit<DashboardData, 'projects' | 'agenda' | 'team' | 'analytics' | 'library' | 'notifications'>
+    return { ...dashboardSeed, ...remoteDashboard, projects: dashboardSeed.projects, agenda: dashboardSeed.agenda, team: dashboardSeed.team, analytics: dashboardSeed.analytics, library: dashboardSeed.library, notifications: dashboardSeed.notifications }
   } catch {
     return dashboardSeed
   }

@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { dashboardSeed, type Mission } from './data/dashboard'
+import { dashboardSeed, type AgendaEvent, type AnalyticsData, type AppNotification, type DashboardData, type LibraryResource, type Mission, type Project, type TeamMember } from './data/dashboard'
+import { getAccessSession, type AccessSession } from './data/accessRepository'
 import { completeMission as persistMissionCompletion, getDashboard } from './data/dashboardRepository'
 
 type IconName =
@@ -31,6 +32,180 @@ const sectionLabels: Record<string, string> = {
   analytics: 'Analytics',
 }
 
+const completedMissionsStorageKey = 'six-os:completed-missions'
+const readNotificationsStorageKey = 'six-os:read-notifications'
+const customMissionsStorageKey = 'six-os:custom-missions'
+const customProjectsStorageKey = 'six-os:custom-projects'
+const missionAssigneesStorageKey = 'six-os:mission-assignees'
+const missionEditsStorageKey = 'six-os:mission-edits'
+const projectEditsStorageKey = 'six-os:project-edits'
+
+function getStoredCompletedMissions(): string[] {
+  try {
+    const storedMissions = window.localStorage.getItem(completedMissionsStorageKey)
+    if (!storedMissions) return []
+
+    const parsedMissions = JSON.parse(storedMissions)
+    return Array.isArray(parsedMissions) && parsedMissions.every((missionId) => typeof missionId === 'string') ? parsedMissions : []
+  } catch {
+    return []
+  }
+}
+
+function saveCompletedMissions(missionIds: string[]) {
+  try {
+    window.localStorage.setItem(completedMissionsStorageKey, JSON.stringify(missionIds))
+  } catch {}
+}
+
+function getStoredReadNotifications(): string[] {
+  try {
+    const storedNotifications = window.localStorage.getItem(readNotificationsStorageKey)
+    if (!storedNotifications) return []
+
+    const parsedNotifications = JSON.parse(storedNotifications)
+    return Array.isArray(parsedNotifications) && parsedNotifications.every((notificationId) => typeof notificationId === 'string') ? parsedNotifications : []
+  } catch {
+    return []
+  }
+}
+
+function saveReadNotifications(notificationIds: string[]) {
+  try {
+    window.localStorage.setItem(readNotificationsStorageKey, JSON.stringify(notificationIds))
+  } catch {}
+}
+
+function isStoredMission(value: unknown): value is Mission {
+  if (!value || typeof value !== 'object') return false
+
+  const mission = value as Partial<Mission>
+  return typeof mission.id === 'string' && typeof mission.title === 'string' && typeof mission.client === 'string' && typeof mission.deadline === 'string' && typeof mission.xp === 'number' && typeof mission.ideas === 'number' && ['lime', 'purple', 'orange'].includes(mission.tone ?? '')
+}
+
+function getStoredCustomMissions(): Mission[] {
+  try {
+    const storedMissions = window.localStorage.getItem(customMissionsStorageKey)
+    if (!storedMissions) return []
+
+    const parsedMissions = JSON.parse(storedMissions)
+    return Array.isArray(parsedMissions) ? parsedMissions.filter(isStoredMission) : []
+  } catch {
+    return []
+  }
+}
+
+function saveCustomMissions(missions: Mission[]) {
+  try {
+    window.localStorage.setItem(customMissionsStorageKey, JSON.stringify(missions))
+  } catch {}
+}
+
+function getStoredMissionAssignees(): Record<string, string> {
+  try {
+    const storedAssignees = window.localStorage.getItem(missionAssigneesStorageKey)
+    if (!storedAssignees) return {}
+
+    const parsedAssignees = JSON.parse(storedAssignees)
+    if (!parsedAssignees || typeof parsedAssignees !== 'object' || Array.isArray(parsedAssignees)) return {}
+
+    return Object.entries(parsedAssignees).reduce<Record<string, string>>((assignees, [missionId, assigneeId]) => {
+      if (typeof assigneeId === 'string') assignees[missionId] = assigneeId
+      return assignees
+    }, {})
+  } catch {
+    return {}
+  }
+}
+
+function saveMissionAssignees(assignees: Record<string, string>) {
+  try {
+    window.localStorage.setItem(missionAssigneesStorageKey, JSON.stringify(assignees))
+  } catch {}
+}
+
+function getStoredMissionEdits(): Record<string, Partial<Mission>> {
+  try {
+    const storedEdits = window.localStorage.getItem(missionEditsStorageKey)
+    if (!storedEdits) return {}
+
+    const parsedEdits = JSON.parse(storedEdits)
+    if (!parsedEdits || typeof parsedEdits !== 'object' || Array.isArray(parsedEdits)) return {}
+
+    return Object.entries(parsedEdits).reduce<Record<string, Partial<Mission>>>((edits, [missionId, edit]) => {
+      if (edit && typeof edit === 'object' && !Array.isArray(edit)) edits[missionId] = edit as Partial<Mission>
+      return edits
+    }, {})
+  } catch {
+    return {}
+  }
+}
+
+function saveMissionEdits(edits: Record<string, Partial<Mission>>) {
+  try {
+    window.localStorage.setItem(missionEditsStorageKey, JSON.stringify(edits))
+  } catch {}
+}
+
+function applyStoredMissionAssignees(missions: Mission[]) {
+  const assignees = getStoredMissionAssignees()
+  const edits = getStoredMissionEdits()
+  return missions.map((mission) => ({ ...mission, ...(assignees[mission.id] ? { assigneeId: assignees[mission.id] } : {}), ...edits[mission.id] }))
+}
+
+function isStoredProject(value: unknown): value is Project {
+  if (!value || typeof value !== 'object') return false
+
+  const project = value as Partial<Project>
+  return typeof project.id === 'string' && typeof project.code === 'string' && typeof project.name === 'string' && typeof project.client === 'string' && typeof project.status === 'string' && typeof project.progress === 'number' && typeof project.deadline === 'string' && ['purple', 'lime', 'orange'].includes(project.tone ?? '') && Array.isArray(project.members) && typeof project.nextStep === 'string' && typeof project.activity === 'string'
+}
+
+function getStoredCustomProjects(): Project[] {
+  try {
+    const storedProjects = window.localStorage.getItem(customProjectsStorageKey)
+    if (!storedProjects) return []
+
+    const parsedProjects = JSON.parse(storedProjects)
+    return Array.isArray(parsedProjects) ? parsedProjects.filter(isStoredProject) : []
+  } catch {
+    return []
+  }
+}
+
+function saveCustomProjects(projects: Project[]) {
+  try {
+    window.localStorage.setItem(customProjectsStorageKey, JSON.stringify(projects))
+  } catch {}
+}
+
+function getStoredProjectEdits(): Record<string, Partial<Project>> {
+  try {
+    const storedEdits = window.localStorage.getItem(projectEditsStorageKey)
+    if (!storedEdits) return {}
+
+    const parsedEdits = JSON.parse(storedEdits)
+    if (!parsedEdits || typeof parsedEdits !== 'object' || Array.isArray(parsedEdits)) return {}
+
+    return Object.entries(parsedEdits).reduce<Record<string, Partial<Project>>>((edits, [projectId, edit]) => {
+      if (edit && typeof edit === 'object' && !Array.isArray(edit)) edits[projectId] = edit as Partial<Project>
+      return edits
+    }, {})
+  } catch {
+    return {}
+  }
+}
+
+function saveProjectEdits(edits: Record<string, Partial<Project>>) {
+  try {
+    window.localStorage.setItem(projectEditsStorageKey, JSON.stringify(edits))
+  } catch {}
+}
+
+function applyStoredProjectEdits(projects: Project[]) {
+  const edits = getStoredProjectEdits()
+  return projects.map((project) => ({ ...project, ...edits[project.id] }))
+}
+
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, ReactNode> = {
     home: <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10Z" />,
@@ -54,15 +229,53 @@ function Avatar({ initials, tone = 'dark', small = false }: { initials: string; 
   return <span className={`avatar avatar-${tone} ${small ? 'avatar-small' : ''}`}>{initials}</span>
 }
 
+function getInitials(name: string) {
+  return name.split(/\s+/).map((part) => part.charAt(0)).join('').slice(0, 2).toLocaleUpperCase('pt-BR') || 'SIX'
+}
+
+function getProjectCollaborators(project: Project, missions: Mission[], team: TeamMember[]) {
+  const assigneeIds = new Set(missions.filter((mission) => mission.projectId === project.id).flatMap((mission) => mission.assigneeId ? [mission.assigneeId] : []))
+  const assignedMembers = team.filter((member) => assigneeIds.has(member.id))
+  return assignedMembers.length > 0 ? assignedMembers : team.filter((member) => project.members.includes(member.initials))
+}
+
+function getProjectHealth(project: Project, missions: Mission[], completed: string[]) {
+  const projectMissions = missions.filter((mission) => mission.projectId === project.id)
+  const openMissions = projectMissions.filter((mission) => !completed.includes(mission.id))
+  if (projectMissions.length === 0) return { label: 'A INICIAR', tone: 'neutral' }
+  if (openMissions.length === 0) return { label: 'CONCLUÍDO', tone: 'healthy' }
+  if (openMissions.some((mission) => mission.urgent)) return { label: 'ATENÇÃO', tone: 'attention' }
+  return { label: 'NO RITMO', tone: 'healthy' }
+}
+
 export default function App() {
   const [activeSection, setActiveSection] = useState('home')
   const [filter, setFilter] = useState<'all' | 'today' | 'urgent'>('all')
-  const [completed, setCompleted] = useState<string[]>([])
+  const [completed, setCompleted] = useState<string[]>(getStoredCompletedMissions)
   const [isAiOpen, setIsAiOpen] = useState(false)
-  const [dashboardData, setDashboardData] = useState(dashboardSeed)
+  const [isCommandOpen, setIsCommandOpen] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [isJourneyOpen, setIsJourneyOpen] = useState(false)
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(getStoredReadNotifications)
+  const [completionMessage, setCompletionMessage] = useState('')
+  const [accessSession, setAccessSession] = useState<AccessSession | null>(null)
+  const [dashboardData, setDashboardData] = useState(() => ({ ...dashboardSeed, missions: applyStoredMissionAssignees([...dashboardSeed.missions, ...getStoredCustomMissions()]), projects: applyStoredProjectEdits([...dashboardSeed.projects, ...getStoredCustomProjects()]) }))
 
   useEffect(() => {
-    void getDashboard().then(setDashboardData)
+    void getDashboard().then((dashboard) => setDashboardData({ ...dashboard, missions: applyStoredMissionAssignees([...dashboard.missions, ...getStoredCustomMissions()]), projects: applyStoredProjectEdits([...dashboard.projects, ...getStoredCustomProjects()]) }))
+    void getAccessSession().then(setAccessSession)
+  }, [])
+
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setIsCommandOpen(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
   }, [])
 
   const displayedMissions = useMemo(() => {
@@ -71,15 +284,167 @@ export default function App() {
     return dashboardData.missions
   }, [dashboardData.missions, filter])
 
+  const projectsWithMissionProgress = useMemo(() => dashboardData.projects.map((project) => {
+    const projectMissions = dashboardData.missions.filter((mission) => mission.projectId === project.id)
+    if (projectMissions.length === 0) return project
+
+    const completedProjectMissions = projectMissions.filter((mission) => completed.includes(mission.id)).length
+    const isComplete = completedProjectMissions === projectMissions.length
+
+    return {
+      ...project,
+      progress: Math.round((completedProjectMissions / projectMissions.length) * 100),
+      status: isComplete ? 'CONCLUÍDO' : project.status,
+    }
+  }), [completed, dashboardData.missions, dashboardData.projects])
+
   const earnedXp = completed.reduce((total, id) => total + (dashboardData.missions.find((mission) => mission.id === id)?.xp ?? 0), 0)
   const totalXp = dashboardData.profile.xp + earnedXp
+  const activeMissionCount = dashboardData.missions.filter((mission) => !completed.includes(mission.id)).length
+  const operationalNotifications = useMemo<AppNotification[]>(() => {
+    const urgentMissionNotifications = dashboardData.missions.filter((mission) => mission.urgent && !completed.includes(mission.id)).map((mission) => {
+      const assignee = dashboardData.team.find((member) => member.id === mission.assigneeId)
+      return { id: `alert-mission-${mission.id}`, title: `Missão urgente: ${mission.title}`, description: `${mission.client} · prazo ${mission.deadline}${assignee ? ` · ${assignee.name}` : ''}.`, time: 'agora', category: 'Projeto' as const, tone: 'orange' as const }
+    })
+    const projectNotifications = projectsWithMissionProgress.filter((project) => getProjectHealth(project, dashboardData.missions, completed).tone === 'attention').map((project) => ({ id: `alert-project-${project.id}`, title: `${project.name} precisa de atenção`, description: `Há uma missão urgente em andamento nesta frente.`, time: 'agora', category: 'Projeto' as const, tone: 'orange' as const }))
+    return [...urgentMissionNotifications, ...projectNotifications, ...dashboardData.notifications]
+  }, [completed, dashboardData.missions, dashboardData.notifications, dashboardData.team, projectsWithMissionProgress])
+  const recentActivities = useMemo<AppNotification[]>(() => {
+    const pendingActivities = dashboardData.missions.filter((mission) => !completed.includes(mission.id)).map((mission) => ({ id: `activity-open-${mission.id}`, title: `${mission.title} segue em andamento`, description: `${mission.client} · prazo ${mission.deadline}.`, time: mission.deadline, category: 'Projeto' as const, tone: mission.tone }))
+    const completedActivities = dashboardData.missions.filter((mission) => completed.includes(mission.id)).map((mission) => ({ id: `activity-complete-${mission.id}`, title: `${mission.title} foi concluída`, description: `${mission.client} · +${mission.xp} XP para o time.`, time: 'concluída', category: 'Equipe' as const, tone: 'lime' as const }))
+    return [...pendingActivities, ...completedActivities].slice(0, 5)
+  }, [completed, dashboardData.missions])
+  const unreadNotificationCount = operationalNotifications.filter((notification) => !readNotificationIds.includes(notification.id)).length
 
   function completeMission(id: string) {
-    setCompleted((current) => {
-      if (current.includes(id)) return current
-      void persistMissionCompletion(id)
-      return [...current, id]
-    })
+    if (completed.includes(id)) return
+
+    const next = [...completed, id]
+    const mission = dashboardData.missions.find((item) => item.id === id)
+    setCompleted(next)
+    saveCompletedMissions(next)
+    void persistMissionCompletion(id)
+    setCompletionMessage(mission ? `+${mission.xp} XP conquistados em ${mission.title}.` : 'Missão concluída.')
+  }
+
+  function markNotificationRead(id: string) {
+    if (readNotificationIds.includes(id)) return
+
+    const next = [...readNotificationIds, id]
+    setReadNotificationIds(next)
+    saveReadNotifications(next)
+  }
+
+  function markAllNotificationsRead() {
+    const next = operationalNotifications.map((notification) => notification.id)
+    setReadNotificationIds(next)
+    saveReadNotifications(next)
+  }
+
+  function createMission(input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) {
+    const project = dashboardData.projects.find((item) => item.id === input.projectId)
+    if (!project) return
+
+    const mission: Mission = {
+      id: `mission-local-${Date.now()}`,
+      title: input.title,
+      client: project.client,
+      projectId: project.id,
+      assigneeId: input.assigneeId,
+      deadline: input.deadline,
+      xp: input.priority === 'urgent' ? 120 : 80,
+      ideas: input.priority === 'urgent' ? 30 : 20,
+      tone: input.priority === 'urgent' ? 'orange' : 'purple',
+      urgent: input.priority === 'urgent',
+    }
+    const nextCustomMissions = [...getStoredCustomMissions(), mission]
+
+    saveCustomMissions(nextCustomMissions)
+    setDashboardData((current) => ({ ...current, missions: [...current.missions, mission] }))
+  }
+
+  function reassignMission(id: string, assigneeId: string) {
+    const mission = dashboardData.missions.find((item) => item.id === id)
+    const assignee = dashboardData.team.find((member) => member.id === assigneeId)
+    if (!mission || !assignee) return
+
+    const customMissions = getStoredCustomMissions()
+    const isCustomMission = customMissions.some((item) => item.id === id)
+    if (isCustomMission) {
+      saveCustomMissions(customMissions.map((item) => item.id === id ? { ...item, assigneeId } : item))
+    } else {
+      saveMissionEdits({ ...getStoredMissionEdits(), [id]: { ...getStoredMissionEdits()[id], assigneeId } })
+    }
+
+    setDashboardData((current) => ({ ...current, missions: current.missions.map((item) => item.id === id ? { ...item, assigneeId } : item) }))
+    setCompletionMessage(`${mission.title} foi atribuída para ${assignee.name}.`)
+  }
+
+  function updateMission(id: string, input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) {
+    const mission = dashboardData.missions.find((item) => item.id === id)
+    const project = dashboardData.projects.find((item) => item.id === input.projectId)
+    const assignee = dashboardData.team.find((member) => member.id === input.assigneeId)
+    if (!mission || !project || !assignee) return
+
+    const missionUpdate: Partial<Mission> = {
+      title: input.title,
+      client: project.client,
+      projectId: project.id,
+      assigneeId: assignee.id,
+      deadline: input.deadline,
+      xp: input.priority === 'urgent' ? 120 : 80,
+      ideas: input.priority === 'urgent' ? 30 : 20,
+      tone: input.priority === 'urgent' ? 'orange' : 'purple',
+      urgent: input.priority === 'urgent',
+    }
+    const customMissions = getStoredCustomMissions()
+    if (customMissions.some((item) => item.id === id)) {
+      saveCustomMissions(customMissions.map((item) => item.id === id ? { ...item, ...missionUpdate } : item))
+    } else {
+      const storedEdits = getStoredMissionEdits()
+      saveMissionEdits({ ...storedEdits, [id]: { ...storedEdits[id], ...missionUpdate } })
+    }
+
+    setDashboardData((current) => ({ ...current, missions: current.missions.map((item) => item.id === id ? { ...item, ...missionUpdate } : item) }))
+    setCompletionMessage(`${mission.title} foi atualizada.`)
+  }
+
+  function createProject(input: { name: string; client: string; deadline: string; tone: Project['tone'] }) {
+    const code = input.name.split(/\s+/).map((part) => part.charAt(0)).join('').toLocaleUpperCase('pt-BR').slice(0, 3) || 'NEW'
+    const project: Project = {
+      id: `project-local-${Date.now()}`,
+      code,
+      name: input.name,
+      client: input.client,
+      status: 'EM CONCEPÇÃO',
+      progress: 5,
+      deadline: input.deadline,
+      tone: input.tone,
+      members: ['GS'],
+      nextStep: 'Definir a primeira direção e organizar o briefing inicial.',
+      activity: 'Projeto criado agora e pronto para receber as primeiras missões.',
+    }
+    const nextCustomProjects = [...getStoredCustomProjects(), project]
+
+    saveCustomProjects(nextCustomProjects)
+    setDashboardData((current) => ({ ...current, projects: [...current.projects, project] }))
+  }
+
+  function updateProjectLifecycle(id: string, input: { status: string; deadline: string; nextStep: string }) {
+    const project = dashboardData.projects.find((item) => item.id === id)
+    if (!project) return
+
+    const projectUpdate: Partial<Project> = { status: input.status, deadline: input.deadline, nextStep: input.nextStep, activity: 'Ciclo do projeto atualizado agora.' }
+    const customProjects = getStoredCustomProjects()
+    if (customProjects.some((item) => item.id === id)) {
+      saveCustomProjects(customProjects.map((item) => item.id === id ? { ...item, ...projectUpdate } : item))
+    } else {
+      const storedEdits = getStoredProjectEdits()
+      saveProjectEdits({ ...storedEdits, [id]: { ...storedEdits[id], ...projectUpdate } })
+    }
+
+    setDashboardData((current) => ({ ...current, projects: current.projects.map((item) => item.id === id ? { ...item, ...projectUpdate } : item) }))
+    setCompletionMessage(`${project.name} teve seu ciclo atualizado.`)
   }
 
   return (
@@ -96,7 +461,7 @@ export default function App() {
             <button className={`nav-item ${activeSection === item.id ? 'active' : ''}`} key={item.id} onClick={() => setActiveSection(item.id)}>
               <Icon name={item.icon} />
               <span>{item.label}</span>
-              {item.id === 'missions' && <b>4</b>}
+              {item.id === 'missions' && activeMissionCount > 0 && <b>{activeMissionCount}</b>}
             </button>
           ))}
           <p className="nav-caption nav-caption-lower">ECOSSISTEMA</p>
@@ -115,8 +480,8 @@ export default function App() {
         </button>
 
         <button className="account">
-          <Avatar initials="GS" tone="photo" small />
-          <span><b>Guilherme</b><small>Designer</small></span>
+          <Avatar initials={accessSession ? getInitials(accessSession.name) : 'GS'} tone="photo" small />
+          <span><b>{accessSession?.name ?? 'Guilherme'}</b><small>{accessSession ? 'Cloudflare Access' : 'Modo local'}</small></span>
           <span>•••</span>
         </button>
       </aside>
@@ -125,8 +490,8 @@ export default function App() {
         <header className="topbar">
           <div className="crumb"><span>Segunda-feira</span><i /> <strong>04 de agosto</strong></div>
           <div className="topbar-actions">
-            <button className="icon-button" aria-label="Pesquisar">⌘ K</button>
-            <button className="round-button" aria-label="Notificações">⌁<span /></button>
+            <button className="icon-button" onClick={() => setIsCommandOpen(true)} aria-label="Pesquisar">⌘ K</button>
+            <button className="round-button" onClick={() => setIsNotificationsOpen(true)} aria-label="Notificações">⌁{unreadNotificationCount > 0 && <span />}</button>
             <button className="date-chip">Hoje <span>⌄</span></button>
           </div>
         </header>
@@ -139,7 +504,38 @@ export default function App() {
             completed={completed}
             onComplete={completeMission}
             totalXp={totalXp}
+            onViewMissions={() => setActiveSection('missions')}
+            projects={projectsWithMissionProgress}
+            projectMissions={dashboardData.missions}
+            team={dashboardData.team}
+            onViewProjects={() => setActiveSection('projects')}
+            agenda={dashboardData.agenda}
+            onViewAgenda={() => setActiveSection('agenda')}
+            onOpenJourney={() => setIsJourneyOpen(true)}
           />
+        ) : activeSection === 'missions' ? (
+          <MissionsPage
+            missions={dashboardData.missions}
+            completed={completed}
+            onComplete={completeMission}
+            totalXp={totalXp}
+            baseXp={dashboardData.profile.xp}
+            onCreateMission={createMission}
+            projects={projectsWithMissionProgress}
+            team={dashboardData.team}
+            onReassignMission={reassignMission}
+            onUpdateMission={updateMission}
+          />
+        ) : activeSection === 'projects' ? (
+          <ProjectsPage projects={projectsWithMissionProgress} missions={dashboardData.missions} completed={completed} team={dashboardData.team} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
+        ) : activeSection === 'agenda' ? (
+          <AgendaPage events={dashboardData.agenda} missions={dashboardData.missions} projects={projectsWithMissionProgress} team={dashboardData.team} completed={completed} />
+        ) : activeSection === 'team' ? (
+          <TeamPage members={dashboardData.team} missions={dashboardData.missions} projects={projectsWithMissionProgress} completed={completed} />
+        ) : activeSection === 'analytics' ? (
+          <AnalyticsPage analytics={dashboardData.analytics} projects={projectsWithMissionProgress} missions={dashboardData.missions} team={dashboardData.team} completed={completed} totalXp={totalXp} baseXp={dashboardData.profile.xp} />
+        ) : activeSection === 'library' ? (
+          <LibraryPage resources={dashboardData.library} />
         ) : (
           <ComingSoon title={sectionLabels[activeSection]} onBack={() => setActiveSection('home')} />
         )}
@@ -153,7 +549,11 @@ export default function App() {
         ))}
       </nav>
 
-      {isAiOpen && <AiPanel onClose={() => setIsAiOpen(false)} />}
+      {isAiOpen && <AiPanel dashboardData={dashboardData} completed={completed} onClose={() => setIsAiOpen(false)} onNavigate={(section) => { setActiveSection(section); setIsAiOpen(false) }} />}
+      {isCommandOpen && <CommandPalette onClose={() => setIsCommandOpen(false)} onNavigate={(section) => { setActiveSection(section); setIsCommandOpen(false) }} onOpenAi={() => { setIsAiOpen(true); setIsCommandOpen(false) }} />}
+      {isNotificationsOpen && <NotificationsPanel notifications={operationalNotifications} activities={recentActivities} readNotificationIds={readNotificationIds} onClose={() => setIsNotificationsOpen(false)} onMarkAllRead={markAllNotificationsRead} onMarkRead={markNotificationRead} />}
+      {isJourneyOpen && <JourneyPanel profile={dashboardData.profile} completedCount={completed.length} missionCount={dashboardData.missions.length} totalXp={totalXp} onClose={() => setIsJourneyOpen(false)} />}
+      {completionMessage && <div className="completion-toast" role="status"><span>✦</span>{completionMessage}<button onClick={() => setCompletionMessage('')} aria-label="Fechar aviso">×</button></div>}
     </main>
   )
 }
@@ -165,6 +565,14 @@ function Dashboard({
   completed,
   onComplete,
   totalXp,
+  onViewMissions,
+  projects,
+  projectMissions,
+  team,
+  onViewProjects,
+  agenda,
+  onViewAgenda,
+  onOpenJourney,
 }: {
   filter: 'all' | 'today' | 'urgent'
   onFilterChange: (filter: 'all' | 'today' | 'urgent') => void
@@ -172,6 +580,14 @@ function Dashboard({
   completed: string[]
   onComplete: (id: string) => void
   totalXp: number
+  onViewMissions: () => void
+  projects: Project[]
+  projectMissions: Mission[]
+  team: TeamMember[]
+  onViewProjects: () => void
+  agenda: AgendaEvent[]
+  onViewAgenda: () => void
+  onOpenJourney: () => void
 }) {
   return (
     <div className="dashboard">
@@ -192,7 +608,7 @@ function Dashboard({
         <div className="momentum-copy">
           <p>SEU MOMENTO</p>
           <h2>Você está a <span>280 XP</span><br />de ser um <em>Visionário.</em></h2>
-          <button>VER MINHA JORNADA <span>→</span></button>
+          <button onClick={onOpenJourney}>VER MINHA JORNADA <span>→</span></button>
         </div>
         <div className="momentum-art" aria-hidden="true">
           <span className="orbit orbit-one" /><span className="orbit orbit-two" />
@@ -227,25 +643,22 @@ function Dashboard({
             })}
             {visibleMissions.length === 0 && <p className="empty-state">Nenhuma missão nessa visão. Seu fluxo está em dia.</p>}
           </div>
-          <button className="view-all">VER TODAS AS MISSÕES <span>→</span></button>
+          <button className="view-all" onClick={onViewMissions}>VER TODAS AS MISSÕES <span>→</span></button>
 
-          <div className="section-heading projects-heading"><div><p className="section-index">02</p><h2>Projetos em órbita</h2></div><button className="text-action">EXPLORAR PROJETOS <span>↗</span></button></div>
+          <div className="section-heading projects-heading"><div><p className="section-index">02</p><h2>Projetos em órbita</h2></div><button className="text-action" onClick={onViewProjects}>EXPLORAR PROJETOS <span>↗</span></button></div>
           <div className="project-grid">
-            <ProjectCard label="SHO" name="Shopping Uberaba" progress={85} status="EM APROVAÇÃO" tone="project-purple" members={['LM', 'VA', 'GS']} />
-            <ProjectCard label="SIC" name="Sicredi" progress={58} status="EM PRODUÇÃO" tone="project-green" members={['MP', 'GS', 'RV']} />
+            {projects.slice(0, 2).map((project) => <ProjectCard project={project} missions={projectMissions} team={team} onOpen={onViewProjects} key={project.id} />)}
           </div>
         </div>
 
         <aside className="right-column">
-          <div className="section-heading compact"><div><p className="section-index">03</p><h2>Sua agenda</h2></div><button className="text-action">VER TUDO</button></div>
+          <div className="section-heading compact"><div><p className="section-index">03</p><h2>Sua agenda</h2></div><button className="text-action" onClick={onViewAgenda}>VER TUDO</button></div>
           <div className="agenda-card">
             <div className="calendar-head"><button>‹</button><b>Agosto <span>2026</span></b><button>›</button></div>
             <div className="week-days"><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span><span>D</span></div>
             <div className="calendar-days"><span>27</span><span>28</span><span>29</span><span>30</span><span>31</span><span>1</span><span>2</span><span>3</span><span className="today">4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span></div>
             <div className="agenda-line" />
-            <AgendaItem time="10:00" title="Reunião de briefing" subtitle="Shopping Uberaba" tone="purple" />
-            <AgendaItem time="14:30" title="Toró de ideias" subtitle="Sala Criativa · 8 pessoas" tone="lime" />
-            <AgendaItem time="17:00" title="Entrega do KV" subtitle="Shopping Uberaba" tone="orange" />
+            {agenda.filter((event) => event.day === 'Hoje').slice(0, 3).map((event) => <AgendaItem event={event} key={event.id} />)}
           </div>
 
           <div className="section-heading compact feed-heading"><div><p className="section-index">04</p><h2>Acontecendo agora</h2></div></div>
@@ -260,18 +673,470 @@ function Dashboard({
   )
 }
 
-function ProjectCard({ label, name, progress, status, tone, members }: { label: string; name: string; progress: number; status: string; tone: string; members: string[] }) {
-  return <article className={`project-card ${tone}`}><div className="project-cover"><span>{label}</span><i /><p>TORNAR<br />POSSÍVEL</p></div><div className="project-details"><div><p>{status}</p><h3>{name}</h3></div><b>{progress}%</b></div><div className="project-progress"><i style={{ width: `${progress}%` }} /></div><div className="project-footer"><div className="avatars">{members.map((member, index) => <Avatar initials={member} tone={index === 1 ? 'lime' : 'dark'} small key={member} />)}<span>+4</span></div><button>ABRIR PROJETO <span>↗</span></button></div></article>
+function MissionsPage({
+  missions,
+  completed,
+  onComplete,
+  totalXp,
+  baseXp,
+  onCreateMission,
+  projects,
+  team,
+  onReassignMission,
+  onUpdateMission,
+}: {
+  missions: Mission[]
+  completed: string[]
+  onComplete: (id: string) => void
+  totalXp: number
+  baseXp: number
+  onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void
+  projects: Project[]
+  team: TeamMember[]
+  onReassignMission: (id: string, assigneeId: string) => void
+  onUpdateMission: (id: string, input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void
+}) {
+  const [missionFilter, setMissionFilter] = useState<'open' | 'completed' | 'all'>('open')
+  const [projectFilter, setProjectFilter] = useState('all')
+  const [assigneeFilter, setAssigneeFilter] = useState('all')
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [selectedMissionId, setSelectedMissionId] = useState(missions[0]?.id ?? '')
+  const visibleMissions = missions.filter((mission) => {
+    const matchesStatus = missionFilter === 'all' || (missionFilter === 'completed' ? completed.includes(mission.id) : !completed.includes(mission.id))
+    const matchesProject = projectFilter === 'all' || mission.projectId === projectFilter
+    const matchesAssignee = assigneeFilter === 'all' || mission.assigneeId === assigneeFilter
+    return matchesStatus && matchesProject && matchesAssignee
+  })
+  const xpEarned = totalXp - baseXp
+  const selectedMission = missions.find((mission) => mission.id === selectedMissionId) ?? missions[0]
+
+  return (
+    <section className="missions-page">
+      <div className="missions-intro">
+        <div><p className="eyebrow">CENTRAL DE EXECUÇÃO <span>✦</span></p><h1>Suas missões,<br /><em>em movimento.</em></h1></div>
+        <div className="missions-intro-actions"><button className="create-mission-button" onClick={() => setIsCreateOpen(true)}>NOVA MISSÃO <span>+</span></button><div className="mission-score"><span>XP CONQUISTADOS</span><b>+{xpEarned.toLocaleString('pt-BR')}</b><small>{completed.length} de {missions.length} missões concluídas</small></div></div>
+      </div>
+
+      <div className="missions-toolbar">
+        <div className="missions-filter-controls"><div className="segmented-control" aria-label="Filtrar missões">
+          <button className={missionFilter === 'open' ? 'selected' : ''} onClick={() => setMissionFilter('open')}>Em aberto</button>
+          <button className={missionFilter === 'completed' ? 'selected' : ''} onClick={() => setMissionFilter('completed')}>Concluídas</button>
+          <button className={missionFilter === 'all' ? 'selected' : ''} onClick={() => setMissionFilter('all')}>Todas</button>
+        </div><label><span>PROJETO</span><select aria-label="Filtrar por projeto" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="all">Todos os projetos</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>RESPONSÁVEL</span><select aria-label="Filtrar por responsável" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="all">Todo o time</option>{team.map((member) => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label></div>
+        <span>{visibleMissions.length} {visibleMissions.length === 1 ? 'missão' : 'missões'}</span>
+      </div>
+
+      <div className="missions-workspace">
+        <div className="mission-list mission-list-full">
+          {visibleMissions.map((mission, index) => <MissionCard key={mission.id} mission={mission} index={index} isComplete={completed.includes(mission.id)} assignee={team.find((member) => member.id === mission.assigneeId)} onManage={setSelectedMissionId} onComplete={onComplete} />)}
+          {visibleMissions.length === 0 && <p className="empty-state">Nenhuma missão nessa visão. Continue criando possibilidades.</p>}
+        </div>
+        <div className="mission-side-panel"><aside className="mission-insight"><span>RITMO DA SEMANA</span><b>{Math.round((completed.length / missions.length) * 100)}%</b><p>Você já acumulou <strong>{xpEarned} XP</strong> nesta jornada. O próximo passo começa agora.</p><div><i style={{ width: `${(completed.length / missions.length) * 100}%` }} /></div></aside>{selectedMission && <MissionAssignmentPanel mission={selectedMission} project={projects.find((project) => project.id === selectedMission.projectId)} assignee={team.find((member) => member.id === selectedMission.assigneeId)} team={team} isComplete={completed.includes(selectedMission.id)} onEdit={() => setIsEditOpen(true)} onReassign={onReassignMission} />}</div>
+      </div>
+      {isCreateOpen && <MissionCreateModal projects={projects} team={team} onClose={() => setIsCreateOpen(false)} onCreate={(input) => { onCreateMission(input); setIsCreateOpen(false) }} />}
+      {isEditOpen && selectedMission && <MissionEditModal mission={selectedMission} projects={projects} team={team} onClose={() => setIsEditOpen(false)} onUpdate={(input) => { onUpdateMission(selectedMission.id, input); setIsEditOpen(false) }} />}
+    </section>
+  )
 }
 
-function AgendaItem({ time, title, subtitle, tone }: { time: string; title: string; subtitle: string; tone: string }) {
-  return <div className="agenda-item"><span className={`agenda-dot ${tone}`} /><time>{time}</time><p><b>{title}</b><small>{subtitle}</small></p></div>
+function MissionCard({ mission, index, isComplete, assignee, onManage, onComplete }: { mission: Mission; index: number; isComplete: boolean; assignee?: TeamMember; onManage?: (id: string) => void; onComplete: (id: string) => void }) {
+  return <article className={`mission-card tone-${mission.tone} ${isComplete ? 'completed' : ''}`}>
+    <span className="mission-number">{String(index + 1).padStart(2, '0')}</span>
+    <div className="mission-info"><p>{mission.client}</p><h3>{mission.title}</h3><span className="deadline">{mission.deadline}</span>{assignee && <span className="mission-assignee">Responsável: {assignee.name}</span>}{onManage && <button className="mission-manage-button" onClick={() => onManage(mission.id)}>GERENCIAR <span>→</span></button>}</div>
+    <div className="mission-reward"><span>RECOMPENSA</span><b>+{mission.xp} XP</b><small>+{mission.ideas} ideias</small></div>
+    <button className="complete-button" disabled={isComplete} onClick={() => onComplete(mission.id)}>{isComplete ? 'Feita!' : 'Concluir'} <span>{isComplete ? '✓' : '→'}</span></button>
+  </article>
+}
+
+function MissionAssignmentPanel({ mission, project, assignee, team, isComplete, onEdit, onReassign }: { mission: Mission; project?: Project; assignee?: TeamMember; team: TeamMember[]; isComplete: boolean; onEdit: () => void; onReassign: (id: string, assigneeId: string) => void }) {
+  const [assigneeId, setAssigneeId] = useState(mission.assigneeId ?? team[0]?.id ?? '')
+
+  useEffect(() => {
+    setAssigneeId(mission.assigneeId ?? team[0]?.id ?? '')
+  }, [mission.assigneeId, mission.id, team])
+
+  return <aside className="mission-assignment-panel"><div className="mission-assignment-head"><span>GESTÃO DA MISSÃO</span><b>{isComplete ? 'FEITA' : 'EM ABERTO'}</b></div><h2>{mission.title}</h2><p>{project?.name ?? mission.client} · {mission.deadline}</p><div className="mission-assignment-owner"><Avatar initials={assignee?.initials ?? '?'} tone={assignee?.tone ?? 'dark'} small /><span><small>RESPONSÁVEL ATUAL</small><b>{assignee?.name ?? 'A definir'}</b></span></div><form onSubmit={(event) => { event.preventDefault(); if (assigneeId) onReassign(mission.id, assigneeId) }}><label><span>REDISTRIBUIR PARA</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>{team.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role}</option>)}</select></label><button type="submit" disabled={!assigneeId || assigneeId === mission.assigneeId}>SALVAR RESPONSÁVEL <span>→</span></button></form><button className="mission-edit-button" type="button" onClick={onEdit}>EDITAR MISSÃO <span>↗</span></button></aside>
+}
+
+function MissionEditModal({ mission, projects, team, onClose, onUpdate }: { mission: Mission; projects: Project[]; team: TeamMember[]; onClose: () => void; onUpdate: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void }) {
+  const [title, setTitle] = useState(mission.title)
+  const [projectId, setProjectId] = useState(mission.projectId ?? projects[0]?.id ?? '')
+  const [assigneeId, setAssigneeId] = useState(mission.assigneeId ?? team[0]?.id ?? '')
+  const [deadline, setDeadline] = useState(mission.deadline)
+  const [priority, setPriority] = useState<'normal' | 'urgent'>(mission.urgent ? 'urgent' : 'normal')
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Editar missão"><form className="mission-create-dialog mission-edit-dialog" onSubmit={(event) => { event.preventDefault(); if (title.trim() && projectId && assigneeId && deadline.trim()) onUpdate({ title: title.trim(), projectId, assigneeId, deadline: deadline.trim(), priority }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar edição de missão">×</button><span className="mission-create-icon"><Icon name="target" size={21} /></span><p>EDITAR MISSÃO</p><h2>Ajuste o próximo<br /><em>movimento.</em></h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} required /></label><div className="mission-create-row"><label><span>PROJETO</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>RESPONSÁVEL</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} required>{team.map((member) => <option value={member.id} key={member.id}>{member.name} · {member.role}</option>)}</select></label></div><div className="mission-create-row"><label><span>PRAZO</span><input value={deadline} onChange={(event) => setDeadline(event.target.value)} required /></label><label><span>PRIORIDADE</span><select value={priority} onChange={(event) => setPriority(event.target.value as 'normal' | 'urgent')}><option value="normal">Normal</option><option value="urgent">Urgente</option></select></label></div><button className="mission-create-submit" type="submit">SALVAR ALTERAÇÕES <span>→</span></button></form></div>
+}
+
+function MissionCreateModal({ projects, team, initialProjectId, onClose, onCreate }: { projects: Project[]; team: TeamMember[]; initialProjectId?: string; onClose: () => void; onCreate: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void }) {
+  const [title, setTitle] = useState('')
+  const [projectId, setProjectId] = useState(initialProjectId ?? projects[0]?.id ?? '')
+  const [assigneeId, setAssigneeId] = useState(team[0]?.id ?? '')
+  const [deadline, setDeadline] = useState('Hoje · 17h')
+  const [priority, setPriority] = useState<'normal' | 'urgent'>('normal')
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Criar missão"><form className="mission-create-dialog" onSubmit={(event) => { event.preventDefault(); if (title.trim() && projectId && assigneeId && deadline.trim()) onCreate({ title: title.trim(), projectId, assigneeId, deadline: deadline.trim(), priority }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de missão">×</button><span className="mission-create-icon"><Icon name="target" size={21} /></span><p>NOVA MISSÃO</p><h2>Qual ideia vamos<br /><em>tornar possível?</em></h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Desdobramentos de campanha" required /></label><div className="mission-create-row"><label><span>PROJETO</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>RESPONSÁVEL</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} required>{team.map((member) => <option value={member.id} key={member.id}>{member.name} · {member.role}</option>)}</select></label></div><div className="mission-create-row"><label><span>PRAZO</span><input value={deadline} onChange={(event) => setDeadline(event.target.value)} placeholder="Hoje · 17h" required /></label><label><span>PRIORIDADE</span><select value={priority} onChange={(event) => setPriority(event.target.value as 'normal' | 'urgent')}><option value="normal">Normal</option><option value="urgent">Urgente</option></select></label></div><button className="mission-create-submit" type="submit">CRIAR MISSÃO <span>→</span></button></form></div>
+}
+
+function AgendaPage({ events, missions, projects, team, completed }: { events: AgendaEvent[]; missions: Mission[]; projects: Project[]; team: TeamMember[]; completed: string[] }) {
+  const missionEvents = missions.filter((mission) => !completed.includes(mission.id)).map((mission) => {
+    const project = projects.find((item) => item.id === mission.projectId)
+    const assignee = team.find((member) => member.id === mission.assigneeId)
+    const timeParts = mission.deadline.match(/(\d{1,2})(?::(\d{2}))?h?/)
+    const hour = timeParts?.[1]?.padStart(2, '0') ?? '18'
+    const minute = timeParts?.[2] ?? '00'
+
+    return {
+      id: `agenda-mission-${mission.id}`,
+      time: `${hour}:${minute}`,
+      title: mission.title,
+      subtitle: `${project?.name ?? mission.client} · Missão atribuída`,
+      day: mission.deadline.startsWith('Hoje') ? 'Hoje' : 'Amanhã',
+      category: 'Entrega' as const,
+      tone: mission.tone,
+      duration: 'Entrega',
+      attendees: assignee ? [assignee.initials] : [],
+      description: `Entrega da missão “${mission.title}” para ${project?.name ?? mission.client}.${assignee ? ` Responsável: ${assignee.name}.` : ''}`,
+    }
+  })
+  const agendaEvents = [...events, ...missionEvents].sort((first, second) => {
+    const dayDifference = (first.day === 'Hoje' ? 0 : 1) - (second.day === 'Hoje' ? 0 : 1)
+    return dayDifference || first.time.localeCompare(second.time)
+  })
+  const [agendaFilter, setAgendaFilter] = useState<'all' | AgendaEvent['category']>('all')
+  const [selectedEventId, setSelectedEventId] = useState(agendaEvents[0]?.id ?? '')
+  const visibleEvents = agendaEvents.filter((event) => agendaFilter === 'all' || event.category === agendaFilter)
+  const selectedEvent = visibleEvents.find((event) => event.id === selectedEventId) ?? visibleEvents[0] ?? agendaEvents[0]
+
+  if (!selectedEvent) return <section className="agenda-page"><p className="empty-state">Nenhum evento programado por enquanto.</p></section>
+
+  return (
+    <section className="agenda-page">
+      <div className="agenda-intro"><div><p className="eyebrow">AGENDA COMPARTILHADA <span>✦</span></p><h1>Ritmo de<br /><em>possibilidades.</em></h1></div><div className="agenda-date-summary"><span>HOJE</span><b>04</b><small>{missionEvents.length} {missionEvents.length === 1 ? 'missão pendente' : 'missões pendentes'}</small></div></div>
+      <div className="agenda-toolbar"><div className="segmented-control" aria-label="Filtrar agenda"><button className={agendaFilter === 'all' ? 'selected' : ''} onClick={() => setAgendaFilter('all')}>Todos</button><button className={agendaFilter === 'Reunião' ? 'selected' : ''} onClick={() => setAgendaFilter('Reunião')}>Reuniões</button><button className={agendaFilter === 'Criação' ? 'selected' : ''} onClick={() => setAgendaFilter('Criação')}>Criação</button><button className={agendaFilter === 'Entrega' ? 'selected' : ''} onClick={() => setAgendaFilter('Entrega')}>Entregas</button></div><span>{visibleEvents.length} eventos programados</span></div>
+
+      <div className="agenda-workspace">
+        <div className="agenda-timeline">
+          {visibleEvents.map((event) => {
+            const isSelected = event.id === selectedEvent.id
+            return <button className={`agenda-timeline-item tone-${event.tone} ${isSelected ? 'selected' : ''}`} onClick={() => setSelectedEventId(event.id)} aria-pressed={isSelected} key={event.id}>
+              <time>{event.time}</time><span className="agenda-timeline-dot" /><span className="agenda-timeline-copy"><small>{event.day} · {event.category}</small><b>{event.title}</b><em>{event.subtitle}</em></span><span className="agenda-timeline-duration">{event.duration}</span>
+            </button>
+          })}
+          {visibleEvents.length === 0 && <p className="empty-state">Nenhum evento nesse filtro.</p>}
+        </div>
+        <aside className={`agenda-detail tone-${selectedEvent.tone}`}>
+          <div className="agenda-detail-head"><span>{selectedEvent.day} · {selectedEvent.time}</span><b>{selectedEvent.category}</b></div><h2>{selectedEvent.title}</h2><p>{selectedEvent.subtitle}</p><div className="agenda-detail-section"><span>DURAÇÃO</span><b>{selectedEvent.duration}</b></div><div className="agenda-detail-section"><span>CONTEXTO</span><p>{selectedEvent.description}</p></div><div className="agenda-detail-footer"><div className="avatars">{selectedEvent.attendees.map((member, index) => <Avatar initials={member} tone={index === 1 ? 'lime' : 'dark'} small key={member} />)}<span>+{Math.max(0, selectedEvent.attendees.length - 2)}</span></div><small>{selectedEvent.attendees.length} pessoas confirmadas</small></div>
+        </aside>
+      </div>
+    </section>
+  )
+}
+
+function TeamPage({ members, missions, projects, completed }: { members: TeamMember[]; missions: Mission[]; projects: Project[]; completed: string[] }) {
+  const [teamFilter, setTeamFilter] = useState<'all' | 'available' | 'focus'>('all')
+  const [selectedMemberId, setSelectedMemberId] = useState(members[0]?.id ?? '')
+  const visibleMembers = members.filter((member) => {
+    if (teamFilter === 'all') return true
+    return teamFilter === 'available' ? member.availability === 'Disponível' : member.availability === 'Em foco'
+  })
+  const selectedMember = visibleMembers.find((member) => member.id === selectedMemberId) ?? visibleMembers[0] ?? members[0]
+  const openMissionCount = missions.filter((mission) => !completed.includes(mission.id)).length
+  const membersWithOpenMissions = members.filter((member) => missions.some((mission) => mission.assigneeId === member.id && !completed.includes(mission.id))).length
+  const selectedMemberMissions = missions.filter((mission) => mission.assigneeId === selectedMember?.id)
+
+  if (!selectedMember) return <section className="team-page"><p className="empty-state">Ainda não há pessoas cadastradas na equipe.</p></section>
+
+  return (
+    <section className="team-page">
+      <div className="team-intro"><div><p className="eyebrow">PESSOAS & POTENCIAL <span>✦</span></p><h1>Quem torna<br /><em>possível.</em></h1></div><div className="team-summary"><span>MISSÕES EM ABERTO</span><b>{openMissionCount}</b><small>{membersWithOpenMissions} pessoas com entregas em andamento</small></div></div>
+      <div className="team-toolbar"><div className="segmented-control" aria-label="Filtrar equipe"><button className={teamFilter === 'all' ? 'selected' : ''} onClick={() => setTeamFilter('all')}>Todos</button><button className={teamFilter === 'available' ? 'selected' : ''} onClick={() => setTeamFilter('available')}>Disponíveis</button><button className={teamFilter === 'focus' ? 'selected' : ''} onClick={() => setTeamFilter('focus')}>Em foco</button></div><span>{visibleMembers.length} pessoas nesta visão</span></div>
+
+      <div className="team-workspace">
+        <div className="team-member-list">
+          {visibleMembers.map((member) => {
+            const isSelected = member.id === selectedMember.id
+            const availabilityClass = member.availability === 'Disponível' ? 'available' : member.availability === 'No limite' ? 'limit' : 'focus'
+            const memberMissions = missions.filter((mission) => mission.assigneeId === member.id)
+            const memberOpenMissions = memberMissions.filter((mission) => !completed.includes(mission.id)).length
+            return <button className={`team-member-card ${isSelected ? 'selected' : ''}`} onClick={() => setSelectedMemberId(member.id)} aria-pressed={isSelected} key={member.id}><Avatar initials={member.initials} tone={member.tone} /><span className="team-member-copy"><b>{member.name}</b><small>{member.role}</small><em>{memberOpenMissions > 0 ? `${memberOpenMissions} missão${memberOpenMissions > 1 ? 'ões' : ''} em aberto` : memberMissions.length > 0 ? 'Entregas concluídas' : 'Sem missões atribuídas'}</em></span><span className={`team-member-status ${availabilityClass}`}>{member.availability}</span><span className="team-member-capacity"><b>{member.capacity}%</b><i><span style={{ width: `${member.capacity}%` }} /></i></span></button>
+          })}
+          {visibleMembers.length === 0 && <p className="empty-state">Nenhuma pessoa nesse filtro.</p>}
+        </div>
+        <aside className="team-detail"><div className="team-detail-profile"><Avatar initials={selectedMember.initials} tone={selectedMember.tone} /><div><span>{selectedMember.availability}</span><h2>{selectedMember.name}</h2><p>{selectedMember.role}</p></div></div><div className="team-detail-section"><span>FOCO ATUAL</span><p>{selectedMember.focus}</p></div><div className="team-detail-section"><span>LEITURA DO RITMO</span><p>{selectedMember.note}</p></div><div className="team-detail-section"><span>MISSÕES ATRIBUÍDAS</span><div className="member-mission-list">{selectedMemberMissions.length > 0 ? selectedMemberMissions.map((mission) => { const project = projects.find((item) => item.id === mission.projectId); const isComplete = completed.includes(mission.id); return <article className={isComplete ? 'completed' : ''} key={mission.id}><div><b>{mission.title}</b><small>{project?.name ?? mission.client} · {mission.deadline}</small></div><span>{isComplete ? 'FEITA' : 'EM ABERTO'}</span></article> }) : <p className="member-mission-empty">Ainda não há missões atribuídas a esta pessoa.</p>}</div></div><div className="team-detail-section"><span>PROJETOS EM ÓRBITA</span><div className="member-projects">{selectedMember.projects.map((project) => <b key={project}>{project}</b>)}</div></div><div className="team-detail-capacity"><span>CAPACIDADE COMPROMETIDA</span><b>{selectedMember.capacity}%</b><i><span style={{ width: `${selectedMember.capacity}%` }} /></i></div></aside>
+      </div>
+    </section>
+  )
+}
+
+function AnalyticsPage({ analytics, projects, missions, team, completed, totalXp, baseXp }: { analytics: AnalyticsData; projects: Project[]; missions: Mission[]; team: TeamMember[]; completed: string[]; totalXp: number; baseXp: number }) {
+  const [metric, setMetric] = useState<'xp' | 'focus'>('xp')
+  const weeklyMaximum = Math.max(...analytics.weekly.map((point) => metric === 'xp' ? point.xp : point.focus))
+  const weeklyTotal = analytics.weekly.reduce((total, point) => total + point.xp, 0)
+  const earnedXp = totalXp - baseXp
+  const completedMissionCount = missions.filter((mission) => completed.includes(mission.id)).length
+  const deliveryRate = missions.length > 0 ? Math.round((completedMissionCount / missions.length) * 100) : 0
+  const activeContributors = team.filter((member) => missions.some((mission) => mission.assigneeId === member.id && !completed.includes(mission.id))).length
+  const healthyProjectCount = projects.filter((project) => getProjectHealth(project, missions, completed).tone === 'healthy').length
+  const teamDelivery = team.map((member) => {
+    const assignedMissions = missions.filter((mission) => mission.assigneeId === member.id)
+    const completedCount = assignedMissions.filter((mission) => completed.includes(mission.id)).length
+    return { member, assignedCount: assignedMissions.length, completedCount, openCount: assignedMissions.length - completedCount }
+  }).filter(({ assignedCount }) => assignedCount > 0)
+  const projectDelivery = projects.map((project) => {
+    const assignedMissions = missions.filter((mission) => mission.projectId === project.id)
+    const completedCount = assignedMissions.filter((mission) => completed.includes(mission.id)).length
+    return { project, assignedCount: assignedMissions.length, completedCount, health: getProjectHealth(project, missions, completed) }
+  })
+
+  return (
+    <section className="analytics-page">
+      <div className="analytics-intro"><div><p className="eyebrow">SEU IMPACTO <span>✦</span></p><h1>Evolução que<br /><em>ganha forma.</em></h1></div><div className="analytics-streak"><span>SEQUÊNCIA CRIATIVA</span><b>{analytics.streak} dias</b><small>Você manteve o ritmo em toda a semana.</small></div></div>
+      <div className="analytics-metrics"><button className={`analytics-metric ${metric === 'xp' ? 'selected' : ''}`} onClick={() => setMetric('xp')}><span>XP DA SEMANA</span><b>+{(weeklyTotal + earnedXp).toLocaleString('pt-BR')}</b><small>ritmo consistente <i>↗</i></small></button><button className={`analytics-metric ${metric === 'focus' ? 'selected' : ''}`} onClick={() => setMetric('focus')}><span>FOCO MÉDIO</span><b>{Math.round(analytics.weekly.reduce((total, point) => total + point.focus, 0) / analytics.weekly.length)}%</b><small>{activeContributors === 1 ? '1 pessoa em ação' : `${activeContributors} pessoas em ação`}</small></button><div className="analytics-metric static"><span>ENTREGAS CONCLUÍDAS</span><b>{deliveryRate}%</b><small>{completedMissionCount} de {missions.length} missões concluídas</small></div><div className="analytics-metric static"><span>FRENTES SAUDÁVEIS</span><b>{healthyProjectCount}/{projects.length}</b><small>frentes no ritmo ou concluídas</small></div></div>
+
+      <div className="analytics-workspace"><div className="analytics-chart-card"><div className="analytics-chart-head"><div><span>EVOLUÇÃO SEMANAL</span><h2>{metric === 'xp' ? 'XP conquistados' : 'Ritmo de foco'}</h2></div><button className="chart-toggle" onClick={() => setMetric(metric === 'xp' ? 'focus' : 'xp')}>VER {metric === 'xp' ? 'FOCO' : 'XP'} <span>↔</span></button></div><div className="analytics-chart" aria-label={metric === 'xp' ? 'Gráfico de XP semanal' : 'Gráfico de foco semanal'}>{analytics.weekly.map((point) => { const value = metric === 'xp' ? point.xp : point.focus; const height = Math.max(8, (value / weeklyMaximum) * 100); return <div className="analytics-bar" key={point.label}><span>{metric === 'xp' ? `+${value}` : `${value}%`}</span><i><b style={{ height: `${height}%` }} /></i><small>{point.label}</small></div> })}</div></div><aside className="project-health-card"><span>SAÚDE DOS PROJETOS</span><h2>Carteira em<br /><em>movimento.</em></h2><div>{projectDelivery.map(({ project, health }) => <article key={project.id}><div><b>{project.name}</b><small>{health.label} · {project.status}</small></div><strong>{project.progress}%</strong><i><span style={{ width: `${project.progress}%` }} /></i></article>)}</div></aside></div>
+      <div className="analytics-breakdown"><section className="analytics-breakdown-card"><span>ENTREGAS POR PESSOA</span><h2>Quem está<br /><em>movendo a frente.</em></h2><div>{teamDelivery.map(({ member, assignedCount, completedCount, openCount }) => <article key={member.id}><Avatar initials={member.initials} tone={member.tone} small /><div><b>{member.name}</b><small>{completedCount} concluída{completedCount === 1 ? '' : 's'} · {openCount} em aberto</small></div><strong>{completedCount}/{assignedCount}</strong></article>)}{teamDelivery.length === 0 && <p className="analytics-empty">Ainda não há missões atribuídas.</p>}</div></section><section className="analytics-breakdown-card"><span>ENTREGAS POR FRENTE</span><h2>Onde o trabalho<br /><em>ganha forma.</em></h2><div>{projectDelivery.map(({ project, assignedCount, completedCount, health }) => <article key={project.id}><span className={`analytics-health-dot ${health.tone}`} /><div><b>{project.name}</b><small>{health.label} · {completedCount}/{assignedCount || 0} entregas concluídas</small></div><strong>{project.progress}%</strong></article>)}</div></section></div>
+    </section>
+  )
+}
+
+function LibraryPage({ resources }: { resources: LibraryResource[] }) {
+  const [libraryFilter, setLibraryFilter] = useState<'all' | LibraryResource['type']>('all')
+  const [selectedResourceId, setSelectedResourceId] = useState(resources[0]?.id ?? '')
+  const visibleResources = resources.filter((resource) => libraryFilter === 'all' || resource.type === libraryFilter)
+  const selectedResource = visibleResources.find((resource) => resource.id === selectedResourceId) ?? visibleResources[0] ?? resources[0]
+
+  if (!selectedResource) return <section className="library-page"><p className="empty-state">A biblioteca ainda está vazia.</p></section>
+
+  return (
+    <section className="library-page">
+      <div className="library-intro"><div><p className="eyebrow">BIBLIOTECA SIX <span>✦</span></p><h1>Referências que<br /><em>viram repertório.</em></h1></div><div className="library-summary"><span>ACERVO ATIVO</span><b>{resources.length} itens</b><small>Materiais que aceleram boas decisões.</small></div></div>
+      <div className="library-toolbar"><div className="segmented-control" aria-label="Filtrar biblioteca"><button className={libraryFilter === 'all' ? 'selected' : ''} onClick={() => setLibraryFilter('all')}>Todos</button><button className={libraryFilter === 'Referência' ? 'selected' : ''} onClick={() => setLibraryFilter('Referência')}>Referências</button><button className={libraryFilter === 'Modelo' ? 'selected' : ''} onClick={() => setLibraryFilter('Modelo')}>Modelos</button><button className={libraryFilter === 'Playbook' ? 'selected' : ''} onClick={() => setLibraryFilter('Playbook')}>Playbooks</button><button className={libraryFilter === 'Documento' ? 'selected' : ''} onClick={() => setLibraryFilter('Documento')}>Documentos</button></div><span>{visibleResources.length} itens nesta visão</span></div>
+
+      <div className="library-workspace"><div className="library-grid">{visibleResources.map((resource) => { const isSelected = resource.id === selectedResource.id; return <button className={`library-card tone-${resource.tone} ${isSelected ? 'selected' : ''}`} onClick={() => setSelectedResourceId(resource.id)} aria-pressed={isSelected} key={resource.id}><span className="library-card-type">{resource.type}</span><b>{resource.title}</b><p>{resource.description}</p><small>{resource.updatedAt}</small></button> })}{visibleResources.length === 0 && <p className="empty-state">Nenhum material nesse filtro.</p>}</div><aside className={`library-detail tone-${selectedResource.tone}`}><div className="library-detail-head"><span>{selectedResource.type}</span><b>↗</b></div><h2>{selectedResource.title}</h2><p>{selectedResource.description}</p><div className="library-detail-section"><span>RESPONSÁVEL</span><b>{selectedResource.owner}</b></div><div className="library-detail-section"><span>ATUALIZAÇÃO</span><b>{selectedResource.updatedAt}</b></div><div className="library-detail-section"><span>TÓPICOS</span><div className="library-tags">{selectedResource.tags.map((tag) => <b key={tag}>{tag}</b>)}</div></div><button className="library-open-button">ABRIR MATERIAL <span>↗</span></button></aside></div>
+    </section>
+  )
+}
+
+function ProjectsPage({ projects, missions, completed, team, onCreateProject, onCreateMission, onUpdateProjectLifecycle }: { projects: Project[]; missions: Mission[]; completed: string[]; team: TeamMember[]; onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void; onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void; onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => void }) {
+  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id ?? '')
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isMissionCreateOpen, setIsMissionCreateOpen] = useState(false)
+  const [isLifecycleOpen, setIsLifecycleOpen] = useState(false)
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0]
+  const projectMissions = missions.filter((mission) => mission.projectId === selectedProject?.id)
+  const projectCollaborators = selectedProject ? getProjectCollaborators(selectedProject, missions, team) : []
+  const projectHealth = selectedProject ? getProjectHealth(selectedProject, missions, completed) : { label: 'A INICIAR', tone: 'neutral' }
+
+  if (!selectedProject) return <section className="projects-page"><p className="empty-state">Ainda não há projetos para acompanhar.</p></section>
+
+  return (
+    <section className="projects-page">
+      <div className="projects-intro">
+        <div><p className="eyebrow">CENTRAL DE PROJETOS <span>✦</span></p><h1>Ideias em<br /><em>órbita.</em></h1></div>
+        <div className="projects-intro-actions"><button className="create-mission-button" onClick={() => setIsCreateOpen(true)}>NOVA FRENTE <span>+</span></button><p>Cada frente reúne as missões atribuídas ao time, com progresso calculado pelas entregas concluídas.</p></div>
+      </div>
+
+      <div className="project-overview">
+        <div className="project-list-panel">
+          <div className="projects-toolbar"><span>PROJETOS ATIVOS</span><b>{projects.length}</b></div>
+          <div className="project-list">
+            {projects.map((project) => {
+              const isSelected = project.id === selectedProject.id
+              return <button className={`project-list-card tone-${project.tone} ${isSelected ? 'selected' : ''}`} onClick={() => setSelectedProjectId(project.id)} aria-pressed={isSelected} key={project.id}>
+                <span className="project-list-code">{project.code}</span>
+                <span className="project-list-copy"><small>{project.status}</small><b>{project.name}</b><em>{project.deadline}</em></span>
+                <span className="project-list-progress"><b>{project.progress}%</b><i><span style={{ width: `${project.progress}%` }} /></i></span>
+              </button>
+            })}
+          </div>
+        </div>
+
+        <aside className={`project-detail tone-${selectedProject.tone}`}>
+          <div className="project-detail-header"><span>{selectedProject.status}</span><b>{selectedProject.code}</b></div>
+          <h2>{selectedProject.name}</h2><p className="project-client">{selectedProject.client}</p>
+          <div className="project-detail-progress"><div><span>PROGRESSO GERAL</span><b>{selectedProject.progress}%</b></div><i><span style={{ width: `${selectedProject.progress}%` }} /></i></div>
+          <div className={`project-health project-health-${projectHealth.tone}`}><span>SAÚDE DA FRENTE</span><b>{projectHealth.label}</b></div>
+          <div className="project-detail-section"><span>PRÓXIMO MOVIMENTO</span><p>{selectedProject.nextStep}</p></div>
+          <div className="project-detail-section"><span>ÚLTIMA ATUALIZAÇÃO</span><p>{selectedProject.activity}</p></div>
+          <div className="project-detail-section"><div className="project-missions-heading"><span>MISSÕES ATRIBUÍDAS</span><button onClick={() => setIsMissionCreateOpen(true)}>NOVA MISSÃO <b>+</b></button></div><div className="project-mission-list">{projectMissions.length > 0 ? projectMissions.map((mission) => { const assignee = team.find((member) => member.id === mission.assigneeId); const isComplete = completed.includes(mission.id); return <article className={isComplete ? 'completed' : ''} key={mission.id}><div><b>{mission.title}</b><small>{assignee ? assignee.name : 'Responsável a definir'}</small></div><span>{isComplete ? 'FEITA' : 'EM ABERTO'}</span></article> }) : <p className="project-mission-empty">Esta frente ainda não tem missões. Crie a primeira nesta frente.</p>}</div></div>
+          <button className="project-lifecycle-button" onClick={() => setIsLifecycleOpen(true)}>GERENCIAR CICLO DA FRENTE <span>↗</span></button>
+          <div className="project-detail-footer"><div className="avatars">{projectCollaborators.slice(0, 3).map((member, index) => <Avatar initials={member.initials} tone={index === 1 ? 'lime' : member.tone} small key={member.id} />)}{projectCollaborators.length > 3 && <span>+{projectCollaborators.length - 3}</span>}</div><small>{projectCollaborators.length === 1 ? '1 pessoa na frente' : `${projectCollaborators.length} pessoas na frente`}</small></div>
+        </aside>
+      </div>
+      {isCreateOpen && <ProjectCreateModal onClose={() => setIsCreateOpen(false)} onCreate={(input) => { onCreateProject(input); setIsCreateOpen(false) }} />}
+      {isMissionCreateOpen && <MissionCreateModal projects={projects} team={team} initialProjectId={selectedProject.id} onClose={() => setIsMissionCreateOpen(false)} onCreate={(input) => { onCreateMission(input); setIsMissionCreateOpen(false) }} />}
+      {isLifecycleOpen && <ProjectLifecycleModal project={selectedProject} onClose={() => setIsLifecycleOpen(false)} onUpdate={(input) => { onUpdateProjectLifecycle(selectedProject.id, input); setIsLifecycleOpen(false) }} />}
+    </section>
+  )
+}
+
+function ProjectLifecycleModal({ project, onClose, onUpdate }: { project: Project; onClose: () => void; onUpdate: (input: { status: string; deadline: string; nextStep: string }) => void }) {
+  const [status, setStatus] = useState(project.status)
+  const [deadline, setDeadline] = useState(project.deadline)
+  const [nextStep, setNextStep] = useState(project.nextStep)
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Gerenciar ciclo do projeto"><form className="mission-create-dialog project-lifecycle-dialog" onSubmit={(event) => { event.preventDefault(); if (status && deadline.trim() && nextStep.trim()) onUpdate({ status, deadline: deadline.trim(), nextStep: nextStep.trim() }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar ciclo do projeto">×</button><span className="mission-create-icon"><Icon name="folder" size={21} /></span><p>CICLO DO PROJETO</p><h2>O que move<br /><em>{project.name}?</em></h2><label><span>STATUS DA FRENTE</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option>EM CONCEPÇÃO</option><option>EM PRODUÇÃO</option><option>EM APROVAÇÃO</option><option>PAUSADO</option><option>CONCLUÍDO</option></select></label><label><span>PRÓXIMO MARCO</span><input autoFocus value={deadline} onChange={(event) => setDeadline(event.target.value)} required /></label><label><span>PRÓXIMO MOVIMENTO</span><textarea value={nextStep} onChange={(event) => setNextStep(event.target.value)} required /></label><button className="mission-create-submit" type="submit">ATUALIZAR CICLO <span>→</span></button></form></div>
+}
+
+function ProjectCreateModal({ onClose, onCreate }: { onClose: () => void; onCreate: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void }) {
+  const [name, setName] = useState('')
+  const [client, setClient] = useState('')
+  const [deadline, setDeadline] = useState('Próximo marco · em definição')
+  const [tone, setTone] = useState<Project['tone']>('lime')
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Criar projeto"><form className="mission-create-dialog project-create-dialog" onSubmit={(event) => { event.preventDefault(); if (name.trim() && client.trim() && deadline.trim()) onCreate({ name: name.trim(), client: client.trim(), deadline: deadline.trim(), tone }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de projeto">×</button><span className="mission-create-icon"><Icon name="folder" size={21} /></span><p>NOVA FRENTE</p><h2>Qual projeto vamos<br /><em>colocar em órbita?</em></h2><label><span>NOME DO PROJETO</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Campanha de Natal" required /></label><label><span>CLIENTE</span><input value={client} onChange={(event) => setClient(event.target.value)} placeholder="Ex.: Novo cliente" required /></label><div className="mission-create-row"><label><span>PRÓXIMO MARCO</span><input value={deadline} onChange={(event) => setDeadline(event.target.value)} placeholder="Próximo marco · em definição" required /></label><label><span>IDENTIDADE</span><select value={tone} onChange={(event) => setTone(event.target.value as Project['tone'])}><option value="lime">Lima</option><option value="purple">Roxo</option><option value="orange">Laranja</option></select></label></div><button className="mission-create-submit" type="submit">CRIAR PROJETO <span>→</span></button></form></div>
+}
+
+function ProjectCard({ project, missions, team, onOpen }: { project: Project; missions: Mission[]; team: TeamMember[]; onOpen: () => void }) {
+  const coverTone = project.tone === 'lime' ? 'project-green' : `project-${project.tone}`
+  const collaborators = getProjectCollaborators(project, missions, team)
+
+  return <article className={`project-card ${coverTone}`}><div className="project-cover"><span>{project.code}</span><i /><p>TORNAR<br />POSSÍVEL</p></div><div className="project-details"><div><p>{project.status}</p><h3>{project.name}</h3></div><b>{project.progress}%</b></div><div className="project-progress"><i style={{ width: `${project.progress}%` }} /></div><div className="project-footer"><div className="avatars">{collaborators.slice(0, 3).map((member, index) => <Avatar initials={member.initials} tone={index === 1 ? 'lime' : member.tone} small key={member.id} />)}{collaborators.length > 3 && <span>+{collaborators.length - 3}</span>}</div><button onClick={onOpen}>ABRIR PROJETO <span>↗</span></button></div></article>
+}
+
+function AgendaItem({ event }: { event: AgendaEvent }) {
+  return <div className="agenda-item"><span className={`agenda-dot ${event.tone}`} /><time>{event.time}</time><p><b>{event.title}</b><small>{event.subtitle}</small></p></div>
 }
 
 function ComingSoon({ title, onBack }: { title: string; onBack: () => void }) {
   return <section className="coming-soon"><p>EM CONSTRUÇÃO</p><h1>{title}</h1><span>Este módulo já tem navegação preparada. A próxima etapa conecta sua base de dados e os fluxos reais.</span><button onClick={onBack}>VOLTAR PARA O INÍCIO <span>←</span></button></section>
 }
 
-function AiPanel({ onClose }: { onClose: () => void }) {
-  return <div className="ai-overlay" role="dialog" aria-modal="true" aria-label="SIX AI"><div className="ai-dialog"><button className="close-button" onClick={onClose} aria-label="Fechar">×</button><span className="ai-dialog-icon"><Icon name="sparkle" size={24} /></span><p>SIX AI</p><h2>O que vamos<br /><em>tornar possível?</em></h2><label><span>✦</span><input autoFocus placeholder="Pergunte sobre projetos, prazos ou ideias…" /><kbd>↵</kbd></label><div className="suggestions"><button>Quem está sobrecarregado?</button><button>Resuma minha semana</button><button>Monte um cronograma</button></div></div></div>
+function JourneyPanel({ profile, completedCount, missionCount, totalXp, onClose }: { profile: DashboardData['profile']; completedCount: number; missionCount: number; totalXp: number; onClose: () => void }) {
+  const milestones = [{ name: 'Criador', target: 0, detail: 'Transforma intenção em entrega.' }, { name: 'Visionário', target: 8700, detail: 'Enxerga possibilidades antes do óbvio.' }, { name: 'Catalisador', target: 12000, detail: 'Move pessoas e ideias para a frente.' }]
+  const currentMilestone = [...milestones].reverse().find((milestone) => totalXp >= milestone.target) ?? milestones[0]
+  const nextMilestone = milestones.find((milestone) => milestone.target > totalXp)
+  const progressStart = currentMilestone.target
+  const progressEnd = nextMilestone?.target ?? currentMilestone.target + 3000
+  const progress = Math.min(100, ((totalXp - progressStart) / (progressEnd - progressStart)) * 100)
+  const achievements = [{ title: 'Ritmo extraordinário', detail: 'Energia sustentada acima de 90%.', unlocked: true }, { title: 'Entrega de impacto', detail: `${completedCount} de ${missionCount} missões concluídas.`, unlocked: completedCount > 0 }, { title: 'Visão de futuro', detail: 'Alcance 12.000 XP para desbloquear.', unlocked: totalXp >= 12000 }]
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  return <div className="journey-overlay" role="dialog" aria-modal="true" aria-label="Minha jornada"><div className="journey-dialog"><button className="close-button" onClick={onClose} aria-label="Fechar jornada">×</button><div className="journey-hero"><span>SEU NÍVEL ATUAL</span><div className="journey-level-mark">{currentMilestone.name.charAt(0)}</div><p>{currentMilestone.name.toUpperCase()}</p><h2>{currentMilestone.detail}</h2><small>{profile.ideas.toLocaleString('pt-BR')} ideias registradas até aqui.</small></div><div className="journey-progress"><div><span>{totalXp.toLocaleString('pt-BR')} XP</span><b>{nextMilestone ? `Faltam ${(nextMilestone.target - totalXp).toLocaleString('pt-BR')} XP para ${nextMilestone.name}` : 'Você alcançou o nível máximo atual.'}</b></div><i><span style={{ width: `${progress}%` }} /></i><div className="journey-milestones">{milestones.map((milestone) => <span className={totalXp >= milestone.target ? 'reached' : ''} key={milestone.name}><b>{milestone.name}</b><small>{milestone.target.toLocaleString('pt-BR')} XP</small></span>)}</div></div><div className="journey-achievements"><div><span>CONQUISTAS</span><h3>O que você já<br /><em>tornou possível.</em></h3></div><div className="achievement-list">{achievements.map((achievement) => <article className={achievement.unlocked ? 'unlocked' : ''} key={achievement.title}><span>{achievement.unlocked ? '✦' : '○'}</span><div><b>{achievement.title}</b><p>{achievement.detail}</p></div></article>)}</div></div></div></div>
+}
+
+function CommandPalette({ onClose, onNavigate, onOpenAi }: { onClose: () => void; onNavigate: (section: string) => void; onOpenAi: () => void }) {
+  const [query, setQuery] = useState('')
+  const commands = [
+    ...navigation.map((item) => ({ id: item.id, label: item.label, hint: 'Abrir módulo', icon: item.icon, action: 'navigate' as const })),
+    { id: 'six-ai', label: 'SIX AI', hint: 'Fazer uma pergunta', icon: 'sparkle' as IconName, action: 'ai' as const },
+  ]
+  const matchingCommands = commands.filter((command) => command.label.toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR')))
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  return <div className="command-overlay" role="dialog" aria-modal="true" aria-label="Busca rápida"><div className="command-dialog"><div className="command-input"><Icon name="sparkle" size={17} /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar no SIX.OS…" aria-label="Buscar no SIX.OS" /><kbd>ESC</kbd></div><p>IR PARA</p><div className="command-list">{matchingCommands.map((command) => <button onClick={() => command.action === 'ai' ? onOpenAi() : onNavigate(command.id)} key={command.id}><span className="command-icon"><Icon name={command.icon} size={16} /></span><span><b>{command.label}</b><small>{command.hint}</small></span><i>↵</i></button>)}{matchingCommands.length === 0 && <span className="command-empty">Nenhum atalho encontrado.</span>}</div><div className="command-footer"><span><kbd>↑↓</kbd> navegar</span><span><kbd>↵</kbd> abrir</span><span><kbd>esc</kbd> fechar</span></div></div></div>
+}
+
+function NotificationsPanel({ notifications, activities, readNotificationIds, onClose, onMarkAllRead, onMarkRead }: { notifications: AppNotification[]; activities: AppNotification[]; readNotificationIds: string[]; onClose: () => void; onMarkAllRead: () => void; onMarkRead: (id: string) => void }) {
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const visibleNotifications = notifications.filter((notification) => filter === 'all' || !readNotificationIds.includes(notification.id))
+  const unreadCount = notifications.filter((notification) => !readNotificationIds.includes(notification.id)).length
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  return <div className="notifications-overlay" role="dialog" aria-modal="true" aria-label="Notificações"><aside className="notifications-panel"><div className="notifications-head"><div><span>ATUALIZAÇÕES</span><h2>Notificações</h2></div><button onClick={onClose} aria-label="Fechar notificações">×</button></div><div className="notifications-controls"><div className="segmented-control"><button className={filter === 'all' ? 'selected' : ''} onClick={() => setFilter('all')}>Todas</button><button className={filter === 'unread' ? 'selected' : ''} onClick={() => setFilter('unread')}>Não lidas {unreadCount > 0 && <b>{unreadCount}</b>}</button></div><button onClick={onMarkAllRead}>MARCAR TODAS COMO LIDAS</button></div><div className="notifications-list">{visibleNotifications.map((notification) => { const isRead = readNotificationIds.includes(notification.id); return <button className={`notification-item tone-${notification.tone} ${isRead ? 'read' : ''}`} onClick={() => onMarkRead(notification.id)} key={notification.id}><span className="notification-dot" /><span><small>{notification.category} · {notification.time}</small><b>{notification.title}</b><p>{notification.description}</p></span>{!isRead && <i>novo</i>}</button> })}{visibleNotifications.length === 0 && <p className="empty-state">Nenhum aviso nesta visão.</p>}</div><div className="notifications-activity"><span>ATIVIDADE RECENTE</span><div>{activities.map((activity) => <article className={`tone-${activity.tone}`} key={activity.id}><i /><p><b>{activity.title}</b><small>{activity.description}</small></p><time>{activity.time}</time></article>)}{activities.length === 0 && <p className="notifications-empty">Nenhuma atividade recente.</p>}</div></div></aside></div>
+}
+
+type AiInsight = {
+  answer: string
+  action?: { label: string; section: 'agenda' | 'missions' | 'team' | 'projects' | 'analytics' }
+}
+
+function getAiInsight(question: string, dashboardData: DashboardData, completed: string[]): AiInsight {
+  const normalizedQuestion = question.toLocaleLowerCase('pt-BR')
+  const openMissions = dashboardData.missions.filter((mission) => !completed.includes(mission.id))
+
+  if (normalizedQuestion.includes('sobrecarregado') || normalizedQuestion.includes('capacidade') || normalizedQuestion.includes('equipe')) {
+    const highestCapacity = dashboardData.team.reduce((current, member) => member.capacity > current.capacity ? member : current)
+    return { answer: `${highestCapacity.name} está com ${highestCapacity.capacity}% de capacidade e em ${highestCapacity.availability.toLocaleLowerCase('pt-BR')}. ${highestCapacity.note}`, action: { label: 'VER EQUIPE', section: 'team' } }
+  }
+
+  if (normalizedQuestion.includes('semana') || normalizedQuestion.includes('resuma') || normalizedQuestion.includes('resumo')) {
+    const weeklyXp = dashboardData.analytics.weekly.reduce((total, point) => total + point.xp, 0)
+    return { answer: `A semana soma ${weeklyXp.toLocaleString('pt-BR')} XP de ritmo criativo. Há ${openMissions.length} missões em aberto e ${dashboardData.analytics.deliveryRate}% das entregas seguem no prazo.`, action: { label: 'VER ANALYTICS', section: 'analytics' } }
+  }
+
+  if (normalizedQuestion.includes('cronograma') || normalizedQuestion.includes('agenda') || normalizedQuestion.includes('hoje')) {
+    const todayEvents = dashboardData.agenda.filter((event) => event.day === 'Hoje')
+    const nextEvent = todayEvents[0]
+    return nextEvent ? { answer: `Seu próximo compromisso é “${nextEvent.title}” às ${nextEvent.time}. Depois, você tem ${todayEvents.length - 1} eventos programados hoje.`, action: { label: 'ABRIR AGENDA', section: 'agenda' } } : { answer: 'Sua agenda está livre no momento.' }
+  }
+
+  const urgentMission = openMissions.find((mission) => mission.urgent) ?? openMissions[0]
+  return urgentMission ? { answer: `A prioridade mais próxima é “${urgentMission.title}” para ${urgentMission.client}, com prazo ${urgentMission.deadline}. Concluir essa missão rende +${urgentMission.xp} XP.`, action: { label: 'VER MISSÕES', section: 'missions' } } : { answer: 'Todas as missões da semana foram concluídas. É um ótimo momento para revisar os próximos projetos.' }
+}
+
+function AiPanel({ dashboardData, completed, onClose, onNavigate }: { dashboardData: DashboardData; completed: string[]; onClose: () => void; onNavigate: (section: 'agenda' | 'missions' | 'team' | 'projects' | 'analytics') => void }) {
+  const [question, setQuestion] = useState('')
+  const [insight, setInsight] = useState<AiInsight | null>(null)
+
+  function ask(questionToAsk: string) {
+    const trimmedQuestion = questionToAsk.trim()
+    if (!trimmedQuestion) return
+    setInsight(getAiInsight(trimmedQuestion, dashboardData, completed))
+    setQuestion('')
+  }
+
+  return <div className="ai-overlay" role="dialog" aria-modal="true" aria-label="SIX AI"><div className="ai-dialog"><button className="close-button" onClick={onClose} aria-label="Fechar">×</button><span className="ai-dialog-icon"><Icon name="sparkle" size={24} /></span><p>SIX AI</p><h2>O que vamos<br /><em>tornar possível?</em></h2><form onSubmit={(event) => { event.preventDefault(); ask(question) }}><label><span>✦</span><input autoFocus value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Pergunte sobre projetos, prazos ou ideias…" /><button type="submit" aria-label="Enviar pergunta">↵</button></label></form>{insight && <div className="ai-response"><span>LEITURA SIX AI</span><p>{insight.answer}</p>{insight.action && <button onClick={() => onNavigate(insight.action!.section)}>{insight.action.label} <b>→</b></button>}</div>}<div className="suggestions"><button onClick={() => ask('Quem está sobrecarregado?')}>Quem está sobrecarregado?</button><button onClick={() => ask('Resuma minha semana')}>Resuma minha semana</button><button onClick={() => ask('Monte um cronograma')}>Monte um cronograma</button></div></div></div>
 }
