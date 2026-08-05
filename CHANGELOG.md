@@ -2,6 +2,23 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.34.0] - 2026-08-05
+
+### Adicionado
+
+- Primeira entrega da Fase 3: área de Detalhes completos para cada missão.
+- Descrição, checklist persistido, comentários, anexos da Biblioteca do Projeto e histórico de ações no D1.
+- Endpoint protegido para criação e distribuição de missões.
+
+### Regras de cargo
+
+- Especialistas enviam a entrega para aprovação; Coordenador, Gestão e Administrador aprovam a missão.
+- O XP é liberado para a pessoa responsável apenas após a aprovação.
+
+### Validação
+
+- Migração local aplicada; detalhes, checklist, comentários e criação autorizada foram testados com sessão válida e os dados temporários foram removidos.
+
 ## [0.33.0] - 2026-08-05
 
 ### Adicionado

@@ -6,6 +6,7 @@ import { clientIdentitySeed, getClientIdentities, type ClientIdentity } from './
 import { completeMission as persistMissionCompletion, getDashboard } from './data/dashboardRepository'
 import { createProjectLibraryFolder, getProjectLibrary, projectLibrarySeed, uploadProjectLibraryFile, type ProjectLibrary } from './data/projectLibraryRepository'
 import { createClientLibraryFolder, getClientLibrary, uploadClientLibraryFile } from './data/clientLibraryRepository'
+import { addMissionChecklistItem, addMissionComment, attachProjectLibraryFile, getMissionDetails, requestMissionCompletion, setMissionChecklistItem, type MissionDetails } from './data/missionRepository'
 
 type IconName =
   | 'home'
@@ -922,6 +923,7 @@ function MissionsPage({
   const [assigneeFilter, setAssigneeFilter] = useState('all')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [selectedMissionId, setSelectedMissionId] = useState(missions[0]?.id ?? '')
   const visibleMissions = missions.filter((mission) => {
     const matchesStatus = missionFilter === 'all' || (missionFilter === 'completed' ? completed.includes(mission.id) : !completed.includes(mission.id))
@@ -953,10 +955,11 @@ function MissionsPage({
           {visibleMissions.map((mission, index) => <MissionCard key={mission.id} mission={mission} index={index} isComplete={completed.includes(mission.id)} assignee={team.find((member) => member.id === mission.assigneeId)} onManage={setSelectedMissionId} onComplete={onComplete} />)}
           {visibleMissions.length === 0 && <p className="empty-state">Nenhuma missão nessa visão. Continue criando possibilidades.</p>}
         </div>
-        <div className="mission-side-panel"><aside className="mission-insight"><span>RITMO DA SEMANA</span><b>{Math.round((completed.length / missions.length) * 100)}%</b><p>Você já acumulou <strong>{xpEarned} XP</strong> nesta jornada. O próximo passo começa agora.</p><div><i style={{ width: `${(completed.length / missions.length) * 100}%` }} /></div></aside>{selectedMission && <MissionAssignmentPanel mission={selectedMission} project={projects.find((project) => project.id === selectedMission.projectId)} assignee={team.find((member) => member.id === selectedMission.assigneeId)} team={team} isComplete={completed.includes(selectedMission.id)} onEdit={() => setIsEditOpen(true)} onReassign={onReassignMission} />}</div>
+        <div className="mission-side-panel"><aside className="mission-insight"><span>RITMO DA SEMANA</span><b>{Math.round((completed.length / missions.length) * 100)}%</b><p>Você já acumulou <strong>{xpEarned} XP</strong> nesta jornada. O próximo passo começa agora.</p><div><i style={{ width: `${(completed.length / missions.length) * 100}%` }} /></div></aside>{selectedMission && <MissionAssignmentPanel mission={selectedMission} project={projects.find((project) => project.id === selectedMission.projectId)} assignee={team.find((member) => member.id === selectedMission.assigneeId)} team={team} isComplete={completed.includes(selectedMission.id)} onDetails={() => setIsDetailsOpen(true)} onEdit={() => setIsEditOpen(true)} onReassign={onReassignMission} />}</div>
       </div>
       {isCreateOpen && <MissionCreateModal projects={projects} team={team} onClose={() => setIsCreateOpen(false)} onCreate={(input) => { onCreateMission(input); setIsCreateOpen(false) }} />}
       {isEditOpen && selectedMission && <MissionEditModal mission={selectedMission} projects={projects} team={team} onClose={() => setIsEditOpen(false)} onUpdate={(input) => { onUpdateMission(selectedMission.id, input); setIsEditOpen(false) }} />}
+      {isDetailsOpen && selectedMission && <MissionDetailsModal mission={selectedMission} onClose={() => setIsDetailsOpen(false)} />}
     </section>
   )
 }
@@ -970,14 +973,42 @@ function MissionCard({ mission, index, isComplete, assignee, onManage, onComplet
   </article>
 }
 
-function MissionAssignmentPanel({ mission, project, assignee, team, isComplete, onEdit, onReassign }: { mission: Mission; project?: Project; assignee?: TeamMember; team: TeamMember[]; isComplete: boolean; onEdit: () => void; onReassign: (id: string, assigneeId: string) => void }) {
+function MissionAssignmentPanel({ mission, project, assignee, team, isComplete, onDetails, onEdit, onReassign }: { mission: Mission; project?: Project; assignee?: TeamMember; team: TeamMember[]; isComplete: boolean; onDetails: () => void; onEdit: () => void; onReassign: (id: string, assigneeId: string) => void }) {
   const [assigneeId, setAssigneeId] = useState(mission.assigneeId ?? team[0]?.id ?? '')
 
   useEffect(() => {
     setAssigneeId(mission.assigneeId ?? team[0]?.id ?? '')
   }, [mission.assigneeId, mission.id, team])
 
-  return <aside className="mission-assignment-panel"><div className="mission-assignment-head"><span>GESTÃO DA MISSÃO</span><b>{isComplete ? 'FEITA' : 'EM ABERTO'}</b></div><h2>{mission.title}</h2><p>{project?.name ?? mission.client} · {mission.deadline}</p><div className="mission-assignment-owner"><Avatar initials={assignee?.initials ?? '?'} tone={assignee?.tone ?? 'dark'} small /><span><small>RESPONSÁVEL ATUAL</small><b>{assignee?.name ?? 'A definir'}</b></span></div><form onSubmit={(event) => { event.preventDefault(); if (assigneeId) onReassign(mission.id, assigneeId) }}><label><span>REDISTRIBUIR PARA</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>{team.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role}</option>)}</select></label><button type="submit" disabled={!assigneeId || assigneeId === mission.assigneeId}>SALVAR RESPONSÁVEL <span>→</span></button></form><button className="mission-edit-button" type="button" onClick={onEdit}>EDITAR MISSÃO <span>↗</span></button></aside>
+  return <aside className="mission-assignment-panel"><div className="mission-assignment-head"><span>GESTÃO DA MISSÃO</span><b>{isComplete ? 'FEITA' : 'EM ABERTO'}</b></div><h2>{mission.title}</h2><p>{project?.name ?? mission.client} · {mission.deadline}</p><div className="mission-assignment-owner"><Avatar initials={assignee?.initials ?? '?'} tone={assignee?.tone ?? 'dark'} small /><span><small>RESPONSÁVEL ATUAL</small><b>{assignee?.name ?? 'A definir'}</b></span></div><form onSubmit={(event) => { event.preventDefault(); if (assigneeId) onReassign(mission.id, assigneeId) }}><label><span>REDISTRIBUIR PARA</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>{team.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role}</option>)}</select></label><button type="submit" disabled={!assigneeId || assigneeId === mission.assigneeId}>SALVAR RESPONSÁVEL <span>→</span></button></form><button className="mission-edit-button" type="button" onClick={onEdit}>EDITAR MISSÃO <span>↗</span></button><button className="mission-details-button" type="button" onClick={onDetails}>DETALHES COMPLETOS <span>→</span></button></aside>
+}
+
+function MissionDetailsModal({ mission, onClose }: { mission: Mission; onClose: () => void }) {
+  const [details, setDetails] = useState<MissionDetails | null>(null)
+  const [library, setLibrary] = useState<ProjectLibrary>(projectLibrarySeed)
+  const [checklistLabel, setChecklistLabel] = useState('')
+  const [commentBody, setCommentBody] = useState('')
+  const [selectedFileId, setSelectedFileId] = useState('')
+  const [message, setMessage] = useState('')
+
+  async function reload() {
+    try {
+      const next = await getMissionDetails(mission.id)
+      setDetails(next)
+      if (next.mission.projectId) setLibrary(await getProjectLibrary(next.mission.projectId))
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível carregar os detalhes.') }
+  }
+
+  useEffect(() => { void reload() }, [mission.id])
+  useEffect(() => { function handleEscape(event: KeyboardEvent) { if (event.key === 'Escape') onClose() } window.addEventListener('keydown', handleEscape); return () => window.removeEventListener('keydown', handleEscape) }, [onClose])
+
+  async function addChecklist(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (!checklistLabel.trim()) return; try { const { item } = await addMissionChecklistItem(mission.id, checklistLabel); setDetails((current) => current ? { ...current, checklist: [...current.checklist, item] } : current); setChecklistLabel('') } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível adicionar o item.') } }
+  async function toggleChecklist(itemId: string, isCompleted: boolean) { try { await setMissionChecklistItem(mission.id, itemId, isCompleted); setDetails((current) => current ? { ...current, checklist: current.checklist.map((item) => item.id === itemId ? { ...item, isCompleted: isCompleted ? 1 : 0 } : item) } : current) } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o item.') } }
+  async function addComment(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (!commentBody.trim()) return; try { const { comment } = await addMissionComment(mission.id, commentBody); setDetails((current) => current ? { ...current, comments: [comment, ...current.comments] } : current); setCommentBody('') } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível enviar o comentário.') } }
+  async function attachFile() { if (!selectedFileId) return; try { const { attachment } = await attachProjectLibraryFile(mission.id, selectedFileId); setDetails((current) => current ? { ...current, attachments: [attachment, ...current.attachments] } : current); setSelectedFileId('') } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível anexar o arquivo.') } }
+  async function complete() { try { const result = await requestMissionCompletion(mission.id); setMessage(result.status === 'pending_approval' ? 'Entrega enviada para aprovação.' : 'Missão aprovada e XP liberado.'); await reload() } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível concluir a missão.') } }
+
+  return <div className="mission-create-overlay mission-details-overlay" role="dialog" aria-modal="true" aria-label="Detalhes da missão"><section className="mission-details-dialog"><button className="close-button" type="button" onClick={onClose} aria-label="Fechar detalhes da missão">×</button>{!details ? <p className="mission-details-loading">Carregando missão…</p> : <><header><p>MISSÃO COMPLETA</p><h2>{details.mission.title}</h2><span>{details.mission.client} · {details.mission.project}</span></header><div className="mission-details-meta"><b>{details.mission.priority.toLocaleUpperCase('pt-BR')}</b><span>{details.mission.assignee ?? 'Responsável a definir'}</span><span>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Prazo a definir'}</span><span>+{details.mission.xpReward} XP</span></div><p className="mission-details-description">{details.mission.description || 'Sem descrição adicionada.'}</p><div className="mission-details-grid"><section><h3>CHECKLIST</h3><div className="mission-checklist">{details.checklist.map((item) => <label key={item.id}><input type="checkbox" checked={Boolean(item.isCompleted)} onChange={(event) => { void toggleChecklist(item.id, event.target.checked) }} /><span>{item.label}</span></label>)}</div><form onSubmit={addChecklist}><input value={checklistLabel} onChange={(event) => setChecklistLabel(event.target.value)} placeholder="Adicionar item" maxLength={240} /><button>ADICIONAR</button></form></section><section><h3>ANEXOS DO PROJETO</h3>{details.attachments.map((attachment) => <a className="mission-attachment" key={attachment.id} href={`/api/projects/${details.mission.projectId}/library/files/${attachment.libraryFileId}`}><span>{attachment.fileName}</span><b>V{attachment.fileVersion} ↓</b></a>)}<div className="mission-attach-form"><select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)}><option value="">Selecionar arquivo da biblioteca</option>{library.files.filter((file) => !details.attachments.some((attachment) => attachment.libraryFileId === file.id)).map((file) => <option value={file.id} key={file.id}>{file.name} · V{file.version}</option>)}</select><button type="button" onClick={() => { void attachFile() }} disabled={!selectedFileId}>ANEXAR</button></div></section></div><section className="mission-comments"><h3>COMENTÁRIOS</h3><form onSubmit={addComment}><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Registre uma atualização para o time" maxLength={3000} /><button>COMENTAR</button></form>{details.comments.map((comment) => <article key={comment.id}><b>{comment.author}</b><p>{comment.body}</p></article>)}</section><section className="mission-history"><h3>HISTÓRICO</h3>{details.history.map((entry) => <p key={entry.id}><b>{entry.actor ?? 'Sistema'}</b> · {entry.detail ?? entry.action}</p>)}</section>{message && <p className="mission-detail-message">{message}</p>}{details.mission.status !== 'completed' && <button className="mission-detail-complete" type="button" onClick={() => { void complete() }}>{details.permissions.canApprove ? 'APROVAR E CONCLUIR' : 'ENVIAR PARA APROVAÇÃO'} <span>→</span></button>}</>}</section></div>
 }
 
 function MissionEditModal({ mission, projects, team, onClose, onUpdate }: { mission: Mission; projects: Project[]; team: TeamMember[]; onClose: () => void; onUpdate: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void }) {

@@ -19,7 +19,7 @@ const encoder = new TextEncoder()
 
 const rolePermissions: Record<string, readonly string[]> = {
   admin: ['users.manage', 'roles.manage', 'gamification.manage', 'projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.update_own', 'clients.manage', 'library.manage', 'finance.view', 'ai.use', 'reports.view', 'agenda.team.view'],
-  management: ['projects.create', 'projects.manage', 'missions.approve', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view'],
+  management: ['projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view'],
   coordinator: ['projects.manage', 'missions.assign', 'missions.approve', 'agenda.team.view'],
   service: ['projects.create', 'clients.manage', 'agenda.team.view'],
   specialist: ['missions.update_own'],

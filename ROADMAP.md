@@ -35,10 +35,12 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 
 ## Fase 3 — Missões completas
 
+- Status: em andamento. Núcleo persistido entregue localmente com descrição, checklist, comentários, anexos da Biblioteca do Projeto, histórico e fluxo de aprovação por cargo.
 - Exigir título, cliente, projeto, descrição, checklist, responsável, prioridade, criação, prazo, XP, recompensa e status.
 - Adicionar anexos com arrastar e soltar, comentários e histórico de alterações.
 - Relacionar cada anexo à pasta específica do projeto; a opção MEGA só entra após a prova de conceito da Fase 2.
 - Aplicar regras de criação, distribuição, aprovação e conclusão por cargo.
+- Próxima entrega: migrar os formulários existentes de edição e redistribuição do armazenamento local para as rotas persistidas e adicionar upload por arrastar e soltar na própria missão.
 
 ## Fase 4 — Agenda nativa e privacidade
 
