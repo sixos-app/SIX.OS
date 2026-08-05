@@ -26,12 +26,11 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 
 ## Fase 2 — Projetos, clientes e biblioteca de arquivos
 
-- Status: em andamento. Identidade de cliente, biblioteca persistida por projeto e upload versionado para R2 validados localmente; criação do bucket remoto e publicação permanecem pendentes.
-- Estrutura de navegação definida: Biblioteca do Ecossistema → Cliente → Projetos → Arquivos. O seletor de clientes controla o diretório e evita duplicação dos arquivos dos projetos.
-- Adicionar arquivos do cliente diretamente no projeto e organizá-los automaticamente na Biblioteca.
-- Criar pastas padronizadas: Logo, KV, Vídeos, Artes, Briefing, Contrato e categorias personalizadas. Concluído localmente.
-- Implementar metadados, histórico e versionamento de arquivos.
-- Integrar uploads ao Cloudflare R2 com regras de acesso por projeto e cargo.
+- Status: concluída localmente. Bibliotecas de Cliente e Projeto foram separadas, persistidas no D1 e validadas com upload versionado no R2 local; criação do bucket remoto e publicação permanecem pendentes de autorização.
+- Estrutura de navegação: Ecossistema → Biblioteca do Cliente → arquivos permanentes; Projetos → Biblioteca do Projeto → arquivos de campanha. O seletor de clientes evita mistura ou duplicação entre os dois contextos.
+- Biblioteca do Cliente: pastas `Logo`, `Brandbook`, `Briefing`, `Contrato`, `Referências`, `Outros` e categorias personalizadas, com upload, download, metadados e histórico de versões.
+- Biblioteca do Projeto: pastas `Logo`, `KV`, `Vídeos`, `Artes`, `Briefing`, `Contrato`, `Outros` e categorias personalizadas, com upload, download, metadados e histórico de versões.
+- As regras de acesso por organização e cargo estão aplicadas nas rotas de arquivos.
 - Realizar a prova de conceito do MEGA.nz para associar links compartilhados a pastas ou versões de arquivos; manter R2 como armazenamento oficial caso a integração não atenda aos requisitos de segurança e automação.
 
 ## Fase 3 — Missões completas

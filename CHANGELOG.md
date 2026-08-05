@@ -2,6 +2,23 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.33.0] - 2026-08-05
+
+### Adicionado
+
+- Biblioteca própria do Cliente no Ecossistema, separada da Biblioteca de cada Projeto.
+- Pastas padrão por cliente: Logo, Brandbook, Briefing, Contrato, Referências e Outros.
+- Criação de pastas personalizadas, upload, download e listagem de arquivos diretamente na área do cliente.
+- Versionamento automático de materiais: o reenvio com o mesmo nome na mesma pasta mantém o histórico e incrementa a versão.
+
+### Segurança
+
+- Consulta e download exigem sessão válida e respeitam a organização; criação de pastas e uploads ficam restritos às permissões de gestão da biblioteca.
+
+### Validação
+
+- Fluxo local confirmado com upload, duas versões do mesmo arquivo, listagem, download autenticado e limpeza dos dados de teste.
+
 ## [0.32.0] - 2026-08-04
 
 ### Alterado
