@@ -2,6 +2,12 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.39.1] - 2026-08-05
+
+### Corrigido
+
+- Barra lateral fixa no desktop, com rolagem própria quando necessário e conteúdo central independente.
+
 ## [0.39.0] - 2026-08-05
 
 ### Adicionado
