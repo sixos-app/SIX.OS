@@ -2,6 +2,22 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.37.0] - 2026-08-05
+
+### Corrigido
+
+- Modal de detalhes deixa de permanecer em carregamento quando a API exige sessão; agora exibe o resumo local e a orientação adequada.
+- Clique no card de uma missão abre diretamente os seus detalhes completos.
+
+### Alterado
+
+- Prazo de criação e edição passou para seletor nativo de data e hora.
+- Criação de missão ganhou descrição para texto e links, além de seleção de imagens e vídeos enviados à Biblioteca do Projeto.
+
+### Validação
+
+- Detalhes sem sessão (`401`) e com sessão válida (`200`) foram conferidos localmente; build passou.
+
 ## [0.36.0] - 2026-08-05
 
 ### Alterado

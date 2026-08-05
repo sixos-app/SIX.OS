@@ -35,7 +35,7 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 
 ## Fase 3 — Missões completas
 
-- Status: em andamento. Missões persistidas localmente com criação, edição, redistribuição, descrição, checklist, comentários, anexos, histórico, aprovação por cargo e estados sincronizados na Central de Missões.
+- Status: em andamento. Missões persistidas localmente com criação, edição, redistribuição, descrição, links, imagens e vídeos, checklist, comentários, anexos, histórico, aprovação por cargo e estados sincronizados na Central de Missões.
 - Exigir título, cliente, projeto, descrição, checklist, responsável, prioridade, criação, prazo, XP, recompensa e status.
 - Adicionar anexos com arrastar e soltar, comentários e histórico de alterações. Concluído localmente.
 - Relacionar cada anexo à pasta específica do projeto; a opção MEGA só entra após a prova de conceito da Fase 2.
