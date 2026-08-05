@@ -40,7 +40,7 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 - Adicionar anexos com arrastar e soltar, comentários e histórico de alterações. Concluído localmente.
 - Relacionar cada anexo à pasta específica do projeto; a opção MEGA só entra após a prova de conceito da Fase 2.
 - Aplicar regras de criação, distribuição, aprovação e conclusão por cargo.
-- Próxima entrega: aplicar a visibilidade por cargo diretamente nos controles da interface e remover o fallback local quando a autenticação obrigatória estiver reativada.
+- Próxima entrega: remover o fallback local quando a autenticação obrigatória estiver reativada e consolidar testes de cada papel do RBAC.
 
 ## Fase 4 — Agenda nativa e privacidade
 

@@ -75,6 +75,14 @@ function isMissionCompleted(mission: Mission, locallyCompleted: string[]) {
   return mission.status === 'completed' || locallyCompleted.includes(mission.id)
 }
 
+function canManageMissions(session: AccessSession | null) {
+  return session !== null && ['admin', 'management', 'coordinator'].includes(session.role)
+}
+
+function canCompleteMission(session: AccessSession | null, mission: Mission) {
+  return canManageMissions(session) || (session?.role === 'specialist' && session.id === mission.assigneeId)
+}
+
 function getStoredCompletedMissions(): string[] {
   try {
     const storedMissions = window.localStorage.getItem(completedMissionsStorageKey)
@@ -693,11 +701,12 @@ function AppShell() {
             onCreateMission={createMission}
             projects={projectsWithMissionProgress}
             team={dashboardData.team}
+            accessSession={accessSession}
             onReassignMission={reassignMission}
             onUpdateMission={updateMission}
           />
         ) : activeSection === 'projects' ? (
-          <ProjectsPage projects={projectsWithMissionProgress} clients={clientIdentities} initialSelectedProjectId={libraryProjectId} missions={dashboardData.missions} completed={completedMissionIds} team={dashboardData.team} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
+          <ProjectsPage projects={projectsWithMissionProgress} clients={clientIdentities} initialSelectedProjectId={libraryProjectId} missions={dashboardData.missions} completed={completedMissionIds} team={dashboardData.team} canManageMissions={canManageMissions(accessSession)} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
         ) : activeSection === 'agenda' ? (
           <AgendaPage events={dashboardData.agenda} missions={dashboardData.missions} projects={projectsWithMissionProgress} team={dashboardData.team} completed={completedMissionIds} />
         ) : activeSection === 'team' ? (
@@ -959,6 +968,7 @@ function MissionsPage({
   onCreateMission,
   projects,
   team,
+  accessSession,
   onReassignMission,
   onUpdateMission,
 }: {
@@ -970,9 +980,11 @@ function MissionsPage({
   onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent'; description?: string; files?: File[] }) => void
   projects: Project[]
   team: TeamMember[]
+  accessSession: AccessSession | null
   onReassignMission: (id: string, assigneeId: string) => void
   onUpdateMission: (id: string, input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void
 }) {
+  const canManage = canManageMissions(accessSession)
   const [missionFilter, setMissionFilter] = useState<'open' | 'completed' | 'all'>('open')
   const [projectFilter, setProjectFilter] = useState('all')
   const [assigneeFilter, setAssigneeFilter] = useState('all')
@@ -993,7 +1005,7 @@ function MissionsPage({
     <section className="missions-page">
       <div className="missions-intro">
         <div><p className="eyebrow">CENTRAL DE EXECUÇÃO <span>✦</span></p><h1>Suas missões,<br /><em>em movimento.</em></h1></div>
-        <div className="missions-intro-actions"><button className="create-mission-button" onClick={() => setIsCreateOpen(true)}>NOVA MISSÃO <span>+</span></button><div className="mission-score"><span>XP CONQUISTADOS</span><b>+{xpEarned.toLocaleString('pt-BR')}</b><small>{completed.length} de {missions.length} missões concluídas</small></div></div>
+        <div className="missions-intro-actions">{canManage && <button className="create-mission-button" onClick={() => setIsCreateOpen(true)}>NOVA MISSÃO <span>+</span></button>}<div className="mission-score"><span>XP CONQUISTADOS</span><b>+{xpEarned.toLocaleString('pt-BR')}</b><small>{completed.length} de {missions.length} missões concluídas</small></div></div>
       </div>
 
       <div className="missions-toolbar">
@@ -1007,10 +1019,10 @@ function MissionsPage({
 
       <div className="missions-workspace">
         <div className="mission-list mission-list-full">
-          {visibleMissions.map((mission, index) => <MissionCard key={mission.id} mission={mission} index={index} isComplete={completed.includes(mission.id)} assignee={team.find((member) => member.id === mission.assigneeId)} onManage={(missionId) => setSelectedMissionId(missionId)} onOpenDetails={(missionId) => { setSelectedMissionId(missionId); setIsDetailsOpen(true) }} onComplete={onComplete} />)}
+          {visibleMissions.map((mission, index) => <MissionCard key={mission.id} mission={mission} index={index} isComplete={completed.includes(mission.id)} canComplete={canCompleteMission(accessSession, mission)} assignee={team.find((member) => member.id === mission.assigneeId)} onManage={(missionId) => setSelectedMissionId(missionId)} onOpenDetails={(missionId) => { setSelectedMissionId(missionId); setIsDetailsOpen(true) }} onComplete={onComplete} />)}
           {visibleMissions.length === 0 && <p className="empty-state">Nenhuma missão nessa visão. Continue criando possibilidades.</p>}
         </div>
-        <div className="mission-side-panel"><aside className="mission-insight"><span>RITMO DA SEMANA</span><b>{Math.round((completed.length / missions.length) * 100)}%</b><p>Você já acumulou <strong>{xpEarned} XP</strong> nesta jornada. O próximo passo começa agora.</p><div><i style={{ width: `${(completed.length / missions.length) * 100}%` }} /></div></aside>{selectedMission && <MissionAssignmentPanel mission={selectedMission} project={projects.find((project) => project.id === selectedMission.projectId)} assignee={team.find((member) => member.id === selectedMission.assigneeId)} team={team} isComplete={completed.includes(selectedMission.id)} onDetails={() => setIsDetailsOpen(true)} onEdit={() => setIsEditOpen(true)} onReassign={onReassignMission} />}</div>
+        <div className="mission-side-panel"><aside className="mission-insight"><span>RITMO DA SEMANA</span><b>{Math.round((completed.length / missions.length) * 100)}%</b><p>Você já acumulou <strong>{xpEarned} XP</strong> nesta jornada. O próximo passo começa agora.</p><div><i style={{ width: `${(completed.length / missions.length) * 100}%` }} /></div></aside>{selectedMission && <MissionAssignmentPanel mission={selectedMission} project={projects.find((project) => project.id === selectedMission.projectId)} assignee={team.find((member) => member.id === selectedMission.assigneeId)} team={team} canManage={canManage} isComplete={completed.includes(selectedMission.id)} onDetails={() => setIsDetailsOpen(true)} onEdit={() => setIsEditOpen(true)} onReassign={onReassignMission} />}</div>
       </div>
       {isCreateOpen && <MissionCreateModal projects={projects} team={team} onClose={() => setIsCreateOpen(false)} onCreate={(input) => { onCreateMission(input); setIsCreateOpen(false) }} />}
       {isEditOpen && selectedMission && <MissionEditModal mission={selectedMission} projects={projects} team={team} onClose={() => setIsEditOpen(false)} onUpdate={(input) => { onUpdateMission(selectedMission.id, input); setIsEditOpen(false) }} />}
@@ -1019,23 +1031,23 @@ function MissionsPage({
   )
 }
 
-function MissionCard({ mission, index, isComplete, assignee, onManage, onOpenDetails, onComplete }: { mission: Mission; index: number; isComplete: boolean; assignee?: TeamMember; onManage?: (id: string) => void; onOpenDetails?: (id: string) => void; onComplete: (id: string) => void }) {
+function MissionCard({ mission, index, isComplete, canComplete = true, assignee, onManage, onOpenDetails, onComplete }: { mission: Mission; index: number; isComplete: boolean; canComplete?: boolean; assignee?: TeamMember; onManage?: (id: string) => void; onOpenDetails?: (id: string) => void; onComplete: (id: string) => void }) {
   return <article className={`mission-card tone-${mission.tone} ${isComplete ? 'completed' : ''} ${onOpenDetails ? 'interactive' : ''}`} role={onOpenDetails ? 'button' : undefined} tabIndex={onOpenDetails ? 0 : undefined} onClick={() => onOpenDetails?.(mission.id)} onKeyDown={(event) => { if (onOpenDetails && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpenDetails(mission.id) } }}>
     <span className="mission-number">{String(index + 1).padStart(2, '0')}</span>
     <div className="mission-info"><p>{mission.client}</p><h3>{mission.title}</h3><span className="deadline">{mission.deadline}</span>{mission.approvalStatus === 'pending' && <span className="mission-approval-status">EM APROVAÇÃO</span>}{assignee && <span className="mission-assignee">Responsável: {assignee.name}</span>}{onManage && <button className="mission-manage-button" onClick={(event) => { event.stopPropagation(); onManage(mission.id) }}>GERENCIAR <span>→</span></button>}</div>
     <div className="mission-reward"><span>RECOMPENSA</span><b>+{mission.xp} XP</b><small>+{mission.ideas} ideias</small></div>
-    <button className="complete-button" disabled={isComplete || mission.approvalStatus === 'pending'} onClick={(event) => { event.stopPropagation(); onComplete(mission.id) }}>{isComplete ? 'Feita!' : mission.approvalStatus === 'pending' ? 'Em aprovação' : 'Concluir'} <span>{isComplete ? '✓' : '→'}</span></button>
+    {canComplete && <button className="complete-button" disabled={isComplete || mission.approvalStatus === 'pending'} onClick={(event) => { event.stopPropagation(); onComplete(mission.id) }}>{isComplete ? 'Feita!' : mission.approvalStatus === 'pending' ? 'Em aprovação' : 'Concluir'} <span>{isComplete ? '✓' : '→'}</span></button>}
   </article>
 }
 
-function MissionAssignmentPanel({ mission, project, assignee, team, isComplete, onDetails, onEdit, onReassign }: { mission: Mission; project?: Project; assignee?: TeamMember; team: TeamMember[]; isComplete: boolean; onDetails: () => void; onEdit: () => void; onReassign: (id: string, assigneeId: string) => void }) {
+function MissionAssignmentPanel({ mission, project, assignee, team, canManage, isComplete, onDetails, onEdit, onReassign }: { mission: Mission; project?: Project; assignee?: TeamMember; team: TeamMember[]; canManage: boolean; isComplete: boolean; onDetails: () => void; onEdit: () => void; onReassign: (id: string, assigneeId: string) => void }) {
   const [assigneeId, setAssigneeId] = useState(mission.assigneeId ?? team[0]?.id ?? '')
 
   useEffect(() => {
     setAssigneeId(mission.assigneeId ?? team[0]?.id ?? '')
   }, [mission.assigneeId, mission.id, team])
 
-  return <aside className="mission-assignment-panel"><div className="mission-assignment-head"><span>GESTÃO DA MISSÃO</span><b>{isComplete ? 'FEITA' : mission.approvalStatus === 'pending' ? 'EM APROVAÇÃO' : 'EM ABERTO'}</b></div><h2>{mission.title}</h2><p>{project?.name ?? mission.client} · {mission.deadline}</p><div className="mission-assignment-owner"><Avatar initials={assignee?.initials ?? '?'} tone={assignee?.tone ?? 'dark'} small /><span><small>RESPONSÁVEL ATUAL</small><b>{assignee?.name ?? 'A definir'}</b></span></div><form onSubmit={(event) => { event.preventDefault(); if (assigneeId) onReassign(mission.id, assigneeId)} }><label><span>REDISTRIBUIR PARA</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>{team.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role}</option>)}</select></label><button type="submit" disabled={!assigneeId || assigneeId === mission.assigneeId}>SALVAR RESPONSÁVEL <span>→</span></button></form><button className="mission-edit-button" type="button" onClick={onEdit}>EDITAR MISSÃO <span>↗</span></button><button className="mission-details-button" type="button" onClick={onDetails}>DETALHES COMPLETOS <span>→</span></button></aside>
+  return <aside className="mission-assignment-panel"><div className="mission-assignment-head"><span>GESTÃO DA MISSÃO</span><b>{isComplete ? 'FEITA' : mission.approvalStatus === 'pending' ? 'EM APROVAÇÃO' : 'EM ABERTO'}</b></div><h2>{mission.title}</h2><p>{project?.name ?? mission.client} · {mission.deadline}</p><div className="mission-assignment-owner"><Avatar initials={assignee?.initials ?? '?'} tone={assignee?.tone ?? 'dark'} small /><span><small>RESPONSÁVEL ATUAL</small><b>{assignee?.name ?? 'A definir'}</b></span></div>{canManage && <><form onSubmit={(event) => { event.preventDefault(); if (assigneeId) onReassign(mission.id, assigneeId) }}><label><span>REDISTRIBUIR PARA</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>{team.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role}</option>)}</select></label><button type="submit" disabled={!assigneeId || assigneeId === mission.assigneeId}>SALVAR RESPONSÁVEL <span>→</span></button></form><button className="mission-edit-button" type="button" onClick={onEdit}>EDITAR MISSÃO <span>↗</span></button></>}<button className="mission-details-button" type="button" onClick={onDetails}>DETALHES COMPLETOS <span>→</span></button></aside>
 }
 
 function MissionDetailsModal({ mission, onClose }: { mission: Mission; onClose: () => void }) {
@@ -1057,7 +1069,7 @@ function MissionDetailsModal({ mission, onClose }: { mission: Mission; onClose: 
         try { const projectLibrary = await getProjectLibrary(next.mission.projectId); setLibrary(projectLibrary); setUploadFolderId((current) => current || projectLibrary.folders[0]?.id || '') } catch { setMessage('Detalhes carregados, mas a Biblioteca do Projeto não está disponível.') }
       }
     } catch (error) {
-      setDetails({ mission: { id: mission.id, title: mission.title, description: 'Conecte uma sessão SIX para carregar os dados persistidos desta missão.', client: mission.client, projectId: mission.projectId ?? '', project: mission.client, assigneeId: mission.assigneeId ?? null, assignee: null, status: mission.status ?? 'open', priority: mission.urgent ? 'urgent' : 'normal', dueAt: deadlineToMissionDate(mission.deadline), xpReward: mission.xp, ideasReward: mission.ideas, rewardLabel: null, approvalStatus: mission.approvalStatus ?? 'not_requested', createdAt: '', completedAt: null, approvedAt: null }, checklist: [], comments: [], attachments: [], history: [], permissions: { canManage: false, canApprove: false } })
+      setDetails({ mission: { id: mission.id, title: mission.title, description: 'Conecte uma sessão SIX para carregar os dados persistidos desta missão.', client: mission.client, projectId: mission.projectId ?? '', project: mission.client, assigneeId: mission.assigneeId ?? null, assignee: null, status: mission.status ?? 'open', priority: mission.urgent ? 'urgent' : 'normal', dueAt: deadlineToMissionDate(mission.deadline), xpReward: mission.xp, ideasReward: mission.ideas, rewardLabel: null, approvalStatus: mission.approvalStatus ?? 'not_requested', createdAt: '', completedAt: null, approvedAt: null }, checklist: [], comments: [], attachments: [], history: [], permissions: { canInteract: false, canManage: false, canApprove: false } })
       setMessage(error instanceof Error ? `${error.message} Exibindo o resumo local.` : 'Exibindo o resumo local da missão.')
     }
   }
@@ -1260,7 +1272,7 @@ function ClientLibraryManager({ client }: { client: ClientIdentity }) {
   return <section className="client-library-manager"><div><span>BIBLIOTECA DO CLIENTE</span><h2>{client.name}</h2></div><div className="client-library-manager-body"><nav><div className="client-library-folder-actions"><b>PASTAS</b><button type="button" onClick={() => setIsFolderFormOpen((current) => !current)}>NOVA +</button></div>{isFolderFormOpen && <form className="client-library-folder-form" onSubmit={createFolder}><input value={folderName} onChange={(event) => setFolderName(event.target.value)} maxLength={48} placeholder="Nome da pasta" required /><button>CRIAR</button></form>}{library.folders.map((item) => <button className={item.id === folderId ? 'selected' : ''} onClick={() => setFolderId(item.id)} key={item.id}>{item.name}<b>{item.fileCount}</b></button>)}</nav><div><header><b>{folder?.name ?? 'Pasta'}</b><label><input type="file" onChange={(event) => { void upload(event.target.files?.[0]); event.currentTarget.value = '' }} />ADICIONAR ARQUIVO +</label></header>{message && <p>{message}</p>}{files.length ? files.map((file) => <article key={file.id}><b>{file.name}</b><small>Versão {file.version} · {file.fileType}</small><a href={`/api/clients/${client.id}/library/files/${file.id}`}>BAIXAR</a></article>) : <p>Nenhum arquivo nesta pasta.</p>}</div></div></section>
 }
 
-function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, completed, team, onCreateProject, onCreateMission, onUpdateProjectLifecycle }: { projects: Project[]; clients: ClientIdentity[]; initialSelectedProjectId: string | null; missions: Mission[]; completed: string[]; team: TeamMember[]; onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void; onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent'; description?: string; files?: File[] }) => void; onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => void }) {
+function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, completed, team, canManageMissions, onCreateProject, onCreateMission, onUpdateProjectLifecycle }: { projects: Project[]; clients: ClientIdentity[]; initialSelectedProjectId: string | null; missions: Mission[]; completed: string[]; team: TeamMember[]; canManageMissions: boolean; onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void; onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent'; description?: string; files?: File[] }) => void; onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => void }) {
   const [selectedProjectId, setSelectedProjectId] = useState(initialSelectedProjectId ?? projects[0]?.id ?? '')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isMissionCreateOpen, setIsMissionCreateOpen] = useState(false)
@@ -1306,7 +1318,7 @@ function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, c
           <div className={`project-health project-health-${projectHealth.tone}`}><span>SAÚDE DA FRENTE</span><b>{projectHealth.label}</b></div>
           <div className="project-detail-section"><span>PRÓXIMO MOVIMENTO</span><p>{selectedProject.nextStep}</p></div>
           <div className="project-detail-section"><span>ÚLTIMA ATUALIZAÇÃO</span><p>{selectedProject.activity}</p></div>
-          <div className="project-detail-section"><div className="project-missions-heading"><span>MISSÕES ATRIBUÍDAS</span><button onClick={() => setIsMissionCreateOpen(true)}>NOVA MISSÃO <b>+</b></button></div><div className="project-mission-list">{projectMissions.length > 0 ? projectMissions.map((mission) => { const assignee = team.find((member) => member.id === mission.assigneeId); const isComplete = completed.includes(mission.id); return <article className={isComplete ? 'completed' : ''} key={mission.id}><div><b>{mission.title}</b><small>{assignee ? assignee.name : 'Responsável a definir'}</small></div><span>{isComplete ? 'FEITA' : 'EM ABERTO'}</span></article> }) : <p className="project-mission-empty">Esta frente ainda não tem missões. Crie a primeira nesta frente.</p>}</div></div>
+          <div className="project-detail-section"><div className="project-missions-heading"><span>MISSÕES ATRIBUÍDAS</span>{canManageMissions && <button onClick={() => setIsMissionCreateOpen(true)}>NOVA MISSÃO <b>+</b></button>}</div><div className="project-mission-list">{projectMissions.length > 0 ? projectMissions.map((mission) => { const assignee = team.find((member) => member.id === mission.assigneeId); const isComplete = completed.includes(mission.id); return <article className={isComplete ? 'completed' : ''} key={mission.id}><div><b>{mission.title}</b><small>{assignee ? assignee.name : 'Responsável a definir'}</small></div><span>{isComplete ? 'FEITA' : 'EM ABERTO'}</span></article> }) : <p className="project-mission-empty">Esta frente ainda não tem missões.</p>}</div></div>
           <button className="project-library-button" onClick={() => setIsLibraryOpen(true)}>BIBLIOTECA DO PROJETO <span>↗</span></button>
           <button className="project-lifecycle-button" onClick={() => setIsLifecycleOpen(true)}>GERENCIAR CICLO DA FRENTE <span>↗</span></button>
           <div className="project-detail-footer"><div className="avatars">{projectCollaborators.slice(0, 3).map((member, index) => <Avatar initials={member.initials} tone={index === 1 ? 'lime' : member.tone} small key={member.id} />)}{projectCollaborators.length > 3 && <span>+{projectCollaborators.length - 3}</span>}</div><small>{projectCollaborators.length === 1 ? '1 pessoa na frente' : `${projectCollaborators.length} pessoas na frente`}</small></div>

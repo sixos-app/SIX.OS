@@ -53,7 +53,7 @@ export type MissionDetails = {
   comments: MissionComment[]
   attachments: MissionAttachment[]
   history: MissionHistoryItem[]
-  permissions: { canManage: boolean; canApprove: boolean }
+  permissions: { canInteract: boolean; canManage: boolean; canApprove: boolean }
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {

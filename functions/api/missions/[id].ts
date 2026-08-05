@@ -1,4 +1,4 @@
-import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, type Bindings } from '../_access'
+import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../_access'
 import { canAccessMission, canManageMission, getMissionAccess } from './_missionAccess'
 
 type DetailRow = {
@@ -35,7 +35,7 @@ export const onRequestGet: PagesFunction<Bindings, { id: string }> = async ({ en
     env.DB.prepare('SELECT attachments.id, attachments.library_file_id AS libraryFileId, attachments.file_name AS fileName, attachments.file_version AS fileVersion, attachments.created_at AS createdAt FROM mission_attachments attachments WHERE attachments.mission_id = ? ORDER BY attachments.created_at DESC').bind(mission.id).all(),
     env.DB.prepare('SELECT history.id, history.action, history.detail, history.created_at AS createdAt, users.name AS actor FROM mission_history history LEFT JOIN users ON users.id = history.actor_user_id WHERE history.mission_id = ? ORDER BY history.created_at DESC LIMIT 30').bind(mission.id).all(),
   ])
-  return Response.json({ mission: detail, checklist: checklist.results, comments: comments.results, attachments: attachments.results, history: history.results, permissions: { canManage: canManageMission(user), canApprove: canManageMission(user) } })
+  return Response.json({ mission: detail, checklist: checklist.results, comments: comments.results, attachments: attachments.results, history: history.results, permissions: { canInteract: canAccessMission(user, mission), canManage: canManageMission(user), canApprove: hasPermission(user, 'missions.approve') } })
 }
 
 type UpdateMissionInput = {

@@ -2,6 +2,18 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.38.0] - 2026-08-05
+
+### Segurança
+
+- Ações de criação, edição e redistribuição de missão agora são ocultadas na interface para cargos sem permissão.
+- Especialistas recebem apenas a ação de concluir a própria missão; o servidor continua sendo a camada definitiva de autorização.
+- Endpoint de detalhes passa a informar permissão de interação, gestão e aprovação à interface.
+
+### Validação
+
+- Acesso sem sessão foi bloqueado com `401`; sessão administrativa recebeu permissões completas e a prévia local respondeu normalmente.
+
 ## [0.37.0] - 2026-08-05
 
 ### Corrigido
