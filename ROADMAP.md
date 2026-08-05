@@ -44,6 +44,7 @@ Este documento organiza as próximas entregas do produto. As fases são sequenci
 
 ## Fase 4 — Agenda nativa e privacidade
 
+- Status: em andamento. Fundação persistida de eventos pessoais e de equipe, filtros e criação com vínculo opcional a projeto foram entregues localmente.
 - Criar agenda individual para reuniões, prazos, compromissos, férias e missões.
 - Criar agenda compartilhada da equipe, visível somente para Atendimento, Coordenador, Gestão e Administrador.
 - Garantir que os demais colaboradores visualizem apenas a própria agenda.

@@ -7,6 +7,7 @@ import { getDashboard } from './data/dashboardRepository'
 import { createProjectLibraryFolder, getProjectLibrary, projectLibrarySeed, uploadProjectLibraryFile, type ProjectLibrary } from './data/projectLibraryRepository'
 import { createClientLibraryFolder, getClientLibrary, uploadClientLibraryFile } from './data/clientLibraryRepository'
 import { addMissionChecklistItem, addMissionComment, attachProjectLibraryFile, createMission as persistMissionCreate, getMissionDetails, requestMissionCompletion, setMissionChecklistItem, updateMission as persistMissionUpdate, type MissionDetails } from './data/missionRepository'
+import { createCalendarEvent, getAgenda, type AgendaPermissions, type AgendaScope, type CalendarEventRecord, type CalendarEventType, type CalendarVisibility } from './data/agendaRepository'
 
 type IconName =
   | 'home'
@@ -708,7 +709,7 @@ function AppShell() {
         ) : activeSection === 'projects' ? (
           <ProjectsPage projects={projectsWithMissionProgress} clients={clientIdentities} initialSelectedProjectId={libraryProjectId} missions={dashboardData.missions} completed={completedMissionIds} team={dashboardData.team} canManageMissions={canManageMissions(accessSession)} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
         ) : activeSection === 'agenda' ? (
-          <AgendaPage events={dashboardData.agenda} missions={dashboardData.missions} projects={projectsWithMissionProgress} team={dashboardData.team} completed={completedMissionIds} />
+          <AgendaPage events={dashboardData.agenda} missions={dashboardData.missions} projects={projectsWithMissionProgress} team={dashboardData.team} completed={completedMissionIds} accessSession={accessSession} />
         ) : activeSection === 'team' ? (
           <TeamPage members={dashboardData.team} missions={dashboardData.missions} projects={projectsWithMissionProgress} completed={completedMissionIds} />
         ) : activeSection === 'analytics' ? (
@@ -1127,8 +1128,119 @@ function MissionCreateModal({ projects, team, initialProjectId, onClose, onCreat
   return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Criar missão"><form className="mission-create-dialog mission-create-dialog-expanded" onSubmit={(event) => { event.preventDefault(); if (title.trim() && projectId && assigneeId && deadline.trim()) onCreate({ title: title.trim(), projectId, assigneeId, deadline, priority, description: description.trim(), files }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de missão">×</button><span className="mission-create-icon"><Icon name="target" size={21} /></span><p>NOVA MISSÃO</p><h2>Qual ideia vamos<br /><em>tornar possível?</em></h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Desdobramentos de campanha" required /></label><label><span>DESCRIÇÃO, LINKS E CONTEXTO</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Escreva o briefing da missão e cole links de referências, imagens ou vídeos." maxLength={4000} /></label><label className="mission-create-files"><span>IMAGENS E VÍDEOS (OPCIONAL)</span><input type="file" accept="image/*,video/*" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /><small>{files.length ? `${files.length} arquivo${files.length === 1 ? '' : 's'} será${files.length === 1 ? '' : 'ão'} enviado${files.length === 1 ? '' : 's'} à Biblioteca do Projeto.` : 'Envie imagens ou vídeos junto da missão.'}</small></label><div className="mission-create-row"><label><span>PROJETO</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>RESPONSÁVEL</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} required>{team.map((member) => <option value={member.id} key={member.id}>{member.name} · {member.role}</option>)}</select></label></div><div className="mission-create-row"><label><span>PRAZO</span><input type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} required /></label><label><span>PRIORIDADE</span><select value={priority} onChange={(event) => setPriority(event.target.value as 'normal' | 'urgent')}><option value="normal">Normal</option><option value="urgent">Urgente</option></select></label></div><button className="mission-create-submit" type="submit">CRIAR MISSÃO <span>→</span></button></form></div>
 }
 
-function AgendaPage({ events, missions, projects, team, completed }: { events: AgendaEvent[]; missions: Mission[]; projects: Project[]; team: TeamMember[]; completed: string[] }) {
-  const missionEvents = missions.filter((mission) => !completed.includes(mission.id)).map((mission) => {
+type AgendaDisplayEvent = {
+  id: string
+  time: string
+  title: string
+  subtitle: string
+  day: string
+  category: string
+  tone: Mission['tone']
+  duration: string
+  attendees: string[]
+  description: string
+}
+
+const agendaCategoryLabels: Record<CalendarEventType, string> = {
+  meeting: 'Reunião',
+  deadline: 'Prazo',
+  appointment: 'Compromisso',
+  vacation: 'Férias',
+}
+
+function agendaDateLabel(value: string) {
+  const date = new Date(value)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const eventDay = new Date(date)
+  eventDay.setHours(0, 0, 0, 0)
+  const difference = Math.round((eventDay.getTime() - today.getTime()) / 86_400_000)
+  if (difference === 0) return 'Hoje'
+  if (difference === 1) return 'Amanhã'
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(date).replace('.', '')
+}
+
+function agendaDayOrder(day: string) {
+  if (day === 'Hoje') return 0
+  if (day === 'Amanhã') return 1
+  return 2
+}
+
+function agendaTime(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
+}
+
+function agendaDuration(startsAt: string, endsAt: string | null) {
+  if (!endsAt) return 'Sem duração'
+  const minutes = Math.max(0, Math.round((Date.parse(endsAt) - Date.parse(startsAt)) / 60_000))
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  return minutes % 60 ? `${hours} h ${minutes % 60} min` : `${hours} h`
+}
+
+function agendaTone(type: CalendarEventType): Mission['tone'] {
+  if (type === 'deadline') return 'orange'
+  if (type === 'vacation') return 'lime'
+  return type === 'meeting' ? 'purple' : 'lime'
+}
+
+function calendarEventToDisplay(event: CalendarEventRecord): AgendaDisplayEvent {
+  const context = [event.clientName ?? event.projectName, event.location].filter(Boolean).join(' · ')
+  return {
+    id: event.id,
+    time: agendaTime(event.startsAt),
+    title: event.title,
+    subtitle: context || (event.visibility === 'team' ? 'Agenda da equipe' : 'Agenda individual'),
+    day: agendaDateLabel(event.startsAt),
+    category: agendaCategoryLabels[event.eventType],
+    tone: agendaTone(event.eventType),
+    duration: agendaDuration(event.startsAt, event.endsAt),
+    attendees: event.ownerName ? [getInitials(event.ownerName)] : [],
+    description: event.description || 'Sem contexto adicional registrado.',
+  }
+}
+
+function agendaDateTimeInputValue(offsetMinutes = 60) {
+  const date = new Date(Date.now() + offsetMinutes * 60_000)
+  const timezoneOffset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16)
+}
+
+function AgendaPage({ events, missions, projects, team, completed, accessSession }: { events: AgendaEvent[]; missions: Mission[]; projects: Project[]; team: TeamMember[]; completed: string[]; accessSession: AccessSession | null }) {
+  const [scope, setScope] = useState<AgendaScope>('mine')
+  const [remoteEvents, setRemoteEvents] = useState<CalendarEventRecord[]>([])
+  const [permissions, setPermissions] = useState<AgendaPermissions>({ canViewTeam: false, canCreateTeam: false })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    if (!accessSession) {
+      setRemoteEvents([])
+      setPermissions({ canViewTeam: false, canCreateTeam: false })
+      setError('')
+      return () => { active = false }
+    }
+
+    setIsLoading(true)
+    setError('')
+    void getAgenda(scope).then((data) => {
+      if (!active) return
+      setRemoteEvents(data.events)
+      setPermissions(data.permissions)
+    }).catch((reason: unknown) => {
+      if (active) setError(reason instanceof Error ? reason.message : 'Não foi possível carregar a agenda.')
+    }).finally(() => {
+      if (active) setIsLoading(false)
+    })
+    return () => { active = false }
+  }, [accessSession, scope])
+
+  const missionEvents: AgendaDisplayEvent[] = missions.filter((mission) => {
+    if (completed.includes(mission.id)) return false
+    return !accessSession || permissions.canViewTeam || mission.assigneeId === accessSession.id
+  }).map((mission) => {
     const project = projects.find((item) => item.id === mission.projectId)
     const assignee = team.find((member) => member.id === mission.assigneeId)
     const timeParts = mission.deadline.match(/(\d{1,2})(?::(\d{2}))?h?/)
@@ -1141,45 +1253,89 @@ function AgendaPage({ events, missions, projects, team, completed }: { events: A
       title: mission.title,
       subtitle: `${project?.name ?? mission.client} · Missão atribuída`,
       day: mission.deadline.startsWith('Hoje') ? 'Hoje' : 'Amanhã',
-      category: 'Entrega' as const,
+      category: 'Entrega',
       tone: mission.tone,
       duration: 'Entrega',
       attendees: assignee ? [assignee.initials] : [],
       description: `Entrega da missão “${mission.title}” para ${project?.name ?? mission.client}.${assignee ? ` Responsável: ${assignee.name}.` : ''}`,
     }
   })
-  const agendaEvents = [...events, ...missionEvents].sort((first, second) => {
-    const dayDifference = (first.day === 'Hoje' ? 0 : 1) - (second.day === 'Hoje' ? 0 : 1)
-    return dayDifference || first.time.localeCompare(second.time)
-  })
-  const [agendaFilter, setAgendaFilter] = useState<'all' | AgendaEvent['category']>('all')
+  const calendarEvents: AgendaDisplayEvent[] = accessSession ? remoteEvents.map(calendarEventToDisplay) : events.map((event) => ({ ...event, category: event.category === 'Criação' ? 'Compromisso' : event.category }))
+  const agendaEvents = [...calendarEvents, ...missionEvents].sort((first, second) => agendaDayOrder(first.day) - agendaDayOrder(second.day) || first.time.localeCompare(second.time))
+  const [agendaFilter, setAgendaFilter] = useState<'all' | 'Reunião' | 'Prazo' | 'Compromisso' | 'Férias' | 'Entrega'>('all')
   const [selectedEventId, setSelectedEventId] = useState(agendaEvents[0]?.id ?? '')
   const visibleEvents = agendaEvents.filter((event) => agendaFilter === 'all' || event.category === agendaFilter)
   const selectedEvent = visibleEvents.find((event) => event.id === selectedEventId) ?? visibleEvents[0] ?? agendaEvents[0]
 
-  if (!selectedEvent) return <section className="agenda-page"><p className="empty-state">Nenhum evento programado por enquanto.</p></section>
+  function refreshAgenda() {
+    if (!accessSession) return
+    setIsLoading(true)
+    void getAgenda(scope).then((data) => {
+      setRemoteEvents(data.events)
+      setPermissions(data.permissions)
+      setError('')
+    }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Não foi possível atualizar a agenda.')).finally(() => setIsLoading(false))
+  }
 
   return (
     <section className="agenda-page">
-      <div className="agenda-intro"><div><p className="eyebrow">AGENDA COMPARTILHADA <span>✦</span></p><h1>Ritmo de<br /><em>possibilidades.</em></h1></div><div className="agenda-date-summary"><span>HOJE</span><b>04</b><small>{missionEvents.length} {missionEvents.length === 1 ? 'missão pendente' : 'missões pendentes'}</small></div></div>
-      <div className="agenda-toolbar"><div className="segmented-control" aria-label="Filtrar agenda"><button className={agendaFilter === 'all' ? 'selected' : ''} onClick={() => setAgendaFilter('all')}>Todos</button><button className={agendaFilter === 'Reunião' ? 'selected' : ''} onClick={() => setAgendaFilter('Reunião')}>Reuniões</button><button className={agendaFilter === 'Criação' ? 'selected' : ''} onClick={() => setAgendaFilter('Criação')}>Criação</button><button className={agendaFilter === 'Entrega' ? 'selected' : ''} onClick={() => setAgendaFilter('Entrega')}>Entregas</button></div><span>{visibleEvents.length} eventos programados</span></div>
+      <div className="agenda-intro"><div><p className="eyebrow">{scope === 'team' ? 'AGENDA DA EQUIPE' : 'MINHA AGENDA'} <span>✦</span></p><h1>Ritmo de<br /><em>possibilidades.</em></h1></div><div className="agenda-date-summary"><span>HOJE</span><b>{String(new Date().getDate()).padStart(2, '0')}</b><small>{missionEvents.length} {missionEvents.length === 1 ? 'missão pendente' : 'missões pendentes'}</small></div></div>
+      <div className="agenda-scope-bar"><div className="segmented-control" aria-label="Escopo da agenda"><button className={scope === 'mine' ? 'selected' : ''} onClick={() => setScope('mine')}>Minha agenda</button>{permissions.canViewTeam && <button className={scope === 'team' ? 'selected' : ''} onClick={() => setScope('team')}>Agenda da equipe</button>}</div>{accessSession ? <button className="agenda-create-button" onClick={() => setIsCreateOpen(true)}>NOVO EVENTO <span>+</span></button> : <span className="agenda-local-note">Entre para registrar eventos.</span>}</div>
+      <div className="agenda-toolbar"><div className="segmented-control" aria-label="Filtrar agenda"><button className={agendaFilter === 'all' ? 'selected' : ''} onClick={() => setAgendaFilter('all')}>Todos</button><button className={agendaFilter === 'Reunião' ? 'selected' : ''} onClick={() => setAgendaFilter('Reunião')}>Reuniões</button><button className={agendaFilter === 'Prazo' ? 'selected' : ''} onClick={() => setAgendaFilter('Prazo')}>Prazos</button><button className={agendaFilter === 'Compromisso' ? 'selected' : ''} onClick={() => setAgendaFilter('Compromisso')}>Compromissos</button><button className={agendaFilter === 'Férias' ? 'selected' : ''} onClick={() => setAgendaFilter('Férias')}>Férias</button><button className={agendaFilter === 'Entrega' ? 'selected' : ''} onClick={() => setAgendaFilter('Entrega')}>Missões</button></div><span>{isLoading ? 'Atualizando…' : `${visibleEvents.length} eventos programados`}</span></div>
+      {error && <p className="agenda-status error">{error}</p>}
 
       <div className="agenda-workspace">
         <div className="agenda-timeline">
           {visibleEvents.map((event) => {
-            const isSelected = event.id === selectedEvent.id
+            const isSelected = event.id === selectedEvent?.id
             return <button className={`agenda-timeline-item tone-${event.tone} ${isSelected ? 'selected' : ''}`} onClick={() => setSelectedEventId(event.id)} aria-pressed={isSelected} key={event.id}>
               <time>{event.time}</time><span className="agenda-timeline-dot" /><span className="agenda-timeline-copy"><small>{event.day} · {event.category}</small><b>{event.title}</b><em>{event.subtitle}</em></span><span className="agenda-timeline-duration">{event.duration}</span>
             </button>
           })}
           {visibleEvents.length === 0 && <p className="empty-state">Nenhum evento nesse filtro.</p>}
         </div>
-        <aside className={`agenda-detail tone-${selectedEvent.tone}`}>
-          <div className="agenda-detail-head"><span>{selectedEvent.day} · {selectedEvent.time}</span><b>{selectedEvent.category}</b></div><h2>{selectedEvent.title}</h2><p>{selectedEvent.subtitle}</p><div className="agenda-detail-section"><span>DURAÇÃO</span><b>{selectedEvent.duration}</b></div><div className="agenda-detail-section"><span>CONTEXTO</span><p>{selectedEvent.description}</p></div><div className="agenda-detail-footer"><div className="avatars">{selectedEvent.attendees.map((member, index) => <Avatar initials={member} tone={index === 1 ? 'lime' : 'dark'} small key={member} />)}<span>+{Math.max(0, selectedEvent.attendees.length - 2)}</span></div><small>{selectedEvent.attendees.length} pessoas confirmadas</small></div>
-        </aside>
+        {selectedEvent ? <aside className={`agenda-detail tone-${selectedEvent.tone}`}>
+          <div className="agenda-detail-head"><span>{selectedEvent.day} · {selectedEvent.time}</span><b>{selectedEvent.category}</b></div><h2>{selectedEvent.title}</h2><p>{selectedEvent.subtitle}</p><div className="agenda-detail-section"><span>DURAÇÃO</span><b>{selectedEvent.duration}</b></div><div className="agenda-detail-section"><span>CONTEXTO</span><p>{selectedEvent.description}</p></div><div className="agenda-detail-footer"><div className="avatars">{selectedEvent.attendees.map((member, index) => <Avatar initials={member} tone={index === 1 ? 'lime' : 'dark'} small key={member} />)}<span>+{Math.max(0, selectedEvent.attendees.length - 2)}</span></div><small>{selectedEvent.attendees.length > 0 ? `${selectedEvent.attendees.length} pessoa${selectedEvent.attendees.length === 1 ? '' : 's'} envolvida${selectedEvent.attendees.length === 1 ? '' : 's'}` : 'Evento individual'}</small></div>
+        </aside> : <aside className="agenda-detail"><div className="agenda-detail-head"><span>AGENDA</span></div><h2>Nenhum evento<br />nesse filtro.</h2><p>Altere o filtro ou registre um novo compromisso.</p></aside>}
       </div>
+      {isCreateOpen && <CalendarEventModal projects={projects} canCreateTeam={permissions.canCreateTeam} defaultVisibility={scope === 'team' ? 'team' : 'personal'} onClose={() => setIsCreateOpen(false)} onCreated={() => { setIsCreateOpen(false); refreshAgenda() }} />}
     </section>
   )
+}
+
+function CalendarEventModal({ projects, canCreateTeam, defaultVisibility, onClose, onCreated }: { projects: Project[]; canCreateTeam: boolean; defaultVisibility: CalendarVisibility; onClose: () => void; onCreated: () => void }) {
+  const [title, setTitle] = useState('')
+  const [eventType, setEventType] = useState<CalendarEventType>('meeting')
+  const [startsAt, setStartsAt] = useState(() => agendaDateTimeInputValue())
+  const [endsAt, setEndsAt] = useState(() => agendaDateTimeInputValue(120))
+  const [visibility, setVisibility] = useState<CalendarVisibility>(defaultVisibility)
+  const [projectId, setProjectId] = useState('')
+  const [location, setLocation] = useState('')
+  const [description, setDescription] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSaving(true)
+    setError('')
+    try {
+      await createCalendarEvent({ title, startsAt, endsAt, eventType, visibility, projectId: projectId || undefined, location, description })
+      onCreated()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível criar o evento.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo evento da agenda"><form className="mission-create-dialog agenda-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de evento">×</button><span className="mission-create-icon"><Icon name="calendar" size={21} /></span><p>NOVO EVENTO</p><h2>Organize o próximo<br /><em>momento.</em></h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Reunião de alinhamento" required /></label><div className="mission-create-row"><label><span>TIPO</span><select value={eventType} onChange={(event) => setEventType(event.target.value as CalendarEventType)}><option value="meeting">Reunião</option><option value="deadline">Prazo</option><option value="appointment">Compromisso</option><option value="vacation">Férias</option></select></label><label><span>VISIBILIDADE</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as CalendarVisibility)}><option value="personal">Somente eu</option>{canCreateTeam && <option value="team">Equipe autorizada</option>}</select></label></div><div className="mission-create-row"><label><span>INÍCIO</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} required /></label><label><span>FIM</span><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} required /></label></div><div className="mission-create-row"><label><span>PROJETO (OPCIONAL)</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Sem projeto vinculado</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>LOCAL (OPCIONAL)</span><input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Ex.: Sala Norte" /></label></div><label><span>CONTEXTO</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="O que precisa acontecer neste compromisso?" maxLength={2000} /></label>{error && <p className="agenda-status error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR EVENTO <span>→</span></>}</button></form></div>
 }
 
 function TeamPage({ members, missions, projects, completed }: { members: TeamMember[]; missions: Mission[]; projects: Project[]; completed: string[] }) {

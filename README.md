@@ -2,14 +2,14 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.38.0`
+**Versão atual:** `0.39.0`
 
 ## O que já está implementado
 
 - Dashboard responsivo com identidade visual SIX.
 - Navegação entre os módulos previstos do produto.
 - Missões com filtros e conclusão que atualiza o XP.
-- Agenda, projetos em andamento e feed interno com dados demonstrativos.
+- Agenda nativa com eventos pessoais ou compartilhados por cargo, além de projetos e feed interno.
 - Painel inicial da SIX AI.
 - Camada de dados tipada, preparada para consumir a API do produto.
 - Migração inicial e rotas de API para Cloudflare D1.
@@ -46,11 +46,15 @@ O cadastro de cliente exige uma sigla de 2 a 6 caracteres. Ela é o fallback vis
 
 ### Biblioteca do projeto
 
-Cada projeto recebe as pastas `Logo`, `KV`, `Vídeos`, `Artes`, `Briefing`, `Contrato` e `Outros`, além de pastas personalizadas criadas por Administração e Gestão. É possível enviar arquivos de até 25 MB pela Biblioteca do Projeto; um reenvio com o mesmo nome na mesma pasta cria uma nova versão. O D1 guarda organização e histórico, enquanto o conteúdo vai para o Cloudflare R2. A integração foi validada localmente; o bucket remoto `six-os-files` deve ser criado antes da próxima publicação. Links do MEGA.nz serão apenas referências compartilhadas opcionais.
+Cada projeto recebe as pastas `Logo`, `KV`, `Vídeos`, `Artes`, `Briefing`, `Contrato` e `Outros`, além de pastas personalizadas criadas por Administração e Gestão. É possível enviar arquivos de até 25 MB pela Biblioteca do Projeto; um reenvio com o mesmo nome na mesma pasta cria uma nova versão. O D1 guarda organização e histórico, enquanto o conteúdo vai para o Cloudflare R2 no bucket remoto `six-os-files`. Links do MEGA.nz serão apenas referências compartilhadas opcionais.
 
 ### Biblioteca do cliente
 
-No Ecossistema, selecione um cliente para administrar seus materiais permanentes sem misturá-los com os arquivos de campanhas. Cada cliente começa com as pastas `Logo`, `Brandbook`, `Briefing`, `Contrato`, `Referências` e `Outros`; Administração e Gestão podem criar outras categorias, anexar arquivos de até 25 MB e baixar os materiais. Reenviar o mesmo nome na mesma pasta cria uma nova versão e preserva o histórico no D1, com o conteúdo no R2. A validação foi feita localmente; a criação do bucket remoto continua pendente de autorização para publicação.
+No Ecossistema, selecione um cliente para administrar seus materiais permanentes sem misturá-los com os arquivos de campanhas. Cada cliente começa com as pastas `Logo`, `Brandbook`, `Briefing`, `Contrato`, `Referências` e `Outros`; Administração e Gestão podem criar outras categorias, anexar arquivos de até 25 MB e baixar os materiais. Reenviar o mesmo nome na mesma pasta cria uma nova versão e preserva o histórico no D1, com o conteúdo no R2.
+
+### Agenda nativa
+
+A Agenda reúne reuniões, prazos, compromissos, férias e missões. Usuários autenticados criam eventos pessoais com período, local, contexto e vínculo opcional a projeto. Atendimento, Coordenação, Gestão e Administração também podem publicar e acessar a agenda compartilhada; os demais cargos permanecem na agenda individual.
 
 ### Missões completas
 
@@ -90,4 +94,4 @@ As entregas seguem o processo descrito em `VERSIONING.md`. Os marcos recuperáve
 
 O plano completo de entregas, dependências e critérios de avanço está em [ROADMAP.md](ROADMAP.md).
 
-A prioridade atual é concluir a validação de acesso e fundação. As integrações com Runrun.it, Google/Outlook Calendar e Slack foram reservadas para a fase final.
+A prioridade atual é concluir a Agenda nativa e suas regras de privacidade. As integrações com Runrun.it, Google/Outlook Calendar e Slack foram reservadas para a fase final.

@@ -2,6 +2,18 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.39.0] - 2026-08-05
+
+### Adicionado
+
+- Fundação da Agenda nativa: eventos pessoais e da equipe para reuniões, prazos, compromissos e férias.
+- Criação de eventos com período, local, contexto e vínculo opcional a projeto/cliente.
+- API isolada por organização: todos visualizam a própria agenda; somente Atendimento, Coordenação, Gestão e Administração acessam eventos compartilhados.
+
+### Estrutura
+
+- Migração `0010_native_agenda.sql` amplia a base de calendário e inclui os primeiros eventos de equipe.
+
 ## [0.38.0] - 2026-08-05
 
 ### Segurança
