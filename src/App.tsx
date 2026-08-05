@@ -6,7 +6,7 @@ import { clientIdentitySeed, getClientIdentities, type ClientIdentity } from './
 import { completeMission as persistMissionCompletion, getDashboard } from './data/dashboardRepository'
 import { createProjectLibraryFolder, getProjectLibrary, projectLibrarySeed, uploadProjectLibraryFile, type ProjectLibrary } from './data/projectLibraryRepository'
 import { createClientLibraryFolder, getClientLibrary, uploadClientLibraryFile } from './data/clientLibraryRepository'
-import { addMissionChecklistItem, addMissionComment, attachProjectLibraryFile, getMissionDetails, requestMissionCompletion, setMissionChecklistItem, type MissionDetails } from './data/missionRepository'
+import { addMissionChecklistItem, addMissionComment, attachProjectLibraryFile, createMission as persistMissionCreate, getMissionDetails, requestMissionCompletion, setMissionChecklistItem, updateMission as persistMissionUpdate, type MissionDetails } from './data/missionRepository'
 
 type IconName =
   | 'home'
@@ -44,6 +44,16 @@ const customProjectsStorageKey = 'six-os:custom-projects'
 const missionAssigneesStorageKey = 'six-os:mission-assignees'
 const missionEditsStorageKey = 'six-os:mission-edits'
 const projectEditsStorageKey = 'six-os:project-edits'
+
+function deadlineToMissionDate(value: string) {
+  const directDate = Date.parse(value)
+  if (!Number.isNaN(directDate)) return new Date(directDate).toISOString()
+  const date = new Date()
+  const time = value.match(/(\d{1,2})(?::(\d{2}))?\s*h?/i)
+  if (value.toLocaleLowerCase('pt-BR').includes('amanhã')) date.setDate(date.getDate() + 1)
+  if (time) date.setHours(Number(time[1]), Number(time[2] ?? 0), 0, 0)
+  return date.toISOString()
+}
 
 function getStoredCompletedMissions(): string[] {
   try {
@@ -451,40 +461,39 @@ function AppShell() {
   function createMission(input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) {
     const project = dashboardData.projects.find((item) => item.id === input.projectId)
     if (!project) return
+    const projectClient = project.client
+    const projectId = project.id
 
-    const mission: Mission = {
-      id: `mission-local-${Date.now()}`,
-      title: input.title,
-      client: project.client,
-      projectId: project.id,
-      assigneeId: input.assigneeId,
-      deadline: input.deadline,
-      xp: input.priority === 'urgent' ? 120 : 80,
-      ideas: input.priority === 'urgent' ? 30 : 20,
-      tone: input.priority === 'urgent' ? 'orange' : 'purple',
-      urgent: input.priority === 'urgent',
+    function addMission(missionId: string, persistLocally: boolean) {
+      const mission: Mission = { id: missionId, title: input.title, client: projectClient, projectId, assigneeId: input.assigneeId, deadline: input.deadline, xp: input.priority === 'urgent' ? 120 : 80, ideas: input.priority === 'urgent' ? 30 : 20, tone: input.priority === 'urgent' ? 'orange' : 'purple', urgent: input.priority === 'urgent' }
+      if (persistLocally) saveCustomMissions([...getStoredCustomMissions(), mission])
+      setDashboardData((current) => ({ ...current, missions: [...current.missions, mission] }))
     }
-    const nextCustomMissions = [...getStoredCustomMissions(), mission]
 
-    saveCustomMissions(nextCustomMissions)
-    setDashboardData((current) => ({ ...current, missions: [...current.missions, mission] }))
+    void persistMissionCreate({ title: input.title, projectId: input.projectId, assigneeId: input.assigneeId, dueAt: deadlineToMissionDate(input.deadline), priority: input.priority, xpReward: input.priority === 'urgent' ? 120 : 80 }).then((saved) => {
+      addMission(saved.id, false)
+      setCompletionMessage(`${input.title} foi criada e atribuída.`)
+    }).catch(() => {
+      addMission(`mission-local-${Date.now()}`, true)
+      setCompletionMessage('Missão criada localmente. Conecte uma sessão para persistir no D1.')
+    })
   }
 
   function reassignMission(id: string, assigneeId: string) {
     const mission = dashboardData.missions.find((item) => item.id === id)
     const assignee = dashboardData.team.find((member) => member.id === assigneeId)
     if (!mission || !assignee) return
+    const missionTitle = mission.title
+    const assigneeName = assignee.name
 
-    const customMissions = getStoredCustomMissions()
-    const isCustomMission = customMissions.some((item) => item.id === id)
-    if (isCustomMission) {
-      saveCustomMissions(customMissions.map((item) => item.id === id ? { ...item, assigneeId } : item))
-    } else {
-      saveMissionEdits({ ...getStoredMissionEdits(), [id]: { ...getStoredMissionEdits()[id], assigneeId } })
+    function applyReassignment(persistLocally: boolean) {
+      const customMissions = getStoredCustomMissions()
+      if (persistLocally && customMissions.some((item) => item.id === id)) saveCustomMissions(customMissions.map((item) => item.id === id ? { ...item, assigneeId } : item))
+      else if (persistLocally) saveMissionEdits({ ...getStoredMissionEdits(), [id]: { ...getStoredMissionEdits()[id], assigneeId } })
+      setDashboardData((current) => ({ ...current, missions: current.missions.map((item) => item.id === id ? { ...item, assigneeId } : item) }))
+      setCompletionMessage(`${missionTitle} foi atribuída para ${assigneeName}.`)
     }
-
-    setDashboardData((current) => ({ ...current, missions: current.missions.map((item) => item.id === id ? { ...item, assigneeId } : item) }))
-    setCompletionMessage(`${mission.title} foi atribuída para ${assignee.name}.`)
+    void persistMissionUpdate(id, { assigneeId }).then(() => applyReassignment(false)).catch(() => applyReassignment(true))
   }
 
   function updateMission(id: string, input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) {
@@ -492,6 +501,7 @@ function AppShell() {
     const project = dashboardData.projects.find((item) => item.id === input.projectId)
     const assignee = dashboardData.team.find((member) => member.id === input.assigneeId)
     if (!mission || !project || !assignee) return
+    const missionTitle = mission.title
 
     const missionUpdate: Partial<Mission> = {
       title: input.title,
@@ -504,16 +514,14 @@ function AppShell() {
       tone: input.priority === 'urgent' ? 'orange' : 'purple',
       urgent: input.priority === 'urgent',
     }
-    const customMissions = getStoredCustomMissions()
-    if (customMissions.some((item) => item.id === id)) {
-      saveCustomMissions(customMissions.map((item) => item.id === id ? { ...item, ...missionUpdate } : item))
-    } else {
-      const storedEdits = getStoredMissionEdits()
-      saveMissionEdits({ ...storedEdits, [id]: { ...storedEdits[id], ...missionUpdate } })
+    function applyUpdate(persistLocally: boolean) {
+      const customMissions = getStoredCustomMissions()
+      if (persistLocally && customMissions.some((item) => item.id === id)) saveCustomMissions(customMissions.map((item) => item.id === id ? { ...item, ...missionUpdate } : item))
+      else if (persistLocally) { const storedEdits = getStoredMissionEdits(); saveMissionEdits({ ...storedEdits, [id]: { ...storedEdits[id], ...missionUpdate } }) }
+      setDashboardData((current) => ({ ...current, missions: current.missions.map((item) => item.id === id ? { ...item, ...missionUpdate } : item) }))
+      setCompletionMessage(`${missionTitle} foi atualizada.`)
     }
-
-    setDashboardData((current) => ({ ...current, missions: current.missions.map((item) => item.id === id ? { ...item, ...missionUpdate } : item) }))
-    setCompletionMessage(`${mission.title} foi atualizada.`)
+    void persistMissionUpdate(id, { title: input.title, projectId: input.projectId, assigneeId: input.assigneeId, dueAt: deadlineToMissionDate(input.deadline), priority: input.priority, xpReward: missionUpdate.xp }).then(() => applyUpdate(false)).catch(() => applyUpdate(true))
   }
 
   function createProject(input: { name: string; client: string; deadline: string; tone: Project['tone'] }) {
@@ -989,13 +997,16 @@ function MissionDetailsModal({ mission, onClose }: { mission: Mission; onClose: 
   const [checklistLabel, setChecklistLabel] = useState('')
   const [commentBody, setCommentBody] = useState('')
   const [selectedFileId, setSelectedFileId] = useState('')
+  const [uploadFolderId, setUploadFolderId] = useState('')
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
+  const [isUploadingFile, setIsUploadingFile] = useState(false)
   const [message, setMessage] = useState('')
 
   async function reload() {
     try {
       const next = await getMissionDetails(mission.id)
       setDetails(next)
-      if (next.mission.projectId) setLibrary(await getProjectLibrary(next.mission.projectId))
+      if (next.mission.projectId) { const projectLibrary = await getProjectLibrary(next.mission.projectId); setLibrary(projectLibrary); setUploadFolderId((current) => current || projectLibrary.folders[0]?.id || '') }
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível carregar os detalhes.') }
   }
 
@@ -1006,9 +1017,10 @@ function MissionDetailsModal({ mission, onClose }: { mission: Mission; onClose: 
   async function toggleChecklist(itemId: string, isCompleted: boolean) { try { await setMissionChecklistItem(mission.id, itemId, isCompleted); setDetails((current) => current ? { ...current, checklist: current.checklist.map((item) => item.id === itemId ? { ...item, isCompleted: isCompleted ? 1 : 0 } : item) } : current) } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o item.') } }
   async function addComment(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (!commentBody.trim()) return; try { const { comment } = await addMissionComment(mission.id, commentBody); setDetails((current) => current ? { ...current, comments: [comment, ...current.comments] } : current); setCommentBody('') } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível enviar o comentário.') } }
   async function attachFile() { if (!selectedFileId) return; try { const { attachment } = await attachProjectLibraryFile(mission.id, selectedFileId); setDetails((current) => current ? { ...current, attachments: [attachment, ...current.attachments] } : current); setSelectedFileId('') } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível anexar o arquivo.') } }
+  async function uploadAndAttachFile(file?: File) { const folderId = uploadFolderId || library.folders[0]?.id; if (!file || !folderId || !details) return; setIsUploadingFile(true); try { const uploaded = await uploadProjectLibraryFile({ projectId: details.mission.projectId, folderId, file }); const { attachment } = await attachProjectLibraryFile(mission.id, uploaded.id); setLibrary((current) => ({ folders: current.folders.map((folder) => folder.id === folderId ? { ...folder, fileCount: folder.fileCount + 1 } : folder), files: [uploaded, ...current.files.filter((item) => item.id !== uploaded.id)] })); setDetails((current) => current ? { ...current, attachments: [attachment, ...current.attachments] } : current); setMessage(`Arquivo ${uploaded.name} enviado e anexado à missão.`) } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível enviar o anexo.') } finally { setIsUploadingFile(false); setIsDraggingFile(false) } }
   async function complete() { try { const result = await requestMissionCompletion(mission.id); setMessage(result.status === 'pending_approval' ? 'Entrega enviada para aprovação.' : 'Missão aprovada e XP liberado.'); await reload() } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível concluir a missão.') } }
 
-  return <div className="mission-create-overlay mission-details-overlay" role="dialog" aria-modal="true" aria-label="Detalhes da missão"><section className="mission-details-dialog"><button className="close-button" type="button" onClick={onClose} aria-label="Fechar detalhes da missão">×</button>{!details ? <p className="mission-details-loading">Carregando missão…</p> : <><header><p>MISSÃO COMPLETA</p><h2>{details.mission.title}</h2><span>{details.mission.client} · {details.mission.project}</span></header><div className="mission-details-meta"><b>{details.mission.priority.toLocaleUpperCase('pt-BR')}</b><span>{details.mission.assignee ?? 'Responsável a definir'}</span><span>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Prazo a definir'}</span><span>+{details.mission.xpReward} XP</span></div><p className="mission-details-description">{details.mission.description || 'Sem descrição adicionada.'}</p><div className="mission-details-grid"><section><h3>CHECKLIST</h3><div className="mission-checklist">{details.checklist.map((item) => <label key={item.id}><input type="checkbox" checked={Boolean(item.isCompleted)} onChange={(event) => { void toggleChecklist(item.id, event.target.checked) }} /><span>{item.label}</span></label>)}</div><form onSubmit={addChecklist}><input value={checklistLabel} onChange={(event) => setChecklistLabel(event.target.value)} placeholder="Adicionar item" maxLength={240} /><button>ADICIONAR</button></form></section><section><h3>ANEXOS DO PROJETO</h3>{details.attachments.map((attachment) => <a className="mission-attachment" key={attachment.id} href={`/api/projects/${details.mission.projectId}/library/files/${attachment.libraryFileId}`}><span>{attachment.fileName}</span><b>V{attachment.fileVersion} ↓</b></a>)}<div className="mission-attach-form"><select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)}><option value="">Selecionar arquivo da biblioteca</option>{library.files.filter((file) => !details.attachments.some((attachment) => attachment.libraryFileId === file.id)).map((file) => <option value={file.id} key={file.id}>{file.name} · V{file.version}</option>)}</select><button type="button" onClick={() => { void attachFile() }} disabled={!selectedFileId}>ANEXAR</button></div></section></div><section className="mission-comments"><h3>COMENTÁRIOS</h3><form onSubmit={addComment}><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Registre uma atualização para o time" maxLength={3000} /><button>COMENTAR</button></form>{details.comments.map((comment) => <article key={comment.id}><b>{comment.author}</b><p>{comment.body}</p></article>)}</section><section className="mission-history"><h3>HISTÓRICO</h3>{details.history.map((entry) => <p key={entry.id}><b>{entry.actor ?? 'Sistema'}</b> · {entry.detail ?? entry.action}</p>)}</section>{message && <p className="mission-detail-message">{message}</p>}{details.mission.status !== 'completed' && <button className="mission-detail-complete" type="button" onClick={() => { void complete() }}>{details.permissions.canApprove ? 'APROVAR E CONCLUIR' : 'ENVIAR PARA APROVAÇÃO'} <span>→</span></button>}</>}</section></div>
+  return <div className="mission-create-overlay mission-details-overlay" role="dialog" aria-modal="true" aria-label="Detalhes da missão"><section className="mission-details-dialog"><button className="close-button" type="button" onClick={onClose} aria-label="Fechar detalhes da missão">×</button>{!details ? <p className="mission-details-loading">Carregando missão…</p> : <><header><p>MISSÃO COMPLETA</p><h2>{details.mission.title}</h2><span>{details.mission.client} · {details.mission.project}</span></header><div className="mission-details-meta"><b>{details.mission.priority.toLocaleUpperCase('pt-BR')}</b><span>{details.mission.assignee ?? 'Responsável a definir'}</span><span>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Prazo a definir'}</span><span>+{details.mission.xpReward} XP</span></div><p className="mission-details-description">{details.mission.description || 'Sem descrição adicionada.'}</p><div className="mission-details-grid"><section><h3>CHECKLIST</h3><div className="mission-checklist">{details.checklist.map((item) => <label key={item.id}><input type="checkbox" checked={Boolean(item.isCompleted)} onChange={(event) => { void toggleChecklist(item.id, event.target.checked) }} /><span>{item.label}</span></label>)}</div><form onSubmit={addChecklist}><input value={checklistLabel} onChange={(event) => setChecklistLabel(event.target.value)} placeholder="Adicionar item" maxLength={240} /><button>ADICIONAR</button></form></section><section><h3>ANEXOS DO PROJETO</h3>{details.attachments.map((attachment) => <a className="mission-attachment" key={attachment.id} href={`/api/projects/${details.mission.projectId}/library/files/${attachment.libraryFileId}`}><span>{attachment.fileName}</span><b>V{attachment.fileVersion} ↓</b></a>)}<div className="mission-attach-form"><select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)}><option value="">Selecionar arquivo da biblioteca</option>{library.files.filter((file) => !details.attachments.some((attachment) => attachment.libraryFileId === file.id)).map((file) => <option value={file.id} key={file.id}>{file.name} · V{file.version}</option>)}</select><button type="button" onClick={() => { void attachFile() }} disabled={!selectedFileId}>ANEXAR</button></div><div className={`mission-dropzone ${isDraggingFile ? 'dragging' : ''}`} onDragOver={(event) => { event.preventDefault(); setIsDraggingFile(true) }} onDragLeave={() => setIsDraggingFile(false)} onDrop={(event) => { event.preventDefault(); void uploadAndAttachFile(event.dataTransfer.files[0]) }}><label><input type="file" onChange={(event) => { void uploadAndAttachFile(event.target.files?.[0]); event.currentTarget.value = '' }} />{isUploadingFile ? 'ENVIANDO ARQUIVO…' : 'ADICIONAR NOVO ARQUIVO +'}</label><select value={uploadFolderId} onChange={(event) => setUploadFolderId(event.target.value)}>{library.folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select><p>Arraste um arquivo aqui para enviar e anexar.</p></div></section></div><section className="mission-comments"><h3>COMENTÁRIOS</h3><form onSubmit={addComment}><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Registre uma atualização para o time" maxLength={3000} /><button>COMENTAR</button></form>{details.comments.map((comment) => <article key={comment.id}><b>{comment.author}</b><p>{comment.body}</p></article>)}</section><section className="mission-history"><h3>HISTÓRICO</h3>{details.history.map((entry) => <p key={entry.id}><b>{entry.actor ?? 'Sistema'}</b> · {entry.detail ?? entry.action}</p>)}</section>{message && <p className="mission-detail-message">{message}</p>}{details.mission.status !== 'completed' && <button className="mission-detail-complete" type="button" onClick={() => { void complete() }}>{details.permissions.canApprove ? 'APROVAR E CONCLUIR' : 'ENVIAR PARA APROVAÇÃO'} <span>→</span></button>}</>}</section></div>
 }
 
 function MissionEditModal({ mission, projects, team, onClose, onUpdate }: { mission: Mission; projects: Project[]; team: TeamMember[]; onClose: () => void; onUpdate: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void }) {

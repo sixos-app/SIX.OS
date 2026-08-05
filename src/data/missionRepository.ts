@@ -86,3 +86,33 @@ export function attachProjectLibraryFile(missionId: string, libraryFileId: strin
 export function requestMissionCompletion(missionId: string) {
   return requestJson<{ missionId: string; status?: string }>(`/api/missions/${encodeURIComponent(missionId)}/complete`, { method: 'POST' })
 }
+
+export type SaveMissionInput = {
+  title: string
+  projectId: string
+  assigneeId: string
+  dueAt: string
+  priority: 'normal' | 'urgent'
+  description?: string
+  xpReward?: number
+}
+
+export type SavedMission = {
+  id: string
+  title: string
+  projectId: string
+  assigneeId: string
+  dueAt: string
+  priority: string
+  description: string
+  xpReward: number
+  rewardLabel: string | null
+}
+
+export function createMission(input: SaveMissionInput) {
+  return requestJson<SavedMission>('/api/missions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+}
+
+export function updateMission(missionId: string, input: Partial<SaveMissionInput>) {
+  return requestJson<{ mission: SavedMission }>(`/api/missions/${encodeURIComponent(missionId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+}

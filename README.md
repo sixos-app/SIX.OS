@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.34.0`
+**Versão atual:** `0.35.0`
 
 ## O que já está implementado
 
@@ -52,9 +52,9 @@ Cada projeto recebe as pastas `Logo`, `KV`, `Vídeos`, `Artes`, `Briefing`, `Con
 
 No Ecossistema, selecione um cliente para administrar seus materiais permanentes sem misturá-los com os arquivos de campanhas. Cada cliente começa com as pastas `Logo`, `Brandbook`, `Briefing`, `Contrato`, `Referências` e `Outros`; Administração e Gestão podem criar outras categorias, anexar arquivos de até 25 MB e baixar os materiais. Reenviar o mesmo nome na mesma pasta cria uma nova versão e preserva o histórico no D1, com o conteúdo no R2. A validação foi feita localmente; a criação do bucket remoto continua pendente de autorização para publicação.
 
-### Missões completas — primeira entrega
+### Missões completas
 
-No painel de Missões, o botão `DETALHES COMPLETOS` abre a área operacional persistida da missão. Ela reúne descrição, cliente, projeto, responsável, prazo, prioridade, XP, checklist editável, comentários, anexos já existentes na Biblioteca do Projeto e histórico. Especialistas enviam a entrega para aprovação; Coordenador, Gestão e Administrador aprovam e liberam o XP para o responsável. A criação pelo endpoint também exige permissão de distribuição. A edição e a redistribuição legadas continuarão na próxima entrega da Fase 3, quando serão totalmente migradas do modo local para a API.
+No painel de Missões, o botão `DETALHES COMPLETOS` abre a área operacional persistida da missão. Ela reúne descrição, cliente, projeto, responsável, prazo, prioridade, XP, checklist editável, comentários, anexos e histórico. Arquivos podem ser escolhidos da Biblioteca do Projeto ou arrastados para a missão: nesse caso, o SIX.OS envia o arquivo para a pasta escolhida da Biblioteca do Projeto e o anexa automaticamente. Criação, edição e redistribuição passam pela API protegida quando há sessão ativa; o modo local permanece apenas como fallback de demonstração. Especialistas enviam a entrega para aprovação; Coordenador, Gestão e Administrador aprovam e liberam o XP para o responsável.
 
 ## Publicação no Cloudflare Pages
 

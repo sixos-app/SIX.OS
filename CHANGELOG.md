@@ -2,6 +2,22 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.35.0] - 2026-08-05
+
+### Alterado
+
+- Criação, edição e redistribuição de missões agora persistem no D1 para sessões autorizadas.
+- Fallback local permanece apenas quando não há sessão ativa, preservando a demonstração do app.
+
+### Adicionado
+
+- Área de anexo por arrastar e soltar na missão.
+- Arquivo solto na missão é enviado à pasta escolhida na Biblioteca do Projeto e anexado automaticamente.
+
+### Validação
+
+- Fluxo local confirmado com criação, edição, redistribuição, upload, anexo e limpeza dos registros temporários.
+
 ## [0.34.0] - 2026-08-05
 
 ### Adicionado
