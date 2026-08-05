@@ -11,6 +11,8 @@ type MissionRow = {
   ideas: number
   tone: 'lime' | 'purple' | 'orange'
   urgent: number
+  status: 'open' | 'in_progress' | 'completed'
+  approvalStatus: 'not_requested' | 'pending' | 'approved'
 }
 
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
@@ -41,16 +43,18 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       missions.xp_reward AS xp,
       missions.ideas_reward AS ideas,
       missions.visual_tone AS tone,
-      CASE WHEN missions.priority = 'urgent' THEN 1 ELSE 0 END AS urgent
+      CASE WHEN missions.priority = 'urgent' THEN 1 ELSE 0 END AS urgent,
+      missions.status,
+      missions.approval_status AS approvalStatus
     FROM missions
     JOIN clients ON clients.id = missions.client_id
     JOIN projects ON projects.id = missions.project_id
     LEFT JOIN mission_assignees ON mission_assignees.mission_id = missions.id
-    WHERE missions.status IN ('open', 'in_progress')
+    WHERE missions.status IN ('open', 'in_progress', 'completed')
       AND projects.organization_id = ?
-    GROUP BY missions.id, missions.title, clients.name, missions.project_id, missions.due_at, missions.xp_reward, missions.ideas_reward, missions.visual_tone, missions.priority
-    ORDER BY missions.due_at ASC
-    LIMIT 8
+    GROUP BY missions.id, missions.title, clients.name, missions.project_id, missions.due_at, missions.xp_reward, missions.ideas_reward, missions.visual_tone, missions.priority, missions.status, missions.approval_status
+    ORDER BY CASE WHEN missions.status = 'completed' THEN 1 ELSE 0 END, missions.due_at ASC
+    LIMIT 20
   `).bind(user.organizationId).all<MissionRow>()
 
   return Response.json({

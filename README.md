@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.35.0`
+**Versão atual:** `0.36.0`
 
 ## O que já está implementado
 
@@ -54,7 +54,7 @@ No Ecossistema, selecione um cliente para administrar seus materiais permanentes
 
 ### Missões completas
 
-No painel de Missões, o botão `DETALHES COMPLETOS` abre a área operacional persistida da missão. Ela reúne descrição, cliente, projeto, responsável, prazo, prioridade, XP, checklist editável, comentários, anexos e histórico. Arquivos podem ser escolhidos da Biblioteca do Projeto ou arrastados para a missão: nesse caso, o SIX.OS envia o arquivo para a pasta escolhida da Biblioteca do Projeto e o anexa automaticamente. Criação, edição e redistribuição passam pela API protegida quando há sessão ativa; o modo local permanece apenas como fallback de demonstração. Especialistas enviam a entrega para aprovação; Coordenador, Gestão e Administrador aprovam e liberam o XP para o responsável.
+No painel de Missões, o botão `DETALHES COMPLETOS` abre a área operacional persistida da missão. Ela reúne descrição, cliente, projeto, responsável, prazo, prioridade, XP, checklist editável, comentários, anexos e histórico. Arquivos podem ser escolhidos da Biblioteca do Projeto ou arrastados para a missão: nesse caso, o SIX.OS envia o arquivo para a pasta escolhida da Biblioteca do Projeto e o anexa automaticamente. Criação, edição e redistribuição passam pela API protegida quando há sessão ativa; o modo local permanece apenas como fallback de demonstração. Especialistas enviam a entrega para aprovação; Coordenador, Gestão e Administrador aprovam e liberam o XP para o responsável. A Central de Missões, filtros, contadores e progresso dos projetos refletem os estados persistidos `em aprovação` e `concluída`.
 
 ## Publicação no Cloudflare Pages
 

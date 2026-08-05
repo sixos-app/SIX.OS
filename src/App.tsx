@@ -3,7 +3,7 @@ import { dashboardSeed, type AgendaEvent, type AnalyticsData, type AppNotificati
 import { getAccessSession, loginWithPassword, type AccessSession } from './data/accessRepository'
 import { adminOverviewPreview, createAdminClient, createAdminUser, getAdminOverview, type AdminOverview, type CreateAdminUserInput } from './data/adminRepository'
 import { clientIdentitySeed, getClientIdentities, type ClientIdentity } from './data/clientRepository'
-import { completeMission as persistMissionCompletion, getDashboard } from './data/dashboardRepository'
+import { getDashboard } from './data/dashboardRepository'
 import { createProjectLibraryFolder, getProjectLibrary, projectLibrarySeed, uploadProjectLibraryFile, type ProjectLibrary } from './data/projectLibraryRepository'
 import { createClientLibraryFolder, getClientLibrary, uploadClientLibraryFile } from './data/clientLibraryRepository'
 import { addMissionChecklistItem, addMissionComment, attachProjectLibraryFile, createMission as persistMissionCreate, getMissionDetails, requestMissionCompletion, setMissionChecklistItem, updateMission as persistMissionUpdate, type MissionDetails } from './data/missionRepository'
@@ -53,6 +53,10 @@ function deadlineToMissionDate(value: string) {
   if (value.toLocaleLowerCase('pt-BR').includes('amanhã')) date.setDate(date.getDate() + 1)
   if (time) date.setHours(Number(time[1]), Number(time[2] ?? 0), 0, 0)
   return date.toISOString()
+}
+
+function isMissionCompleted(mission: Mission, locallyCompleted: string[]) {
+  return mission.status === 'completed' || locallyCompleted.includes(mission.id)
 }
 
 function getStoredCompletedMissions(): string[] {
@@ -405,7 +409,7 @@ function AppShell() {
     const projectMissions = dashboardData.missions.filter((mission) => mission.projectId === project.id)
     if (projectMissions.length === 0) return enrichProjectClientIdentity(project, clientIdentities)
 
-    const completedProjectMissions = projectMissions.filter((mission) => completed.includes(mission.id)).length
+    const completedProjectMissions = projectMissions.filter((mission) => isMissionCompleted(mission, completed)).length
     const isComplete = completedProjectMissions === projectMissions.length
 
     return enrichProjectClientIdentity({
@@ -415,11 +419,12 @@ function AppShell() {
     }, clientIdentities)
   }), [clientIdentities, completed, dashboardData.missions, dashboardData.projects])
 
-  const earnedXp = completed.reduce((total, id) => total + (dashboardData.missions.find((mission) => mission.id === id)?.xp ?? 0), 0)
+  const completedMissionIds = useMemo(() => Array.from(new Set([...completed, ...dashboardData.missions.filter((mission) => mission.status === 'completed').map((mission) => mission.id)])), [completed, dashboardData.missions])
+  const earnedXp = completed.reduce((total, id) => total + (dashboardData.missions.find((mission) => mission.id === id && mission.status !== 'completed')?.xp ?? 0), 0)
   const totalXp = dashboardData.profile.xp + earnedXp
-  const activeMissionCount = dashboardData.missions.filter((mission) => !completed.includes(mission.id)).length
+  const activeMissionCount = dashboardData.missions.filter((mission) => !isMissionCompleted(mission, completed)).length
   const operationalNotifications = useMemo<AppNotification[]>(() => {
-    const urgentMissionNotifications = dashboardData.missions.filter((mission) => mission.urgent && !completed.includes(mission.id)).map((mission) => {
+    const urgentMissionNotifications = dashboardData.missions.filter((mission) => mission.urgent && !isMissionCompleted(mission, completed)).map((mission) => {
       const assignee = dashboardData.team.find((member) => member.id === mission.assigneeId)
       return { id: `alert-mission-${mission.id}`, title: `Missão urgente: ${mission.title}`, description: `${mission.client} · prazo ${mission.deadline}${assignee ? ` · ${assignee.name}` : ''}.`, time: 'agora', category: 'Projeto' as const, tone: 'orange' as const }
     })
@@ -427,21 +432,38 @@ function AppShell() {
     return [...urgentMissionNotifications, ...projectNotifications, ...dashboardData.notifications]
   }, [completed, dashboardData.missions, dashboardData.notifications, dashboardData.team, projectsWithMissionProgress])
   const recentActivities = useMemo<AppNotification[]>(() => {
-    const pendingActivities = dashboardData.missions.filter((mission) => !completed.includes(mission.id)).map((mission) => ({ id: `activity-open-${mission.id}`, title: `${mission.title} segue em andamento`, description: `${mission.client} · prazo ${mission.deadline}.`, time: mission.deadline, category: 'Projeto' as const, tone: mission.tone }))
-    const completedActivities = dashboardData.missions.filter((mission) => completed.includes(mission.id)).map((mission) => ({ id: `activity-complete-${mission.id}`, title: `${mission.title} foi concluída`, description: `${mission.client} · +${mission.xp} XP para o time.`, time: 'concluída', category: 'Equipe' as const, tone: 'lime' as const }))
+    const pendingActivities = dashboardData.missions.filter((mission) => !isMissionCompleted(mission, completed)).map((mission) => ({ id: `activity-open-${mission.id}`, title: `${mission.title} segue em andamento`, description: `${mission.client} · prazo ${mission.deadline}.`, time: mission.deadline, category: 'Projeto' as const, tone: mission.tone }))
+    const completedActivities = dashboardData.missions.filter((mission) => isMissionCompleted(mission, completed)).map((mission) => ({ id: `activity-complete-${mission.id}`, title: `${mission.title} foi concluída`, description: `${mission.client} · +${mission.xp} XP para o time.`, time: 'concluída', category: 'Equipe' as const, tone: 'lime' as const }))
     return [...pendingActivities, ...completedActivities].slice(0, 5)
   }, [completed, dashboardData.missions])
   const unreadNotificationCount = operationalNotifications.filter((notification) => !readNotificationIds.includes(notification.id)).length
 
   function completeMission(id: string) {
-    if (completed.includes(id)) return
-
-    const next = [...completed, id]
     const mission = dashboardData.missions.find((item) => item.id === id)
-    setCompleted(next)
-    saveCompletedMissions(next)
-    void persistMissionCompletion(id)
-    setCompletionMessage(mission ? `+${mission.xp} XP conquistados em ${mission.title}.` : 'Missão concluída.')
+    if (!mission || isMissionCompleted(mission, completed)) return
+    const missionTitle = mission.title
+    const missionXp = mission.xp
+    const missionIdeas = mission.ideas
+
+    function completeLocally() {
+      const next = [...completed, id]
+      setCompleted(next)
+      saveCompletedMissions(next)
+      setCompletionMessage(`+${missionXp} XP conquistados em ${missionTitle}.`)
+    }
+
+    void requestMissionCompletion(id).then((result) => {
+      if (result.status === 'pending_approval') {
+        setDashboardData((current) => ({ ...current, missions: current.missions.map((item) => item.id === id ? { ...item, status: 'in_progress', approvalStatus: 'pending' } : item) }))
+        setCompletionMessage(`${missionTitle} foi enviada para aprovação.`)
+        return
+      }
+      setDashboardData((current) => ({ ...current, profile: { ...current.profile, xp: current.profile.xp + missionXp, ideas: current.profile.ideas + missionIdeas }, missions: current.missions.map((item) => item.id === id ? { ...item, status: 'completed', approvalStatus: 'approved' } : item) }))
+      setCompletionMessage(`${missionTitle} foi aprovada e liberou +${missionXp} XP.`)
+    }).catch(() => {
+      if (!accessSession) completeLocally()
+      else setCompletionMessage('Não foi possível concluir a missão. Tente novamente.')
+    })
   }
 
   function markNotificationRead(id: string) {
@@ -625,7 +647,7 @@ function AppShell() {
             filter={filter}
             onFilterChange={setFilter}
             missions={displayedMissions}
-            completed={completed}
+            completed={completedMissionIds}
             onComplete={completeMission}
             totalXp={totalXp}
             onViewMissions={() => setActiveSection('missions')}
@@ -640,7 +662,7 @@ function AppShell() {
         ) : activeSection === 'missions' ? (
           <MissionsPage
             missions={dashboardData.missions}
-            completed={completed}
+            completed={completedMissionIds}
             onComplete={completeMission}
             totalXp={totalXp}
             baseXp={dashboardData.profile.xp}
@@ -651,13 +673,13 @@ function AppShell() {
             onUpdateMission={updateMission}
           />
         ) : activeSection === 'projects' ? (
-          <ProjectsPage projects={projectsWithMissionProgress} clients={clientIdentities} initialSelectedProjectId={libraryProjectId} missions={dashboardData.missions} completed={completed} team={dashboardData.team} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
+          <ProjectsPage projects={projectsWithMissionProgress} clients={clientIdentities} initialSelectedProjectId={libraryProjectId} missions={dashboardData.missions} completed={completedMissionIds} team={dashboardData.team} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
         ) : activeSection === 'agenda' ? (
-          <AgendaPage events={dashboardData.agenda} missions={dashboardData.missions} projects={projectsWithMissionProgress} team={dashboardData.team} completed={completed} />
+          <AgendaPage events={dashboardData.agenda} missions={dashboardData.missions} projects={projectsWithMissionProgress} team={dashboardData.team} completed={completedMissionIds} />
         ) : activeSection === 'team' ? (
-          <TeamPage members={dashboardData.team} missions={dashboardData.missions} projects={projectsWithMissionProgress} completed={completed} />
+          <TeamPage members={dashboardData.team} missions={dashboardData.missions} projects={projectsWithMissionProgress} completed={completedMissionIds} />
         ) : activeSection === 'analytics' ? (
-          <AnalyticsPage analytics={dashboardData.analytics} projects={projectsWithMissionProgress} missions={dashboardData.missions} team={dashboardData.team} completed={completed} totalXp={totalXp} baseXp={dashboardData.profile.xp} />
+          <AnalyticsPage analytics={dashboardData.analytics} projects={projectsWithMissionProgress} missions={dashboardData.missions} team={dashboardData.team} completed={completedMissionIds} totalXp={totalXp} baseXp={dashboardData.profile.xp} />
         ) : activeSection === 'library' ? (
           <LibraryPage resources={dashboardData.library} clients={clientIdentities} projects={projectsWithMissionProgress} onOpenProject={(projectId) => { setLibraryProjectId(projectId); setActiveSection('projects') }} />
         ) : activeSection === 'admin' && accessSession?.role === 'admin' ? (
@@ -862,12 +884,13 @@ function Dashboard({
           <div className="mission-list">
             {visibleMissions.map((mission, index) => {
               const isComplete = completed.includes(mission.id)
+              const isAwaitingApproval = mission.approvalStatus === 'pending'
               return (
                 <article className={`mission-card tone-${mission.tone} ${isComplete ? 'completed' : ''}`} key={mission.id}>
                   <span className="mission-number">0{index + 1}</span>
-                  <div className="mission-info"><p>{mission.client}</p><h3>{mission.title}</h3><span className="deadline">{mission.deadline}</span></div>
+                  <div className="mission-info"><p>{mission.client}</p><h3>{mission.title}</h3><span className="deadline">{mission.deadline}</span>{isAwaitingApproval && <span className="mission-approval-status">EM APROVAÇÃO</span>}</div>
                   <div className="mission-reward"><span>RECOMPENSA</span><b>+{mission.xp} XP</b><small>+{mission.ideas} ideias</small></div>
-                  <button className="complete-button" disabled={isComplete} onClick={() => onComplete(mission.id)}>{isComplete ? 'Feita!' : 'Concluir'} <span>{isComplete ? '✓' : '→'}</span></button>
+                  <button className="complete-button" disabled={isComplete || isAwaitingApproval} onClick={() => onComplete(mission.id)}>{isComplete ? 'Feita!' : isAwaitingApproval ? 'Em aprovação' : 'Concluir'} <span>{isComplete ? '✓' : '→'}</span></button>
                 </article>
               )
             })}
@@ -975,9 +998,9 @@ function MissionsPage({
 function MissionCard({ mission, index, isComplete, assignee, onManage, onComplete }: { mission: Mission; index: number; isComplete: boolean; assignee?: TeamMember; onManage?: (id: string) => void; onComplete: (id: string) => void }) {
   return <article className={`mission-card tone-${mission.tone} ${isComplete ? 'completed' : ''}`}>
     <span className="mission-number">{String(index + 1).padStart(2, '0')}</span>
-    <div className="mission-info"><p>{mission.client}</p><h3>{mission.title}</h3><span className="deadline">{mission.deadline}</span>{assignee && <span className="mission-assignee">Responsável: {assignee.name}</span>}{onManage && <button className="mission-manage-button" onClick={() => onManage(mission.id)}>GERENCIAR <span>→</span></button>}</div>
+    <div className="mission-info"><p>{mission.client}</p><h3>{mission.title}</h3><span className="deadline">{mission.deadline}</span>{mission.approvalStatus === 'pending' && <span className="mission-approval-status">EM APROVAÇÃO</span>}{assignee && <span className="mission-assignee">Responsável: {assignee.name}</span>}{onManage && <button className="mission-manage-button" onClick={() => onManage(mission.id)}>GERENCIAR <span>→</span></button>}</div>
     <div className="mission-reward"><span>RECOMPENSA</span><b>+{mission.xp} XP</b><small>+{mission.ideas} ideias</small></div>
-    <button className="complete-button" disabled={isComplete} onClick={() => onComplete(mission.id)}>{isComplete ? 'Feita!' : 'Concluir'} <span>{isComplete ? '✓' : '→'}</span></button>
+    <button className="complete-button" disabled={isComplete || mission.approvalStatus === 'pending'} onClick={() => onComplete(mission.id)}>{isComplete ? 'Feita!' : mission.approvalStatus === 'pending' ? 'Em aprovação' : 'Concluir'} <span>{isComplete ? '✓' : '→'}</span></button>
   </article>
 }
 
@@ -988,7 +1011,7 @@ function MissionAssignmentPanel({ mission, project, assignee, team, isComplete, 
     setAssigneeId(mission.assigneeId ?? team[0]?.id ?? '')
   }, [mission.assigneeId, mission.id, team])
 
-  return <aside className="mission-assignment-panel"><div className="mission-assignment-head"><span>GESTÃO DA MISSÃO</span><b>{isComplete ? 'FEITA' : 'EM ABERTO'}</b></div><h2>{mission.title}</h2><p>{project?.name ?? mission.client} · {mission.deadline}</p><div className="mission-assignment-owner"><Avatar initials={assignee?.initials ?? '?'} tone={assignee?.tone ?? 'dark'} small /><span><small>RESPONSÁVEL ATUAL</small><b>{assignee?.name ?? 'A definir'}</b></span></div><form onSubmit={(event) => { event.preventDefault(); if (assigneeId) onReassign(mission.id, assigneeId) }}><label><span>REDISTRIBUIR PARA</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>{team.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role}</option>)}</select></label><button type="submit" disabled={!assigneeId || assigneeId === mission.assigneeId}>SALVAR RESPONSÁVEL <span>→</span></button></form><button className="mission-edit-button" type="button" onClick={onEdit}>EDITAR MISSÃO <span>↗</span></button><button className="mission-details-button" type="button" onClick={onDetails}>DETALHES COMPLETOS <span>→</span></button></aside>
+  return <aside className="mission-assignment-panel"><div className="mission-assignment-head"><span>GESTÃO DA MISSÃO</span><b>{isComplete ? 'FEITA' : mission.approvalStatus === 'pending' ? 'EM APROVAÇÃO' : 'EM ABERTO'}</b></div><h2>{mission.title}</h2><p>{project?.name ?? mission.client} · {mission.deadline}</p><div className="mission-assignment-owner"><Avatar initials={assignee?.initials ?? '?'} tone={assignee?.tone ?? 'dark'} small /><span><small>RESPONSÁVEL ATUAL</small><b>{assignee?.name ?? 'A definir'}</b></span></div><form onSubmit={(event) => { event.preventDefault(); if (assigneeId) onReassign(mission.id, assigneeId)} }><label><span>REDISTRIBUIR PARA</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}>{team.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role}</option>)}</select></label><button type="submit" disabled={!assigneeId || assigneeId === mission.assigneeId}>SALVAR RESPONSÁVEL <span>→</span></button></form><button className="mission-edit-button" type="button" onClick={onEdit}>EDITAR MISSÃO <span>↗</span></button><button className="mission-details-button" type="button" onClick={onDetails}>DETALHES COMPLETOS <span>→</span></button></aside>
 }
 
 function MissionDetailsModal({ mission, onClose }: { mission: Mission; onClose: () => void }) {

@@ -2,6 +2,18 @@
 
 Todas as mudanças relevantes do SIX.OS são registradas neste arquivo.
 
+## [0.36.0] - 2026-08-05
+
+### Alterado
+
+- Dashboard passa a retornar o estado e a aprovação de cada missão, incluindo as concluídas.
+- Central de Missões, filtros, contadores, progresso de projetos e atividades recentes usam o estado persistido no D1.
+- Missões enviadas para aprovação exibem o status visual `EM APROVAÇÃO` e não podem ser concluídas duas vezes.
+
+### Validação
+
+- Transição de uma missão temporária para `completed/approved` foi confirmada na API do Dashboard; XP e registros de teste foram restaurados depois do teste.
+
 ## [0.35.0] - 2026-08-05
 
 ### Alterado

@@ -11,6 +11,8 @@ export type Mission = {
   ideas: number
   tone: MissionTone
   urgent?: boolean
+  status?: 'open' | 'in_progress' | 'completed'
+  approvalStatus?: 'not_requested' | 'pending' | 'approved'
 }
 
 export type ProjectTone = 'purple' | 'lime' | 'orange'
