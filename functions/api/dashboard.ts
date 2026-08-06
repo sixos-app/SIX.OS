@@ -57,8 +57,21 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     LIMIT 20
   `).bind(user.organizationId).all<MissionRow>()
 
+  let levelConfig = null
+  try {
+    const orgSettings = await env.DB.prepare(`
+      SELECT level_config
+      FROM organization_settings
+      WHERE organization_id = ?
+      LIMIT 1
+    `).bind(user.organizationId).first<{ level_config: string | null }>()
+    if (orgSettings?.level_config) {
+      levelConfig = JSON.parse(orgSettings.level_config)
+    }
+  } catch {}
+
   return Response.json({
-    profile,
+    profile: { ...profile, levelConfig },
     missions: results.map((mission) => ({ ...mission, urgent: Boolean(mission.urgent) })),
   })
 }

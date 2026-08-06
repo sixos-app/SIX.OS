@@ -1,4 +1,6 @@
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { LogoWhite } from './Logo'
 import { dashboardSeed, type AgendaEvent, type AnalyticsData, type AppNotification, type DashboardData, type LibraryResource, type Mission, type Project, type TeamMember } from './data/dashboard'
 import { getAccessSession, loginWithPassword, type AccessSession } from './data/accessRepository'
 import { adminOverviewPreview, createAdminClient, createAdminUser, getAdminOverview, type AdminOverview, type CreateAdminUserInput } from './data/adminRepository'
@@ -7,7 +9,8 @@ import { getDashboard } from './data/dashboardRepository'
 import { createProjectLibraryFolder, getProjectLibrary, projectLibrarySeed, uploadProjectLibraryFile, type ProjectLibrary } from './data/projectLibraryRepository'
 import { createClientLibraryFolder, getClientLibrary, uploadClientLibraryFile } from './data/clientLibraryRepository'
 import { addMissionChecklistItem, addMissionComment, attachProjectLibraryFile, createMission as persistMissionCreate, getMissionDetails, requestMissionCompletion, setMissionChecklistItem, updateMission as persistMissionUpdate, type MissionDetails } from './data/missionRepository'
-import { createCalendarEvent, getAgenda, type AgendaPermissions, type AgendaScope, type CalendarEventRecord, type CalendarEventType, type CalendarVisibility } from './data/agendaRepository'
+import { createCalendarEvent, deleteCalendarEvent, getAgenda, updateCalendarEvent, type AgendaPermissions, type AgendaScope, type CalendarEventRecord, type CalendarEventType, type CalendarVisibility } from './data/agendaRepository'
+import { getProfileData, updateProfile, getGamificationConfig, updateGamificationConfig, type UserProfile, type ProfileData, type GamificationConfig, type Sticker, type LevelConfigItem, type RewardConfigItem } from './data/profileRepository'
 
 type IconName =
   | 'home'
@@ -18,24 +21,30 @@ type IconName =
   | 'sparkle'
   | 'library'
   | 'chart'
+  | 'profile'
+  | 'activity'
 
 const navigation: { id: string; label: string; icon: IconName }[] = [
   { id: 'home', label: 'Início', icon: 'home' },
+  { id: 'feed', label: 'Feed', icon: 'activity' },
   { id: 'agenda', label: 'Agenda', icon: 'calendar' },
   { id: 'projects', label: 'Projetos', icon: 'folder' },
   { id: 'missions', label: 'Missões', icon: 'target' },
   { id: 'team', label: 'Equipe', icon: 'people' },
   { id: 'library', label: 'Biblioteca', icon: 'library' },
   { id: 'analytics', label: 'Analytics', icon: 'chart' },
+  { id: 'profile', label: 'Perfil', icon: 'profile' },
 ]
 
 const sectionLabels: Record<string, string> = {
+  feed: 'Feed da Agência',
   agenda: 'Agenda compartilhada',
   projects: 'Projetos em movimento',
   missions: 'Missões da equipe',
   team: 'Nossa equipe',
   library: 'Biblioteca SIX',
   analytics: 'Analytics',
+  profile: 'Meu perfil',
 }
 
 const completedMissionsStorageKey = 'six-os:completed-missions'
@@ -266,6 +275,8 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     sparkle: <path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Zm7 12 .7 2.3L22 17l-2.3.7L19 20l-.7-2.3L16 17l2.3-.7L19 14Z" />,
     library: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></>,
     chart: <><path d="M4 19V5M4 19h16" /><path d="m7 15 4-5 3 2 5-7" /></>,
+    profile: <><circle cx="12" cy="8" r="4" /><path d="M20 21c0-3.3-3.6-6-8-6s-8 2.7-8 6" /></>,
+    activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
   }
 
   return (
@@ -303,7 +314,7 @@ function getProjectHealth(project: Project, missions: Mission[], completed: stri
   return { label: 'NO RITMO', tone: 'healthy' }
 }
 
-function LoginPreview() {
+function LoginPreview({ onLoginSuccess }: { onLoginSuccess?: (session: AccessSession) => void }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
@@ -329,7 +340,11 @@ function LoginPreview() {
     const result = await loginWithPassword(normalizedUsername, password)
     setIsSubmitting(false)
     if (result.user) {
-      window.location.assign('/')
+      if (onLoginSuccess) {
+        onLoginSuccess(result.user)
+      } else {
+        window.location.assign('/')
+      }
       return
     }
 
@@ -342,8 +357,7 @@ function LoginPreview() {
       <div className="login-preview-shell">
         <section className="login-art">
           <div className="login-brand">
-            <span>SIX</span>
-            <small>OS</small>
+            <LogoWhite className="login-brand-logo" />
           </div>
           <p className="login-eyebrow">SISTEMA OPERACIONAL DA AGÊNCIA</p>
           <h1>Onde a operação encontra o <em>extraordinário.</em></h1>
@@ -384,14 +398,41 @@ function LoginPreview() {
 }
 
 export default function App() {
+  const [accessSession, setAccessSession] = useState<AccessSession | null>(null)
+  const [loading, setLoading] = useState(true)
   const preview = new URLSearchParams(window.location.search).get('preview')
 
-  if (preview === 'login') return <LoginPreview />
+  useEffect(() => {
+    void getAccessSession()
+      .then((session) => {
+        setAccessSession(session)
+        setLoading(false)
+      })
+      .catch(() => {
+        setLoading(false)
+      })
+  }, [])
+
   if (preview === 'admin') return <AdminPage preview />
-  return <AppShell />
+
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: '#171717', color: '#c6ff38', fontFamily: 'monospace', fontSize: '12px' }}>
+        SIX.OS CARREGANDO...
+      </div>
+    )
+  }
+
+  if (!accessSession && preview !== 'login') {
+    return <LoginPreview onLoginSuccess={(session) => setAccessSession(session)} />
+  }
+
+  if (preview === 'login') return <LoginPreview onLoginSuccess={(session) => setAccessSession(session)} />
+
+  return <AppShell accessSession={accessSession} setAccessSession={setAccessSession} />
 }
 
-function AppShell() {
+function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSession | null; setAccessSession: (session: AccessSession | null) => void }) {
   const [activeSection, setActiveSection] = useState('home')
   const [libraryProjectId, setLibraryProjectId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'today' | 'urgent'>('all')
@@ -402,14 +443,31 @@ function AppShell() {
   const [isJourneyOpen, setIsJourneyOpen] = useState(false)
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>(getStoredReadNotifications)
   const [completionMessage, setCompletionMessage] = useState('')
-  const [accessSession, setAccessSession] = useState<AccessSession | null>(null)
   const [clientIdentities, setClientIdentities] = useState<ClientIdentity[]>(clientIdentitySeed)
   const [dashboardData, setDashboardData] = useState(() => ({ ...dashboardSeed, missions: applyStoredMissionAssignees([...dashboardSeed.missions, ...getStoredCustomMissions()]), projects: applyStoredProjectEdits([...dashboardSeed.projects, ...getStoredCustomProjects()]) }))
 
+  const [feedItemsCount, setFeedItemsCount] = useState(0)
+  const [seenFeedCount, setSeenFeedCount] = useState(() => {
+    return parseInt(localStorage.getItem('sixos_seen_feed') || '0', 10) || 0
+  })
+
   useEffect(() => {
     void getDashboard().then((dashboard) => setDashboardData({ ...dashboard, missions: applyStoredMissionAssignees([...dashboard.missions, ...getStoredCustomMissions()]), projects: applyStoredProjectEdits([...dashboard.projects, ...getStoredCustomProjects()]) }))
-    void getAccessSession().then(setAccessSession)
     void getClientIdentities().then(setClientIdentities).catch(() => undefined)
+
+    function checkFeed() {
+      fetch('/api/feed')
+        .then(res => res.json())
+        .then((data: any) => {
+          if (Array.isArray(data)) {
+            setFeedItemsCount(data.length)
+          }
+        })
+        .catch(() => undefined)
+    }
+    checkFeed()
+    const interval = setInterval(checkFeed, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
@@ -600,6 +658,17 @@ function AppShell() {
 
     saveCustomProjects(nextCustomProjects)
     setDashboardData((current) => ({ ...current, projects: [...current.projects, project] }))
+    void fetch('/api/feed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'project_created',
+        title: 'iniciou o projeto',
+        targetName: input.name,
+        link: '/?section=projects'
+      })
+    }).catch(() => undefined)
+    return project
   }
 
   function updateProjectLifecycle(id: string, input: { status: string; deadline: string; nextStep: string }) {
@@ -623,19 +692,32 @@ function AppShell() {
     <main className="app-shell">
       <aside className="sidebar">
         <button className="brand" onClick={() => setActiveSection('home')} aria-label="Voltar ao início">
-          <span className="brand-mark">SIX<span>.</span></span>
-          <span className="brand-os">OS</span>
+          <LogoWhite className="brand-logo" />
         </button>
 
         <nav className="main-nav" aria-label="Navegação principal">
           <p className="nav-caption">SEU ESPAÇO</p>
-          {navigation.slice(0, 5).map((item) => (
-            <button className={`nav-item ${activeSection === item.id ? 'active' : ''}`} key={item.id} onClick={() => setActiveSection(item.id)}>
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
-              {item.id === 'missions' && activeMissionCount > 0 && <b>{activeMissionCount}</b>}
-            </button>
-          ))}
+          {navigation.slice(0, 5).map((item) => {
+            const hasNewFeed = item.id === 'feed' && feedItemsCount > seenFeedCount
+            return (
+              <button
+                className={`nav-item ${activeSection === item.id ? 'active' : ''}`}
+                key={item.id}
+                onClick={() => {
+                  setActiveSection(item.id)
+                  if (item.id === 'feed') {
+                    setSeenFeedCount(feedItemsCount)
+                    localStorage.setItem('sixos_seen_feed', String(feedItemsCount))
+                  }
+                }}
+              >
+                <Icon name={item.icon} />
+                <span>{item.label}</span>
+                {item.id === 'missions' && activeMissionCount > 0 && <b>{activeMissionCount}</b>}
+                {hasNewFeed && <span style={{ marginLeft: 'auto', background: '#8b73ff', width: '7px', height: '7px', borderRadius: '50%', boxShadow: '0 0 8px #8b73ff', border: '1px solid #c6ff38' }} />}
+              </button>
+            )
+          })}
           <p className="nav-caption nav-caption-lower">ECOSSISTEMA</p>
           {navigation.slice(5).map((item) => (
             <button className={`nav-item ${activeSection === item.id ? 'active' : ''}`} key={item.id} onClick={() => setActiveSection(item.id)}>
@@ -658,7 +740,7 @@ function AppShell() {
           <span className="arrow">↗</span>
         </button>
 
-        <button className="account">
+        <button className="account" onClick={() => setActiveSection('profile')}>
           <Avatar initials={accessSession ? getInitials(accessSession.name) : 'GS'} tone="photo" small />
           <span><b>{accessSession?.name ?? 'Guilherme'}</b><small>{accessSession ? accessSession.role === 'admin' ? 'Administrador' : 'Sessão SIX' : 'Modo local'}</small></span>
           <span>•••</span>
@@ -691,6 +773,7 @@ function AppShell() {
             agenda={dashboardData.agenda}
             onViewAgenda={() => setActiveSection('agenda')}
             onOpenJourney={() => setIsJourneyOpen(true)}
+            onViewFeed={() => setActiveSection('feed')}
           />
         ) : activeSection === 'missions' ? (
           <MissionsPage
@@ -714,6 +797,10 @@ function AppShell() {
           <TeamPage members={dashboardData.team} missions={dashboardData.missions} projects={projectsWithMissionProgress} completed={completedMissionIds} />
         ) : activeSection === 'analytics' ? (
           <AnalyticsPage analytics={dashboardData.analytics} projects={projectsWithMissionProgress} missions={dashboardData.missions} team={dashboardData.team} completed={completedMissionIds} totalXp={totalXp} baseXp={dashboardData.profile.xp} />
+        ) : activeSection === 'profile' ? (
+          <ProfilePage accessSession={accessSession} onLogoutSuccess={() => setAccessSession(null)} />
+        ) : activeSection === 'feed' ? (
+          <FeedPage team={dashboardData.team} />
         ) : activeSection === 'library' ? (
           <LibraryPage resources={dashboardData.library} clients={clientIdentities} projects={projectsWithMissionProgress} onOpenProject={(projectId) => { setLibraryProjectId(projectId); setActiveSection('projects') }} />
         ) : activeSection === 'admin' && accessSession?.role === 'admin' ? (
@@ -724,11 +811,27 @@ function AppShell() {
       </section>
 
       <nav className="mobile-nav" aria-label="Navegação móvel">
-        {navigation.slice(0, 5).map((item) => (
-          <button className={activeSection === item.id ? 'active' : ''} key={item.id} onClick={() => setActiveSection(item.id)}>
-            <Icon name={item.icon} size={20} /><span>{item.label}</span>
-          </button>
-        ))}
+        {navigation.slice(0, 5).map((item) => {
+          const hasNewFeed = item.id === 'feed' && feedItemsCount > seenFeedCount
+          return (
+            <button
+              className={activeSection === item.id ? 'active' : ''}
+              key={item.id}
+              onClick={() => {
+                setActiveSection(item.id)
+                if (item.id === 'feed') {
+                  setSeenFeedCount(feedItemsCount)
+                  localStorage.setItem('sixos_seen_feed', String(feedItemsCount))
+                }
+              }}
+              style={{ position: 'relative' }}
+            >
+              <Icon name={item.icon} size={20} />
+              <span>{item.label}</span>
+              {hasNewFeed && <span style={{ position: 'absolute', top: '6px', right: '14px', background: '#8b73ff', width: '6px', height: '6px', borderRadius: '50%', boxShadow: '0 0 8px #8b73ff', border: '1px solid #c6ff38' }} />}
+            </button>
+          )
+        })}
       </nav>
 
       {isAiOpen && <AiPanel dashboardData={dashboardData} completed={completed} onClose={() => setIsAiOpen(false)} onNavigate={(section) => { setActiveSection(section); setIsAiOpen(false) }} />}
@@ -744,10 +847,40 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
   const [overview, setOverview] = useState<AdminOverview | null>(preview ? adminOverviewPreview : null)
   const [error, setError] = useState('')
   const [dialog, setDialog] = useState<'user' | 'client' | null>(null)
+  const [gamificationConfig, setGamificationConfig] = useState<GamificationConfig | null>(null)
+  const [savingConfig, setSavingConfig] = useState(false)
+  const [configMessage, setConfigMessage] = useState('')
+
+  const [slackWebhook, setSlackWebhook] = useState('')
+  const [savingSlack, setSavingSlack] = useState(false)
+  const [runrunToken, setRunrunToken] = useState('')
+  const [savingRunrun, setSavingRunrun] = useState(false)
+  const [integrationMessage, setIntegrationMessage] = useState('')
 
   useEffect(() => {
     if (preview) return
     void getAdminOverview().then(setOverview).catch((reason: Error) => setError(reason.message))
+    void getGamificationConfig().then(setGamificationConfig).catch(() => undefined)
+
+    fetch('/api/admin/integrations')
+      .then(res => res.json())
+      .then((data: any) => {
+        if (Array.isArray(data)) {
+          const slack = data.find(item => item.provider === 'slack')
+          const runrun = data.find(item => item.provider === 'runrunit')
+          if (slack?.configJson) {
+            try {
+              setSlackWebhook(JSON.parse(slack.configJson).webhookUrl || '')
+            } catch {}
+          }
+          if (runrun?.configJson) {
+            try {
+              setRunrunToken(JSON.parse(runrun.configJson).token || '')
+            } catch {}
+          }
+        }
+      })
+      .catch(() => undefined)
   }, [preview])
 
   const data = overview ?? adminOverviewPreview
@@ -763,6 +896,42 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
     onClientCreated(client)
   }
 
+  async function handleSaveConfig() {
+    if (!gamificationConfig) return
+    setSavingConfig(true)
+    setConfigMessage('')
+    try {
+      await updateGamificationConfig(gamificationConfig)
+      setConfigMessage('Configurações de gamificação salvas com sucesso!')
+      setTimeout(() => setConfigMessage(''), 3000)
+    } catch (reason: unknown) {
+      setConfigMessage(reason instanceof Error ? reason.message : 'Erro ao salvar configurações')
+    } finally {
+      setSavingConfig(false)
+    }
+  }
+
+  async function handleSaveIntegration(provider: string, configJson: string, isActive: boolean) {
+    if (provider === 'slack') setSavingSlack(true)
+    if (provider === 'runrunit') setSavingRunrun(true)
+    setIntegrationMessage('')
+    try {
+      const res = await fetch('/api/admin/integrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, configJson, isActive })
+      })
+      if (!res.ok) throw new Error()
+      setIntegrationMessage(`Integração com ${provider} salva com sucesso!`)
+      setTimeout(() => setIntegrationMessage(''), 3000)
+    } catch {
+      setIntegrationMessage('Erro ao salvar integração.')
+    } finally {
+      setSavingSlack(false)
+      setSavingRunrun(false)
+    }
+  }
+
   return <div className="admin-page">
     <section className="admin-intro">
       <div><span>PAINEL ADMINISTRATIVO</span><h1>Controle a <em>operação.</em></h1><p>Colaboradores, cargos e configurações centrais da Agência SIX em um só lugar.</p></div>
@@ -774,13 +943,131 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
         <article><span>COLABORADORES</span><b>{data.team.length}</b><small>Perfis ativos na organização</small></article>
         <article><span>CARGOS CONFIGURADOS</span><b>{data.roles.length}</b><small>Escopos prontos para aplicar</small></article>
         <article><span>CLIENTES CADASTRADOS</span><b>{data.clientCount}</b><small>Base operacional atual</small></article>
-        <article className="admin-metric-highlight"><span>CONTA ADMIN</span><b>agsix</b><small>Perfil administrativo criado</small></article>
+        <article className="admin-metric-highlight"><span>CONTA ADMIN</span><b>agsix</b><small>Perfil administrative criado</small></article>
       </section>
 
       <section className="admin-grid">
         <article className="admin-card admin-team-card"><div className="admin-card-head"><div><span>EQUIPE</span><h2>Perfis e <em>acessos.</em></h2></div><b>{data.team.length} pessoas</b></div><div className="admin-team-list">{data.team.map((member) => <div key={member.id}><i>{member.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</i><p><b>{member.name}</b><small>{member.username ? `@${member.username}` : member.email}</small></p><span>{member.role === 'admin' ? 'ADMIN' : member.role.toUpperCase()}</span></div>)}</div></article>
         <article className="admin-card"><div className="admin-card-head"><div><span>RBAC</span><h2>Cargos e <em>regras.</em></h2></div><b>{data.roles.reduce((total, role) => total + role.permissionCount, 0)} permissões</b></div><div className="admin-role-list">{data.roles.map((role) => <div key={role.code}><p><b>{role.name}</b><small>{role.description}</small></p><span>{role.permissionCount}</span></div>)}</div></article>
       </section>
+
+      {gamificationConfig && !preview && (
+        <section className="admin-gamification">
+          <h3>Configurações de Gamificação</h3>
+          <div className="gamification-config-grid">
+            <div className="gamification-config-card">
+              <div>
+                <b>Multiplicador Global de XP</b>
+                <br />
+                <small>Aplica um fator de multiplicação a todo XP ganho no sistema.</small>
+              </div>
+              <input
+                type="number"
+                value={gamificationConfig.xpMultiplier}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 1
+                  setGamificationConfig({ ...gamificationConfig, xpMultiplier: val })
+                }}
+              />
+            </div>
+            {gamificationConfig.levelConfig.map((level, index) => (
+              <div className="gamification-config-card" key={index}>
+                <div>
+                  <b>Nível {index + 1}: {level.name}</b>
+                  <br />
+                  <small>{level.detail}</small>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={level.name}
+                    onChange={(e) => {
+                      const updatedLevels = [...gamificationConfig.levelConfig]
+                      updatedLevels[index] = { ...level, name: e.target.value }
+                      setGamificationConfig({ ...gamificationConfig, levelConfig: updatedLevels })
+                    }}
+                    placeholder="Nome do Nível"
+                    style={{ width: '130px', textAlign: 'left' }}
+                  />
+                  <input
+                    type="text"
+                    value={level.detail}
+                    onChange={(e) => {
+                      const updatedLevels = [...gamificationConfig.levelConfig]
+                      updatedLevels[index] = { ...level, detail: e.target.value }
+                      setGamificationConfig({ ...gamificationConfig, levelConfig: updatedLevels })
+                    }}
+                    placeholder="Detalhe do Nível"
+                    style={{ width: '220px', textAlign: 'left' }}
+                  />
+                  <input
+                    type="number"
+                    value={level.target}
+                    onChange={(e) => {
+                      const updatedLevels = [...gamificationConfig.levelConfig]
+                      updatedLevels[index] = { ...level, target: parseInt(e.target.value) || 0 }
+                      setGamificationConfig({ ...gamificationConfig, levelConfig: updatedLevels })
+                    }}
+                    placeholder="XP Alvo"
+                    style={{ width: '100px' }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          {configMessage && <p style={{ fontSize: '11px', color: '#536e10', marginTop: 10 }}>{configMessage}</p>}
+          <button className="gamification-save-button" onClick={handleSaveConfig} disabled={savingConfig}>
+            {savingConfig ? 'SALVANDO...' : 'SALVAR CONFIGURAÇÃO'}
+          </button>
+        </section>
+      )}
+      {!preview && (
+        <section className="admin-gamification" style={{ marginTop: '24px' }}>
+          <h3>Integrações Externas</h3>
+          <div className="gamification-config-grid">
+            <div className="gamification-config-card">
+              <div>
+                <b>Conector Slack (Alertas e Feed)</b>
+                <br />
+                <small>Envia alertas de kudos e conclusões de missões no Slack.</small>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Webhook URL (ex: https://hooks.slack.com/...)"
+                  value={slackWebhook}
+                  onChange={(e) => setSlackWebhook(e.target.value)}
+                  style={{ width: '320px', textAlign: 'left' }}
+                />
+                <button className="gamification-save-button" style={{ margin: 0, padding: '8px 12px' }} onClick={() => handleSaveIntegration('slack', JSON.stringify({ webhookUrl: slackWebhook }), true)}>
+                  {savingSlack ? 'SALVANDO...' : 'SALVAR & ATIVAR'}
+                </button>
+              </div>
+            </div>
+
+            <div className="gamification-config-card">
+              <div>
+                <b>Conector Runrun.it</b>
+                <br />
+                <small>Sincronização de eventos e importação de tarefas.</small>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="API Token do Runrun.it"
+                  value={runrunToken}
+                  onChange={(e) => setRunrunToken(e.target.value)}
+                  style={{ width: '320px', textAlign: 'left' }}
+                />
+                <button className="gamification-save-button" style={{ margin: 0, padding: '8px 12px' }} onClick={() => handleSaveIntegration('runrunit', JSON.stringify({ token: runrunToken }), true)}>
+                  {savingRunrun ? 'SALVANDO...' : 'SALVAR & ATIVAR'}
+                </button>
+              </div>
+            </div>
+          </div>
+          {integrationMessage && <p style={{ fontSize: '11px', color: '#536e10', marginTop: 10 }}>{integrationMessage}</p>}
+        </section>
+      )}
     </>}
     {dialog === 'user' && <AdminUserDialog roles={data.roles} onClose={() => setDialog(null)} onCreate={handleCreateUser} />}
     {dialog === 'client' && <AdminClientDialog onClose={() => setDialog(null)} onCreate={handleCreateClient} />}
@@ -859,6 +1146,7 @@ function Dashboard({
   agenda,
   onViewAgenda,
   onOpenJourney,
+  onViewFeed,
 }: {
   filter: 'all' | 'today' | 'urgent'
   onFilterChange: (filter: 'all' | 'today' | 'urgent') => void
@@ -874,7 +1162,21 @@ function Dashboard({
   agenda: AgendaEvent[]
   onViewAgenda: () => void
   onOpenJourney: () => void
+  onViewFeed: () => void
 }) {
+  const [feedItems, setFeedItems] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/feed')
+      .then(res => res.json())
+      .then((data: any) => {
+        if (Array.isArray(data)) {
+          setFeedItems(data.slice(0, 3))
+        }
+      })
+      .catch(() => undefined)
+  }, [])
+
   return (
     <div className="dashboard">
       <section className="welcome-row">
@@ -950,9 +1252,20 @@ function Dashboard({
 
           <div className="section-heading compact feed-heading"><div><p className="section-index">04</p><h2>Acontecendo agora</h2></div></div>
           <div className="feed-card">
-            <div className="feed-item"><Avatar initials="LM" tone="purple" small /><p><b>Lorraine</b> conquistou<br /><span>+100 ideias</span> por uma grande sacada.</p><small>agora</small></div>
-            <div className="feed-item"><Avatar initials="MP" tone="lime" small /><p><b>Mateus</b> concluiu<br />“Desdobramentos de campanha”.</p><small>12m</small></div>
-            <button className="feed-more">VER O FEED COMPLETO <span>→</span></button>
+            {feedItems.map((item) => {
+              const initials = item.user_name ? item.user_name.split(/\s+/).map((p: any) => p.charAt(0)).join('').slice(0, 2).toLocaleUpperCase('pt-BR') : 'SX'
+              const isKudo = item.type === 'kudo_received'
+              const isProject = item.type === 'project_created'
+              return (
+                <div className="feed-item" key={item.id}>
+                  <Avatar initials={initials} tone={isKudo ? 'purple' : isProject ? 'lime' : 'dark'} small />
+                  <p><b>{item.user_name || 'Membro'}</b> {item.title}<br /><span>{item.target_name}</span></p>
+                  <small>{item.xp_amount ? `+${item.xp_amount} XP` : 'feed'}</small>
+                </div>
+              )
+            })}
+            {feedItems.length === 0 && <p style={{ fontSize: '11px', color: '#85857e', padding: '10px' }}>Nenhuma atividade registrada.</p>}
+            <button className="feed-more" onClick={onViewFeed}>VER O FEED COMPLETO <span>→</span></button>
           </div>
         </aside>
       </section>
@@ -1085,7 +1398,134 @@ function MissionDetailsModal({ mission, onClose }: { mission: Mission; onClose: 
   async function uploadAndAttachFile(file?: File) { const folderId = uploadFolderId || library.folders[0]?.id; if (!file || !folderId || !details) return; setIsUploadingFile(true); try { const uploaded = await uploadProjectLibraryFile({ projectId: details.mission.projectId, folderId, file }); const { attachment } = await attachProjectLibraryFile(mission.id, uploaded.id); setLibrary((current) => ({ folders: current.folders.map((folder) => folder.id === folderId ? { ...folder, fileCount: folder.fileCount + 1 } : folder), files: [uploaded, ...current.files.filter((item) => item.id !== uploaded.id)] })); setDetails((current) => current ? { ...current, attachments: [attachment, ...current.attachments] } : current); setMessage(`Arquivo ${uploaded.name} enviado e anexado à missão.`) } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível enviar o anexo.') } finally { setIsUploadingFile(false); setIsDraggingFile(false) } }
   async function complete() { try { const result = await requestMissionCompletion(mission.id); setMessage(result.status === 'pending_approval' ? 'Entrega enviada para aprovação.' : 'Missão aprovada e XP liberado.'); await reload() } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível concluir a missão.') } }
 
-  return <div className="mission-create-overlay mission-details-overlay" role="dialog" aria-modal="true" aria-label="Detalhes da missão"><section className="mission-details-dialog"><button className="close-button" type="button" onClick={onClose} aria-label="Fechar detalhes da missão">×</button>{!details ? <p className="mission-details-loading">Carregando missão…</p> : <><header><p>MISSÃO COMPLETA</p><h2>{details.mission.title}</h2><span>{details.mission.client} · {details.mission.project}</span></header><div className="mission-details-meta"><b>{details.mission.priority.toLocaleUpperCase('pt-BR')}</b><span>{details.mission.assignee ?? 'Responsável a definir'}</span><span>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Prazo a definir'}</span><span>+{details.mission.xpReward} XP</span></div><p className="mission-details-description">{details.mission.description || 'Sem descrição adicionada.'}</p><div className="mission-details-grid"><section><h3>CHECKLIST</h3><div className="mission-checklist">{details.checklist.map((item) => <label key={item.id}><input type="checkbox" checked={Boolean(item.isCompleted)} onChange={(event) => { void toggleChecklist(item.id, event.target.checked) }} /><span>{item.label}</span></label>)}</div><form onSubmit={addChecklist}><input value={checklistLabel} onChange={(event) => setChecklistLabel(event.target.value)} placeholder="Adicionar item" maxLength={240} /><button>ADICIONAR</button></form></section><section><h3>ANEXOS DO PROJETO</h3>{details.attachments.map((attachment) => <a className="mission-attachment" key={attachment.id} href={`/api/projects/${details.mission.projectId}/library/files/${attachment.libraryFileId}`}><span>{attachment.fileName}</span><b>V{attachment.fileVersion} ↓</b></a>)}<div className="mission-attach-form"><select value={selectedFileId} onChange={(event) => setSelectedFileId(event.target.value)}><option value="">Selecionar arquivo da biblioteca</option>{library.files.filter((file) => !details.attachments.some((attachment) => attachment.libraryFileId === file.id)).map((file) => <option value={file.id} key={file.id}>{file.name} · V{file.version}</option>)}</select><button type="button" onClick={() => { void attachFile() }} disabled={!selectedFileId}>ANEXAR</button></div><div className={`mission-dropzone ${isDraggingFile ? 'dragging' : ''}`} onDragOver={(event) => { event.preventDefault(); setIsDraggingFile(true) }} onDragLeave={() => setIsDraggingFile(false)} onDrop={(event) => { event.preventDefault(); void uploadAndAttachFile(event.dataTransfer.files[0]) }}><label><input type="file" onChange={(event) => { void uploadAndAttachFile(event.target.files?.[0]); event.currentTarget.value = '' }} />{isUploadingFile ? 'ENVIANDO ARQUIVO…' : 'ADICIONAR NOVO ARQUIVO +'}</label><select value={uploadFolderId} onChange={(event) => setUploadFolderId(event.target.value)}>{library.folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select><p>Arraste um arquivo aqui para enviar e anexar.</p></div></section></div><section className="mission-comments"><h3>COMENTÁRIOS</h3><form onSubmit={addComment}><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Registre uma atualização para o time" maxLength={3000} /><button>COMENTAR</button></form>{details.comments.map((comment) => <article key={comment.id}><b>{comment.author}</b><p>{comment.body}</p></article>)}</section><section className="mission-history"><h3>HISTÓRICO</h3>{details.history.map((entry) => <p key={entry.id}><b>{entry.actor ?? 'Sistema'}</b> · {entry.detail ?? entry.action}</p>)}</section>{message && <p className="mission-detail-message">{message}</p>}{details.mission.status !== 'completed' && <button className="mission-detail-complete" type="button" onClick={() => { void complete() }}>{details.permissions.canApprove ? 'APROVAR E CONCLUIR' : 'ENVIAR PARA APROVAÇÃO'} <span>→</span></button>}</>}</section></div>
+  return (
+    <div className="mission-create-overlay mission-details-overlay" role="dialog" aria-modal="true" aria-label="Detalhes da missão">
+      <section className="mission-details-dialog">
+        <button className="close-button" type="button" onClick={onClose} aria-label="Fechar detalhes da missão">×</button>
+        {!details ? (
+          <p className="mission-details-loading">Carregando missão…</p>
+        ) : (
+          <>
+            <header>
+              <p>MISSÃO</p>
+              <h2>{details.mission.title}</h2>
+              <span>{details.mission.client} · {details.mission.project}</span>
+            </header>
+
+            <div className="mission-details-meta">
+              <b>{details.mission.priority.toLocaleUpperCase('pt-BR')}</b>
+              <span>{details.mission.assignee ?? 'Responsável a definir'}</span>
+              <span>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Prazo a definir'}</span>
+              <span>+{details.mission.xpReward} XP</span>
+            </div>
+
+            <p className="mission-details-description">{details.mission.description || 'Sem descrição adicionada.'}</p>
+
+            <div className="mission-details-grid">
+              {/* CHECKLIST */}
+              <section>
+                <h3>CHECKLIST</h3>
+                <div className="mission-checklist">
+                  {details.checklist.map((item) => (
+                    <label key={item.id} className="mission-checklist-item">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(item.isCompleted)}
+                        onChange={(event) => { void toggleChecklist(item.id, event.target.checked) }}
+                      />
+                      <span className={item.isCompleted ? 'done' : ''}>{item.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <form className="mission-checklist-form" onSubmit={addChecklist}>
+                  <input
+                    value={checklistLabel}
+                    onChange={(event) => setChecklistLabel(event.target.value)}
+                    placeholder="Adicionar item ao checklist…"
+                    maxLength={240}
+                  />
+                  <button type="submit">ADICIONAR</button>
+                </form>
+              </section>
+
+              {/* ANEXOS */}
+              <section>
+                <h3>ANEXOS DA MISSÃO</h3>
+
+                {details.attachments.length > 0 && (
+                  <div className="mission-attachments-list">
+                    {details.attachments.map((attachment) => (
+                      <a
+                        className="mission-attachment"
+                        key={attachment.id}
+                        href={`/api/projects/${details.mission.projectId}/library/files/${attachment.libraryFileId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <span>📎 {attachment.fileName}</span>
+                        <b>V{attachment.fileVersion} ↓</b>
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                <div
+                  className={`mission-dropzone ${isDraggingFile ? 'dragging' : ''}`}
+                  onDragOver={(event) => { event.preventDefault(); setIsDraggingFile(true) }}
+                  onDragLeave={() => setIsDraggingFile(false)}
+                  onDrop={(event) => { event.preventDefault(); void uploadAndAttachFile(event.dataTransfer.files[0]) }}
+                >
+                  <label className="mission-dropzone-trigger">
+                    <input
+                      type="file"
+                      onChange={(event) => { void uploadAndAttachFile(event.target.files?.[0]); event.currentTarget.value = '' }}
+                    />
+                    <span className="mission-dropzone-icon">↑</span>
+                    <span>{isUploadingFile ? 'ENVIANDO…' : 'CLIQUE OU ARRASTE UM ARQUIVO'}</span>
+                  </label>
+                  <p>Solte o arquivo aqui para anexar à missão</p>
+                </div>
+              </section>
+            </div>
+
+            <section className="mission-comments">
+              <h3>COMENTÁRIOS</h3>
+              <form onSubmit={addComment}>
+                <textarea
+                  value={commentBody}
+                  onChange={(event) => setCommentBody(event.target.value)}
+                  placeholder="Registre uma atualização para o time"
+                  maxLength={3000}
+                />
+                <button>COMENTAR</button>
+              </form>
+              {details.comments.map((comment) => (
+                <article key={comment.id}>
+                  <b>{comment.author}</b>
+                  <p>{comment.body}</p>
+                </article>
+              ))}
+            </section>
+
+            <section className="mission-history">
+              <h3>HISTÓRICO</h3>
+              {details.history.map((entry) => (
+                <p key={entry.id}><b>{entry.actor ?? 'Sistema'}</b> · {entry.detail ?? entry.action}</p>
+              ))}
+            </section>
+
+            {message && <p className="mission-detail-message">{message}</p>}
+
+            {details.mission.status !== 'completed' && (
+              <button className="mission-detail-complete" type="button" onClick={() => { void complete() }}>
+                {details.permissions.canApprove ? 'APROVAR E CONCLUIR' : 'ENVIAR PARA APROVAÇÃO'} <span>→</span>
+              </button>
+            )}
+          </>
+        )}
+      </section>
+    </div>
+  )
 }
 
 function MissionEditModal({ mission, projects, team, onClose, onUpdate }: { mission: Mission; projects: Project[]; team: TeamMember[]; onClose: () => void; onUpdate: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void }) {
@@ -1104,7 +1544,7 @@ function MissionEditModal({ mission, projects, team, onClose, onUpdate }: { miss
     return () => window.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
-  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Editar missão"><form className="mission-create-dialog mission-edit-dialog" onSubmit={(event) => { event.preventDefault(); if (title.trim() && projectId && assigneeId && deadline.trim()) onUpdate({ title: title.trim(), projectId, assigneeId, deadline, priority }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar edição de missão">×</button><span className="mission-create-icon"><Icon name="target" size={21} /></span><p>EDITAR MISSÃO</p><h2>Ajuste o próximo<br /><em>movimento.</em></h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} required /></label><div className="mission-create-row"><label><span>PROJETO</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>RESPONSÁVEL</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} required>{team.map((member) => <option value={member.id} key={member.id}>{member.name} · {member.role}</option>)}</select></label></div><div className="mission-create-row"><label><span>PRAZO</span><input type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} required /></label><label><span>PRIORIDADE</span><select value={priority} onChange={(event) => setPriority(event.target.value as 'normal' | 'urgent')}><option value="normal">Normal</option><option value="urgent">Urgente</option></select></label></div><button className="mission-create-submit" type="submit">SALVAR ALTERAÇÕES <span>→</span></button></form></div>
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Editar missão"><form className="mission-create-dialog mission-edit-dialog" onSubmit={(event) => { event.preventDefault(); if (title.trim() && projectId && assigneeId && deadline.trim()) onUpdate({ title: title.trim(), projectId, assigneeId, deadline, priority }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar edição de missão">×</button><span className="mission-create-icon"><Icon name="target" size={21} /></span><p>EDITAR MISSÃO</p><h2>Ajuste o próximo<br /><em>movimento.</em></h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} required /></label><div className="mission-create-row"><label><span>PROJETO</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>RESPONSÁVEL</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} required>{team.map((member) => <option value={member.id} key={member.id}>{member.name} · {member.role}</option>)}</select></label></div><div className="mission-create-row"><label><span>PRAZO</span><DateTimePicker value={deadline} onChange={setDeadline} /></label><label><span>PRIORIDADE</span><select value={priority} onChange={(event) => setPriority(event.target.value as 'normal' | 'urgent')}><option value="normal">Normal</option><option value="urgent">Urgente</option></select></label></div><button className="mission-create-submit" type="submit">SALVAR ALTERAÇÕES <span>→</span></button></form></div>
 }
 
 function MissionCreateModal({ projects, team, initialProjectId, onClose, onCreate }: { projects: Project[]; team: TeamMember[]; initialProjectId?: string; onClose: () => void; onCreate: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent'; description?: string; files?: File[] }) => void }) {
@@ -1125,7 +1565,7 @@ function MissionCreateModal({ projects, team, initialProjectId, onClose, onCreat
     return () => window.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
-  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Criar missão"><form className="mission-create-dialog mission-create-dialog-expanded" onSubmit={(event) => { event.preventDefault(); if (title.trim() && projectId && assigneeId && deadline.trim()) onCreate({ title: title.trim(), projectId, assigneeId, deadline, priority, description: description.trim(), files }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de missão">×</button><span className="mission-create-icon"><Icon name="target" size={21} /></span><p>NOVA MISSÃO</p><h2>Qual ideia vamos<br /><em>tornar possível?</em></h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Desdobramentos de campanha" required /></label><label><span>DESCRIÇÃO, LINKS E CONTEXTO</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Escreva o briefing da missão e cole links de referências, imagens ou vídeos." maxLength={4000} /></label><label className="mission-create-files"><span>IMAGENS E VÍDEOS (OPCIONAL)</span><input type="file" accept="image/*,video/*" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /><small>{files.length ? `${files.length} arquivo${files.length === 1 ? '' : 's'} será${files.length === 1 ? '' : 'ão'} enviado${files.length === 1 ? '' : 's'} à Biblioteca do Projeto.` : 'Envie imagens ou vídeos junto da missão.'}</small></label><div className="mission-create-row"><label><span>PROJETO</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>RESPONSÁVEL</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} required>{team.map((member) => <option value={member.id} key={member.id}>{member.name} · {member.role}</option>)}</select></label></div><div className="mission-create-row"><label><span>PRAZO</span><input type="datetime-local" value={deadline} onChange={(event) => setDeadline(event.target.value)} required /></label><label><span>PRIORIDADE</span><select value={priority} onChange={(event) => setPriority(event.target.value as 'normal' | 'urgent')}><option value="normal">Normal</option><option value="urgent">Urgente</option></select></label></div><button className="mission-create-submit" type="submit">CRIAR MISSÃO <span>→</span></button></form></div>
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Criar missão"><form className="mission-create-dialog mission-create-dialog-expanded" onSubmit={(event) => { event.preventDefault(); if (title.trim() && projectId && assigneeId && deadline.trim()) onCreate({ title: title.trim(), projectId, assigneeId, deadline, priority, description: description.trim(), files }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de missão">×</button><span className="mission-create-icon"><Icon name="target" size={21} /></span><p>NOVA MISSÃO</p><h2>Qual ideia vamos<br /><em>tornar possível?</em></h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Desdobramentos de campanha" required /></label><label><span>DESCRIÇÃO, LINKS E CONTEXTO</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Escreva o briefing da missão e cole links de referências, imagens ou vídeos." maxLength={4000} /></label><label className="mission-create-files"><span>IMAGENS E VÍDEOS (OPCIONAL)</span><input type="file" accept="image/*,video/*" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /><small>{files.length ? `${files.length} arquivo${files.length === 1 ? '' : 's'} será${files.length === 1 ? '' : 'ão'} enviado${files.length === 1 ? '' : 's'} à Biblioteca do Projeto.` : 'Envie imagens ou vídeos junto da missão.'}</small></label><div className="mission-create-row"><label><span>PROJETO</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>RESPONSÁVEL</span><select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)} required>{team.map((member) => <option value={member.id} key={member.id}>{member.name} · {member.role}</option>)}</select></label></div><div className="mission-create-row"><label><span>PRAZO</span><DateTimePicker value={deadline} onChange={setDeadline} /></label><label><span>PRIORIDADE</span><select value={priority} onChange={(event) => setPriority(event.target.value as 'normal' | 'urgent')}><option value="normal">Normal</option><option value="urgent">Urgente</option></select></label></div><button className="mission-create-submit" type="submit">CRIAR MISSÃO <span>→</span></button></form></div>
 }
 
 type AgendaDisplayEvent = {
@@ -1206,6 +1646,13 @@ function agendaDateTimeInputValue(offsetMinutes = 60) {
   return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16)
 }
 
+function agendaDateTimeInputFromIso(value: string | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  const timezoneOffset = date.getTimezoneOffset() * 60_000
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16)
+}
+
 function AgendaPage({ events, missions, projects, team, completed, accessSession }: { events: AgendaEvent[]; missions: Mission[]; projects: Project[]; team: TeamMember[]; completed: string[]; accessSession: AccessSession | null }) {
   const [scope, setScope] = useState<AgendaScope>('mine')
   const [remoteEvents, setRemoteEvents] = useState<CalendarEventRecord[]>([])
@@ -1213,6 +1660,7 @@ function AgendaPage({ events, missions, projects, team, completed, accessSession
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<CalendarEventRecord | null>(null)
 
   useEffect(() => {
     let active = true
@@ -1266,6 +1714,8 @@ function AgendaPage({ events, missions, projects, team, completed, accessSession
   const [selectedEventId, setSelectedEventId] = useState(agendaEvents[0]?.id ?? '')
   const visibleEvents = agendaEvents.filter((event) => agendaFilter === 'all' || event.category === agendaFilter)
   const selectedEvent = visibleEvents.find((event) => event.id === selectedEventId) ?? visibleEvents[0] ?? agendaEvents[0]
+  const selectedRemoteEvent = selectedEvent ? remoteEvents.find((event) => event.id === selectedEvent.id) ?? null : null
+  const canManageSelectedEvent = Boolean(accessSession && selectedRemoteEvent && (selectedRemoteEvent.ownerUserId === accessSession.id || (selectedRemoteEvent.visibility === 'team' && permissions.canViewTeam)))
 
   function refreshAgenda() {
     if (!accessSession) return
@@ -1275,6 +1725,17 @@ function AgendaPage({ events, missions, projects, team, completed, accessSession
       setPermissions(data.permissions)
       setError('')
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Não foi possível atualizar a agenda.')).finally(() => setIsLoading(false))
+  }
+
+  async function removeSelectedEvent() {
+    if (!selectedRemoteEvent || !window.confirm(`Excluir “${selectedRemoteEvent.title}” da agenda?`)) return
+    try {
+      await deleteCalendarEvent(selectedRemoteEvent.id)
+      setSelectedEventId('')
+      refreshAgenda()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível excluir o evento.')
+    }
   }
 
   return (
@@ -1295,23 +1756,24 @@ function AgendaPage({ events, missions, projects, team, completed, accessSession
           {visibleEvents.length === 0 && <p className="empty-state">Nenhum evento nesse filtro.</p>}
         </div>
         {selectedEvent ? <aside className={`agenda-detail tone-${selectedEvent.tone}`}>
-          <div className="agenda-detail-head"><span>{selectedEvent.day} · {selectedEvent.time}</span><b>{selectedEvent.category}</b></div><h2>{selectedEvent.title}</h2><p>{selectedEvent.subtitle}</p><div className="agenda-detail-section"><span>DURAÇÃO</span><b>{selectedEvent.duration}</b></div><div className="agenda-detail-section"><span>CONTEXTO</span><p>{selectedEvent.description}</p></div><div className="agenda-detail-footer"><div className="avatars">{selectedEvent.attendees.map((member, index) => <Avatar initials={member} tone={index === 1 ? 'lime' : 'dark'} small key={member} />)}<span>+{Math.max(0, selectedEvent.attendees.length - 2)}</span></div><small>{selectedEvent.attendees.length > 0 ? `${selectedEvent.attendees.length} pessoa${selectedEvent.attendees.length === 1 ? '' : 's'} envolvida${selectedEvent.attendees.length === 1 ? '' : 's'}` : 'Evento individual'}</small></div>
+          <div className="agenda-detail-head"><span>{selectedEvent.day} · {selectedEvent.time}</span><b>{selectedEvent.category}</b></div><h2>{selectedEvent.title}</h2><p>{selectedEvent.subtitle}</p><div className="agenda-detail-section"><span>DURAÇÃO</span><b>{selectedEvent.duration}</b></div><div className="agenda-detail-section"><span>CONTEXTO</span><p>{selectedEvent.description}</p></div><div className="agenda-detail-footer"><div className="avatars">{selectedEvent.attendees.map((member, index) => <Avatar initials={member} tone={index === 1 ? 'lime' : 'dark'} small key={member} />)}<span>+{Math.max(0, selectedEvent.attendees.length - 2)}</span></div><small>{selectedEvent.attendees.length > 0 ? `${selectedEvent.attendees.length} pessoa${selectedEvent.attendees.length === 1 ? '' : 's'} envolvida${selectedEvent.attendees.length === 1 ? '' : 's'}` : 'Evento individual'}</small></div>{canManageSelectedEvent && <div className="agenda-detail-actions"><button onClick={() => setEditingEvent(selectedRemoteEvent)}>EDITAR</button><button onClick={() => void removeSelectedEvent()}>EXCLUIR</button></div>}
         </aside> : <aside className="agenda-detail"><div className="agenda-detail-head"><span>AGENDA</span></div><h2>Nenhum evento<br />nesse filtro.</h2><p>Altere o filtro ou registre um novo compromisso.</p></aside>}
       </div>
       {isCreateOpen && <CalendarEventModal projects={projects} canCreateTeam={permissions.canCreateTeam} defaultVisibility={scope === 'team' ? 'team' : 'personal'} onClose={() => setIsCreateOpen(false)} onCreated={() => { setIsCreateOpen(false); refreshAgenda() }} />}
+      {editingEvent && <CalendarEventModal event={editingEvent} projects={projects} canCreateTeam={permissions.canCreateTeam} defaultVisibility={editingEvent.visibility} onClose={() => setEditingEvent(null)} onCreated={() => { setEditingEvent(null); refreshAgenda() }} />}
     </section>
   )
 }
 
-function CalendarEventModal({ projects, canCreateTeam, defaultVisibility, onClose, onCreated }: { projects: Project[]; canCreateTeam: boolean; defaultVisibility: CalendarVisibility; onClose: () => void; onCreated: () => void }) {
-  const [title, setTitle] = useState('')
-  const [eventType, setEventType] = useState<CalendarEventType>('meeting')
-  const [startsAt, setStartsAt] = useState(() => agendaDateTimeInputValue())
-  const [endsAt, setEndsAt] = useState(() => agendaDateTimeInputValue(120))
-  const [visibility, setVisibility] = useState<CalendarVisibility>(defaultVisibility)
-  const [projectId, setProjectId] = useState('')
-  const [location, setLocation] = useState('')
-  const [description, setDescription] = useState('')
+function CalendarEventModal({ event: calendarEvent, projects, canCreateTeam, defaultVisibility, onClose, onCreated }: { event?: CalendarEventRecord; projects: Project[]; canCreateTeam: boolean; defaultVisibility: CalendarVisibility; onClose: () => void; onCreated: () => void }) {
+  const [title, setTitle] = useState(calendarEvent?.title ?? '')
+  const [eventType, setEventType] = useState<CalendarEventType>(calendarEvent?.eventType ?? 'meeting')
+  const [startsAt, setStartsAt] = useState(() => calendarEvent ? agendaDateTimeInputFromIso(calendarEvent.startsAt) : agendaDateTimeInputValue())
+  const [endsAt, setEndsAt] = useState(() => calendarEvent ? agendaDateTimeInputFromIso(calendarEvent.endsAt) : agendaDateTimeInputValue(120))
+  const [visibility, setVisibility] = useState<CalendarVisibility>(calendarEvent?.visibility ?? defaultVisibility)
+  const [projectId, setProjectId] = useState(calendarEvent?.projectId ?? '')
+  const [location, setLocation] = useState(calendarEvent?.location ?? '')
+  const [description, setDescription] = useState(calendarEvent?.description ?? '')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -1326,7 +1788,9 @@ function CalendarEventModal({ projects, canCreateTeam, defaultVisibility, onClos
     setIsSaving(true)
     setError('')
     try {
-      await createCalendarEvent({ title, startsAt, endsAt, eventType, visibility, projectId: projectId || undefined, location, description })
+      const input = { title, startsAt, endsAt, eventType, visibility, projectId: projectId || undefined, location, description }
+      if (calendarEvent) await updateCalendarEvent(calendarEvent.id, input)
+      else await createCalendarEvent(input)
       onCreated()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível criar o evento.')
@@ -1335,7 +1799,7 @@ function CalendarEventModal({ projects, canCreateTeam, defaultVisibility, onClos
     }
   }
 
-  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo evento da agenda"><form className="mission-create-dialog agenda-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de evento">×</button><span className="mission-create-icon"><Icon name="calendar" size={21} /></span><p>NOVO EVENTO</p><h2>Organize o próximo<br /><em>momento.</em></h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Reunião de alinhamento" required /></label><div className="mission-create-row"><label><span>TIPO</span><select value={eventType} onChange={(event) => setEventType(event.target.value as CalendarEventType)}><option value="meeting">Reunião</option><option value="deadline">Prazo</option><option value="appointment">Compromisso</option><option value="vacation">Férias</option></select></label><label><span>VISIBILIDADE</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as CalendarVisibility)}><option value="personal">Somente eu</option>{canCreateTeam && <option value="team">Equipe autorizada</option>}</select></label></div><div className="mission-create-row"><label><span>INÍCIO</span><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} required /></label><label><span>FIM</span><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} required /></label></div><div className="mission-create-row"><label><span>PROJETO (OPCIONAL)</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Sem projeto vinculado</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>LOCAL (OPCIONAL)</span><input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Ex.: Sala Norte" /></label></div><label><span>CONTEXTO</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="O que precisa acontecer neste compromisso?" maxLength={2000} /></label>{error && <p className="agenda-status error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR EVENTO <span>→</span></>}</button></form></div>
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label={calendarEvent ? 'Editar evento da agenda' : 'Novo evento da agenda'}><form className="mission-create-dialog agenda-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de evento">×</button><span className="mission-create-icon"><Icon name="calendar" size={21} /></span><p>{calendarEvent ? 'EDITAR EVENTO' : 'NOVO EVENTO'}</p><h2>{calendarEvent ? <>Ajuste o próximo<br /><em>movimento.</em></> : <>Organize o próximo<br /><em>movimento.</em></>}</h2><label><span>TÍTULO</span><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Reunião de alinhamento" required /></label><div className="mission-create-row"><label><span>TIPO</span><select value={eventType} onChange={(event) => setEventType(event.target.value as CalendarEventType)}><option value="meeting">Reunião</option><option value="deadline">Prazo</option><option value="appointment">Compromisso</option><option value="vacation">Férias</option></select></label><label><span>VISIBILIDADE</span><select value={visibility} onChange={(event) => setVisibility(event.target.value as CalendarVisibility)}><option value="personal">Somente eu</option>{canCreateTeam && <option value="team">Equipe autorizada</option>}</select></label></div><div className="mission-create-row"><label><span>INÍCIO</span><DateTimePicker value={startsAt} onChange={setStartsAt} /></label><label><span>FIM</span><DateTimePicker value={endsAt} onChange={setEndsAt} /></label></div><div className="mission-create-row"><label><span>PROJETO (OPCIONAL)</span><select value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Sem projeto vinculado</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>LOCAL (OPCIONAL)</span><input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Ex.: Sala Norte" /></label></div><label><span>CONTEXTO</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="O que precisa acontecer neste compromisso?" maxLength={2000} /></label>{error && <p className="agenda-status error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>{calendarEvent ? 'SALVAR ALTERAÇÕES' : 'CRIAR EVENTO'} <span>→</span></>}</button></form></div>
 }
 
 function TeamPage({ members, missions, projects, completed }: { members: TeamMember[]; missions: Mission[]; projects: Project[]; completed: string[] }) {
@@ -1407,11 +1871,34 @@ function AnalyticsPage({ analytics, projects, missions, team, completed, totalXp
 
 function LibraryPage({ clients, projects, onOpenProject }: { resources: LibraryResource[]; clients: ClientIdentity[]; projects: Project[]; onOpenProject: (projectId: string) => void }) {
   const [selectedClientId, setSelectedClientId] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ id: string; title: string; type: string; project: string; client: string; snippet: string }[] | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+
   const visibleClients = selectedClientId === 'all' ? clients : clients.filter((client) => client.id === selectedClientId)
   const visibleProjects = selectedClientId === 'all' ? projects : projects.filter((project) => project.client === clients.find((client) => client.id === selectedClientId)?.name)
   const selectedClient = clients.find((client) => client.id === selectedClientId)
 
-  return <section className="library-page client-directory-page"><div className="library-intro"><div><p className="eyebrow">DIRETÓRIO DE CLIENTES <span>✦</span></p><h1>Arquivos que<br /><em>contam histórias.</em></h1></div><div className="library-summary"><span>CLIENTES ATIVOS</span><b>{clients.length}</b><small>Selecione um cliente para acessar seus projetos e materiais.</small></div></div><div className="client-directory-selector"><label><span>CLIENTE</span><select value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)}><option value="all">Todos os clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name} · {client.shortCode ?? 'SEM SIGLA'}</option>)}</select></label><p>Os arquivos permanentes do cliente ficam nesta biblioteca; campanhas ficam nos projetos.</p></div>{selectedClient && <ClientLibraryManager client={selectedClient} />}<section className="client-library-index"><div className="client-library-index-head"><div><span>{selectedClientId === 'all' ? 'TODOS OS CLIENTES' : 'PROJETOS DO CLIENTE'}</span><p>Abra uma frente para acessar sua biblioteca específica de campanha.</p></div><b>{visibleProjects.length} projetos</b></div><div className="client-library-grid">{visibleClients.map((client) => { const clientProjects = projects.filter((project) => project.client === client.name); return <article key={client.id}><div className={`client-library-mark ${client.imageUrl ? 'has-image' : ''}`}>{client.imageUrl ? <img src={client.imageUrl} alt="" /> : client.shortCode ?? client.name.slice(0, 3).toLocaleUpperCase('pt-BR')}</div><div><span>CLIENTE</span><h2>{client.name}</h2><p>{clientProjects.length} projeto{clientProjects.length === 1 ? '' : 's'} vinculado{clientProjects.length === 1 ? '' : 's'}</p></div><div className="client-library-projects">{clientProjects.length > 0 ? clientProjects.map((project) => <button onClick={() => onOpenProject(project.id)} key={project.id}><b>{project.name}</b><small>Biblioteca do projeto · {project.status}</small><i>↗</i></button>) : <p>Este cliente ainda não possui projetos com arquivos.</p>}</div></article> })}</div>{visibleClients.length === 0 && <p className="empty-state">Cliente não encontrado.</p>}</section></section>
+  async function handleSearch(e: FormEvent) {
+    e.preventDefault()
+    if (!searchQuery.trim()) {
+      setSearchResults(null)
+      return
+    }
+    setIsSearching(true)
+    try {
+      const response = await fetch(`/api/ai/search?q=${encodeURIComponent(searchQuery)}`)
+      if (!response.ok) throw new Error()
+      const data = await response.json() as { results: typeof searchResults }
+      setSearchResults(data.results)
+    } catch {
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  return <section className="library-page client-directory-page"><div className="library-intro"><div><p className="eyebrow">DIRETÓRIO DE CLIENTES <span>✦</span></p><h1>Arquivos que<br /><em>contam histórias.</em></h1></div><div className="library-summary"><span>CLIENTES ATIVOS</span><b>{clients.length}</b><small>Selecione um cliente para acessar seus projetos e materiais.</small></div></div><form className="client-directory-selector" onSubmit={handleSearch} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px', marginBottom: '20px', background: 'none', border: 'none', padding: 0 }}><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Busca Semântica SIX AI ✦ Ex.: 'Design Coca-Cola', 'Contrato Q2'..." style={{ width: '100%', padding: '12px 14px', background: '#252522', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', color: '#fff', outline: 'none', fontSize: '12px' }} /><button type="submit" style={{ padding: '12px 20px', background: '#8b73ff', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>{isSearching ? 'BUSCANDO...' : 'PESQUISAR ✦'}</button></form>{searchResults !== null && <div style={{ background: '#252522', padding: '20px', borderRadius: '12px', marginBottom: '24px', color: '#fff' }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}><span style={{ fontSize: '8px', color: '#8b73ff', letterSpacing: '1px', fontWeight: 'bold', textTransform: 'uppercase' }}>RESULTADOS DA BUSCA CONCEITUAL (SIX AI)</span><button onClick={() => { setSearchQuery(''); setSearchResults(null) }} style={{ background: 'none', border: 'none', color: '#85857e', fontSize: '10px', cursor: 'pointer', textDecoration: 'underline' }}>LIMPAR BUSCA</button></div><div style={{ display: 'grid', gap: '10px' }}>{searchResults.map(item => <div key={item.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', padding: '14px', borderRadius: '8px' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}><b style={{ fontSize: '12px', color: '#fff' }}>{item.title}</b><span style={{ fontSize: '8px', background: 'rgba(139,115,255,0.15)', color: '#8b73ff', padding: '3px 6px', borderRadius: '4px', textTransform: 'uppercase', fontWeight: 'bold' }}>{item.type}</span></div><p style={{ margin: '0 0 8px', fontSize: '10px', color: '#85857e' }}>Cliente: {item.client} · Campanha: {item.project}</p><p style={{ margin: 0, fontSize: '11px', color: '#dfdfd5', lineHeight: 1.4 }}>{item.snippet}</p></div>)}{searchResults.length === 0 && <p style={{ fontSize: '11px', color: '#85857e', textAlign: 'center', padding: '20px' }}>Nenhum material encontrado para esta busca conceitual.</p>}</div></div>}<div className="client-directory-selector"><label><span>CLIENTE</span><select value={selectedClientId} onChange={(event) => setSelectedClientId(event.target.value)}><option value="all">Todos os clientes</option>{clients.map((client) => <option value={client.id} key={client.id}>{client.name} · {client.shortCode ?? 'SEM SIGLA'}</option>)}</select></label><p>Os arquivos permanentes do cliente ficam nesta biblioteca; campanhas ficam nos projetos.</p></div>{selectedClient && <ClientLibraryManager client={selectedClient} />}<section className="client-library-index"><div className="client-library-index-head"><div><span>{selectedClientId === 'all' ? 'TODOS OS CLIENTES' : 'PROJETOS DO CLIENTE'}</span><p>Abra uma frente para acessar sua biblioteca específica de campanha.</p></div><b>{visibleProjects.length} projetos</b></div><div className="client-library-grid">{visibleClients.map((client) => { const clientProjects = projects.filter((project) => project.client === client.name); return <article key={client.id}><div className={`client-library-mark ${client.imageUrl ? 'has-image' : ''}`}>{client.imageUrl ? <img src={client.imageUrl} alt="" /> : client.shortCode ?? client.name.slice(0, 3).toLocaleUpperCase('pt-BR')}</div><div><span>CLIENTE</span><h2>{client.name}</h2><p>{clientProjects.length} projeto{clientProjects.length === 1 ? '' : 's'} vinculado{clientProjects.length === 1 ? '' : 's'}</p></div><div className="client-library-projects">{clientProjects.length > 0 ? clientProjects.map((project) => <button onClick={() => onOpenProject(project.id)} key={project.id}><b>{project.name}</b><small>Biblioteca do projeto · {project.status}</small><i>↗</i></button>) : <p>Este cliente ainda não possui projetos com arquivos.</p>}</div></article> })}</div>{visibleClients.length === 0 && <p className="empty-state">Cliente não encontrado.</p>}</section></section>
 }
 
 function ClientLibraryManager({ client }: { client: ClientIdentity }) {
@@ -1428,9 +1915,11 @@ function ClientLibraryManager({ client }: { client: ClientIdentity }) {
   return <section className="client-library-manager"><div><span>BIBLIOTECA DO CLIENTE</span><h2>{client.name}</h2></div><div className="client-library-manager-body"><nav><div className="client-library-folder-actions"><b>PASTAS</b><button type="button" onClick={() => setIsFolderFormOpen((current) => !current)}>NOVA +</button></div>{isFolderFormOpen && <form className="client-library-folder-form" onSubmit={createFolder}><input value={folderName} onChange={(event) => setFolderName(event.target.value)} maxLength={48} placeholder="Nome da pasta" required /><button>CRIAR</button></form>}{library.folders.map((item) => <button className={item.id === folderId ? 'selected' : ''} onClick={() => setFolderId(item.id)} key={item.id}>{item.name}<b>{item.fileCount}</b></button>)}</nav><div><header><b>{folder?.name ?? 'Pasta'}</b><label><input type="file" onChange={(event) => { void upload(event.target.files?.[0]); event.currentTarget.value = '' }} />ADICIONAR ARQUIVO +</label></header>{message && <p>{message}</p>}{files.length ? files.map((file) => <article key={file.id}><b>{file.name}</b><small>Versão {file.version} · {file.fileType}</small><a href={`/api/clients/${client.id}/library/files/${file.id}`}>BAIXAR</a></article>) : <p>Nenhum arquivo nesta pasta.</p>}</div></div></section>
 }
 
-function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, completed, team, canManageMissions, onCreateProject, onCreateMission, onUpdateProjectLifecycle }: { projects: Project[]; clients: ClientIdentity[]; initialSelectedProjectId: string | null; missions: Mission[]; completed: string[]; team: TeamMember[]; canManageMissions: boolean; onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void; onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent'; description?: string; files?: File[] }) => void; onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => void }) {
+function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, completed, team, canManageMissions, onCreateProject, onCreateMission, onUpdateProjectLifecycle }: { projects: Project[]; clients: ClientIdentity[]; initialSelectedProjectId: string | null; missions: Mission[]; completed: string[]; team: TeamMember[]; canManageMissions: boolean; onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => Project; onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent'; description?: string; files?: File[] }) => void; onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => void }) {
   const [selectedProjectId, setSelectedProjectId] = useState(initialSelectedProjectId ?? projects[0]?.id ?? '')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isBriefingOpen, setIsBriefingOpen] = useState(false)
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false)
   const [isMissionCreateOpen, setIsMissionCreateOpen] = useState(false)
   const [isLifecycleOpen, setIsLifecycleOpen] = useState(false)
   const [isLibraryOpen, setIsLibraryOpen] = useState(false)
@@ -1445,11 +1934,32 @@ function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, c
 
   if (!selectedProject) return <section className="projects-page"><p className="empty-state">Ainda não há projetos para acompanhar.</p></section>
 
+  async function handleBriefingLaunch(projectInput: { name: string; client: string; deadline: string; tone: Project['tone'] }, suggestedMissions: { title: string; xp: number; description: string }[]) {
+    const createdProject = onCreateProject(projectInput)
+    if (!createdProject) return
+
+    for (const m of suggestedMissions) {
+      onCreateMission({
+        title: m.title,
+        projectId: createdProject.id,
+        assigneeId: '',
+        deadline: 'Amanhã · 18:00',
+        priority: 'normal',
+        description: `${m.description}\n\nRecompensa sugerida: ${m.xp} XP`
+      })
+    }
+    setSelectedProjectId(createdProject.id)
+  }
+
   return (
     <section className="projects-page">
       <div className="projects-intro">
         <div><p className="eyebrow">CENTRAL DE PROJETOS <span>✦</span></p><h1>Ideias em<br /><em>órbita.</em></h1></div>
-        <div className="projects-intro-actions"><button className="create-mission-button" onClick={() => setIsCreateOpen(true)}>NOVA FRENTE <span>+</span></button><p>Cada frente reúne as missões atribuídas ao time, com progresso calculado pelas entregas concluídas.</p></div>
+        <div className="projects-intro-actions">
+          {canManageMissions && <button className="create-mission-button" style={{ background: '#8b73ff', marginRight: '8px' }} onClick={() => setIsBriefingOpen(true)}>BRIEFING INTELIGENTE <span>✦</span></button>}
+          <button className="create-mission-button" onClick={() => setIsCreateOpen(true)}>NOVA FRENTE <span>+</span></button>
+          <p>Cada frente reúne as missões atribuídas ao time, com progresso calculado pelas entregas concluídas.</p>
+        </div>
       </div>
 
       <div className="project-overview">
@@ -1475,12 +1985,15 @@ function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, c
           <div className="project-detail-section"><span>PRÓXIMO MOVIMENTO</span><p>{selectedProject.nextStep}</p></div>
           <div className="project-detail-section"><span>ÚLTIMA ATUALIZAÇÃO</span><p>{selectedProject.activity}</p></div>
           <div className="project-detail-section"><div className="project-missions-heading"><span>MISSÕES ATRIBUÍDAS</span>{canManageMissions && <button onClick={() => setIsMissionCreateOpen(true)}>NOVA MISSÃO <b>+</b></button>}</div><div className="project-mission-list">{projectMissions.length > 0 ? projectMissions.map((mission) => { const assignee = team.find((member) => member.id === mission.assigneeId); const isComplete = completed.includes(mission.id); return <article className={isComplete ? 'completed' : ''} key={mission.id}><div><b>{mission.title}</b><small>{assignee ? assignee.name : 'Responsável a definir'}</small></div><span>{isComplete ? 'FEITA' : 'EM ABERTO'}</span></article> }) : <p className="project-mission-empty">Esta frente ainda não tem missões.</p>}</div></div>
+          <button className="project-library-button" style={{ background: '#171717', color: '#c6ff38', marginBottom: '8px' }} onClick={() => setIsDashboardOpen(true)}>DASHBOARD DO PROJETO 📊</button>
           <button className="project-library-button" onClick={() => setIsLibraryOpen(true)}>BIBLIOTECA DO PROJETO <span>↗</span></button>
           <button className="project-lifecycle-button" onClick={() => setIsLifecycleOpen(true)}>GERENCIAR CICLO DA FRENTE <span>↗</span></button>
           <div className="project-detail-footer"><div className="avatars">{projectCollaborators.slice(0, 3).map((member, index) => <Avatar initials={member.initials} tone={index === 1 ? 'lime' : member.tone} small key={member.id} />)}{projectCollaborators.length > 3 && <span>+{projectCollaborators.length - 3}</span>}</div><small>{projectCollaborators.length === 1 ? '1 pessoa na frente' : `${projectCollaborators.length} pessoas na frente`}</small></div>
         </aside>
       </div>
       {isCreateOpen && <ProjectCreateModal clients={clients} onClose={() => setIsCreateOpen(false)} onCreate={(input) => { onCreateProject(input); setIsCreateOpen(false) }} />}
+      {isBriefingOpen && <ProjectBriefingModal clients={clients} onClose={() => setIsBriefingOpen(false)} onLaunch={handleBriefingLaunch} />}
+      {isDashboardOpen && <ProjectDashboardModal project={selectedProject} missions={missions} completed={completed} team={team} onClose={() => setIsDashboardOpen(false)} />}
       {isMissionCreateOpen && <MissionCreateModal projects={projects} team={team} initialProjectId={selectedProject.id} onClose={() => setIsMissionCreateOpen(false)} onCreate={(input) => { onCreateMission(input); setIsMissionCreateOpen(false) }} />}
       {isLifecycleOpen && <ProjectLifecycleModal project={selectedProject} onClose={() => setIsLifecycleOpen(false)} onUpdate={(input) => { onUpdateProjectLifecycle(selectedProject.id, input); setIsLifecycleOpen(false) }} />}
       {isLibraryOpen && <ProjectLibraryModal project={selectedProject} onClose={() => setIsLibraryOpen(false)} />}
@@ -1594,6 +2107,305 @@ function ProjectLifecycleModal({ project, onClose, onUpdate }: { project: Projec
   return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Gerenciar ciclo do projeto"><form className="mission-create-dialog project-lifecycle-dialog" onSubmit={(event) => { event.preventDefault(); if (status && deadline.trim() && nextStep.trim()) onUpdate({ status, deadline: deadline.trim(), nextStep: nextStep.trim() }) }}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar ciclo do projeto">×</button><span className="mission-create-icon"><Icon name="folder" size={21} /></span><p>CICLO DO PROJETO</p><h2>O que move<br /><em>{project.name}?</em></h2><label><span>STATUS DA FRENTE</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option>EM CONCEPÇÃO</option><option>EM PRODUÇÃO</option><option>EM APROVAÇÃO</option><option>PAUSADO</option><option>CONCLUÍDO</option></select></label><label><span>PRÓXIMO MARCO</span><input autoFocus value={deadline} onChange={(event) => setDeadline(event.target.value)} required /></label><label><span>PRÓXIMO MOVIMENTO</span><textarea value={nextStep} onChange={(event) => setNextStep(event.target.value)} required /></label><button className="mission-create-submit" type="submit">ATUALIZAR CICLO <span>→</span></button></form></div>
 }
 
+function ProjectDashboardModal({ project, missions, completed, team, onClose }: { project: Project; missions: Mission[]; completed: string[]; team: TeamMember[]; onClose: () => void }) {
+  const projectMissions = missions.filter((mission) => mission.projectId === project.id)
+  const completedMissions = projectMissions.filter((mission) => completed.includes(mission.id))
+  const pendingMissions = projectMissions.filter((mission) => !completed.includes(mission.id))
+  
+  const hoursPlanned = 40 + (project.name.length % 5) * 20
+  const hoursRealized = Math.min(hoursPlanned, Math.round(completedMissions.length * (hoursPlanned / Math.max(1, projectMissions.length))))
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  const milestones = [
+    { title: '1. Alinhamento & Briefing', desc: 'Definição estratégica inicial realizada.', reached: true },
+    { title: '2. Desenvolvimento de KV', desc: 'Produção criativa principal da campanha.', reached: completedMissions.length > 0 },
+    { title: '3. Redação e Fechamento', desc: 'Ajustes de copy e layouts finais.', reached: completedMissions.length > 1 },
+    { title: '4. Veiculação & Análise', desc: 'Publicação e monitoramento de KPIs.', reached: pendingMissions.length === 0 && projectMissions.length > 0 }
+  ]
+
+  return (
+    <div className="mission-create-overlay project-library-overlay" role="dialog" aria-modal="true" aria-label={`Dashboard do projeto ${project.name}`}>
+      <style>{`
+        .dashboard-grid-layout {
+          display: grid;
+          grid-template-columns: 1.2fr 0.8fr;
+          gap: 20px;
+          margin-top: 24px;
+        }
+        .metrics-grid-layout {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 12px;
+          margin-top: 24px;
+        }
+        @media (max-width: 780px) {
+          .dashboard-grid-layout {
+            grid-template-columns: 1fr;
+          }
+          .metrics-grid-layout {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+      `}</style>
+      <section className="project-library-dialog" style={{ width: 'min(920px, 100%)' }}>
+        <button className="close-button" type="button" onClick={onClose} aria-label="Fechar dashboard do projeto">×</button>
+        <div className="project-library-head">
+          <div>
+            <span>DASHBOARD DO PROJETO 📊</span>
+            <h2>{project.name}</h2>
+            <p>{project.client} · {project.code}</p>
+          </div>
+          <ClientMark project={project} className="project-library-client-mark" />
+        </div>
+
+        <div className="metrics-grid-layout">
+          <article className="profile-stat-card highlight" style={{ background: '#171717', borderColor: '#171717', color: '#fff', textAlign: 'center', padding: '18px', borderRadius: '12px' }}>
+            <span style={{ color: '#c6ff38', fontSize: '8px', fontWeight: '900', letterSpacing: '1.1px' }}>PROGRESSO</span>
+            <b style={{ display: 'block', marginTop: '6px', fontSize: '26px', color: '#fff', letterSpacing: '-1.4px' }}>{project.progress}%</b>
+            <small style={{ display: 'block', marginTop: '2px', color: '#a5a59e', fontSize: '10px' }}>Missões entregues</small>
+          </article>
+          <article className="profile-stat-card" style={{ background: '#fffefa', border: '1px solid #e1e1da', textAlign: 'center', padding: '18px', borderRadius: '12px' }}>
+            <span style={{ color: '#85857e', fontSize: '8px', fontWeight: '900', letterSpacing: '1.1px' }}>STATUS DO CICLO</span>
+            <b style={{ display: 'block', marginTop: '6px', fontSize: '16px', color: project.status === 'CONCLUÍDO' ? '#8b73ff' : '#171717', letterSpacing: '-0.5px' }}>{project.status}</b>
+            <small style={{ display: 'block', marginTop: '2px', color: '#a5a59e', fontSize: '10px' }}>Saúde da frente</small>
+          </article>
+          <article className="profile-stat-card" style={{ background: '#fffefa', border: '1px solid #e1e1da', padding: '18px', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '100px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: '#85857e', fontSize: '8px', fontWeight: '900', letterSpacing: '1.1px' }}>HORAS</span>
+              <b style={{ fontSize: '16px', color: '#171717', letterSpacing: '-0.5px' }}>{hoursRealized}h / {hoursPlanned}h</b>
+            </div>
+            <div style={{ height: '6px', background: '#e2e2db', borderRadius: '3px', overflow: 'hidden', margin: '8px 0' }}>
+              <div style={{ height: '100%', width: `${Math.min(100, (hoursRealized / hoursPlanned) * 100)}%`, background: '#8b73ff', borderRadius: 'inherit' }} />
+            </div>
+            <small style={{ color: '#a5a59e', fontSize: '9px' }}>{hoursPlanned - hoursRealized}h restantes estimadas</small>
+          </article>
+          <article className="profile-stat-card highlight" style={{ background: '#8b73ff', borderColor: '#8b73ff', color: '#fff', textAlign: 'center', padding: '18px', borderRadius: '12px' }}>
+            <span style={{ color: '#fff', fontSize: '8px', fontWeight: '900', letterSpacing: '1.1px' }}>INTEGRAÇÃO SIX AI</span>
+            <b style={{ display: 'block', marginTop: '6px', fontSize: '20px', color: '#fff', letterSpacing: '-1px' }}>ATIVA</b>
+            <small style={{ display: 'block', marginTop: '2px', color: 'rgba(255,255,255,0.8)', fontSize: '10px' }}>Briefing e IA conectados</small>
+          </article>
+        </div>
+
+        <div className="dashboard-grid-layout">
+          <div style={{ background: '#252522', padding: '20px', borderRadius: '12px', color: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <span style={{ fontSize: '8px', color: '#a6a69f', letterSpacing: '1px', fontWeight: 'bold' }}>MISSÕES & ENTREGÁVEIS</span>
+              <span style={{ fontSize: '10px' }}>{completedMissions.length}/{projectMissions.length} concluídas</span>
+            </div>
+            <div style={{ display: 'grid', gap: '10px' }}>
+              {projectMissions.map(m => {
+                const isDone = completed.includes(m.id)
+                return (
+                  <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.04)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div>
+                      <b style={{ fontSize: '11px', textDecoration: isDone ? 'line-through' : 'none', color: isDone ? '#85857e' : '#fff' }}>{m.title}</b>
+                      <p style={{ margin: '3px 0 0', fontSize: '9px', color: '#85857e' }}>XP Recompensa: {m.xp} XP</p>
+                    </div>
+                    <span style={{ fontSize: '9px', fontWeight: 'bold', color: isDone ? '#c6ff38' : m.approvalStatus === 'pending' ? '#ffd76a' : '#85857e', background: 'rgba(255,255,255,0.08)', padding: '4px 8px', borderRadius: '4px' }}>
+                      {isDone ? 'CONCLUÍDA' : m.approvalStatus === 'pending' ? 'EM APROVAÇÃO' : 'EM ABERTO'}
+                    </span>
+                  </div>
+                )
+              })}
+              {projectMissions.length === 0 && <p style={{ fontSize: '11px', color: '#85857e', textAlign: 'center', padding: '20px' }}>Nenhuma missão criada para esta frente.</p>}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gap: '20px', alignContent: 'start' }}>
+            <div style={{ background: '#252522', padding: '20px', borderRadius: '12px', color: '#fff' }}>
+              <span style={{ fontSize: '8px', color: '#a6a69f', letterSpacing: '1px', fontWeight: 'bold', display: 'block', marginBottom: '16px' }}>LINHA DO TEMPO / CRONOGRAMA</span>
+              <div style={{ display: 'grid', gap: '14px', position: 'relative' }}>
+                {milestones.map((m, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'start' }}>
+                    <div style={{ display: 'grid', placeItems: 'center', width: '20px', height: '20px', borderRadius: '50%', background: m.reached ? '#8b73ff' : '#3c3c38', fontSize: '9px', fontWeight: 'bold', color: '#fff' }}>
+                      {m.reached ? '✓' : idx + 1}
+                    </div>
+                    <div style={{ fontSize: '11px' }}>
+                      <b style={{ color: m.reached ? '#fff' : '#85857e' }}>{m.title}</b>
+                      <p style={{ margin: '2px 0 0', color: '#85857e', fontSize: '10px' }}>{m.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function ProjectBriefingModal({ clients, onClose, onLaunch }: { clients: ClientIdentity[]; onClose: () => void; onLaunch: (projectInput: { name: string; client: string; deadline: string; tone: Project['tone'] }, missions: { title: string; xp: number; description: string }[]) => void }) {
+  const [client, setClient] = useState('')
+  const [projectName, setProjectName] = useState('')
+  const [objective, setObjective] = useState('')
+  const [audience, setAudience] = useState('')
+  const [competitors, setCompetitors] = useState('')
+  const [channels, setChannels] = useState('')
+  const [deadline, setDeadline] = useState('Próximo marco · em definição')
+  
+  const [step, setStep] = useState<'form' | 'result'>('form')
+  const [loading, setLoading] = useState(false)
+  const [aiResult, setAiResult] = useState<{ strategicSuggestion: string; milestones: { name: string; detail: string }[]; missions: { title: string; xp: number; description: string; checked?: boolean }[] } | null>(null)
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  async function handleGenerate(e: FormEvent) {
+    e.preventDefault()
+    if (!client || !projectName.trim()) return
+    setLoading(true)
+    try {
+      const response = await fetch('/api/ai/briefing', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client, projectName, objective, audience, competitors, channels, deadline })
+      })
+      if (!response.ok) throw new Error('Falha ao gerar briefing estratégico.')
+      const result = await response.json() as typeof aiResult
+      if (result) {
+        setAiResult({
+          ...result,
+          missions: result.missions.map(m => ({ ...m, checked: true }))
+        })
+        setStep('result')
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao processar briefing inteligência.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function handleToggleMission(index: number) {
+    if (!aiResult) return
+    const updated = [...aiResult.missions]
+    updated[index] = { ...updated[index], checked: !updated[index].checked }
+    setAiResult({ ...aiResult, missions: updated })
+  }
+
+  function handleLaunch() {
+    if (!aiResult) return
+    const selectedMissions = aiResult.missions.filter(m => m.checked)
+    onLaunch({ name: projectName, client, deadline, tone: 'purple' }, selectedMissions)
+    onClose()
+  }
+
+  return (
+    <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Briefing Inteligente">
+      <div className="mission-create-dialog mission-create-dialog-expanded" style={{ width: 'min(780px, 100%)' }}>
+        <button className="close-button" type="button" onClick={onClose} aria-label="Fechar Briefing Inteligente">×</button>
+        <span className="mission-create-icon" style={{ background: '#8b73ff', color: '#171717' }}><Icon name="sparkle" size={21} /></span>
+        <p>SIX AI · INTELIGÊNCIA OPERACIONAL</p>
+        <h2>Briefing <em>Inteligente</em></h2>
+
+        {step === 'form' ? (
+          <form className="mission-create-form" onSubmit={handleGenerate}>
+            <div className="mission-create-row">
+              <label>
+                <span>CLIENTE</span>
+                <select value={client} onChange={(e) => setClient(e.target.value)} required>
+                  <option value="" disabled>Selecione o cliente</option>
+                  {clients.map((item) => <option value={item.name} key={item.id}>{item.name}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>NOME DO PROJETO / CAMPANHA</span>
+                <input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="Ex.: Black Friday 2026" required />
+              </label>
+            </div>
+
+            <label>
+              <span>OBJETIVO PRINCIPAL</span>
+              <textarea value={objective} onChange={(e) => setObjective(e.target.value)} placeholder="O que este projeto visa alcançar? Ex: Aumentar leads ou awareness..." required />
+            </label>
+
+            <div className="mission-create-row">
+              <label>
+                <span>PÚBLICO-ALVO</span>
+                <input value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="Ex.: Jovens de 18-24 anos" />
+              </label>
+              <label>
+                <span>PRINCIPAIS CONCORRENTES</span>
+                <input value={competitors} onChange={(e) => setCompetitors(e.target.value)} placeholder="Ex.: Concorrente A, Concorrente B" />
+              </label>
+            </div>
+
+            <div className="mission-create-row">
+              <label>
+                <span>CANAIS DE VEICULAÇÃO</span>
+                <input value={channels} onChange={(e) => setChannels(e.target.value)} placeholder="Ex.: Instagram, Google Search" />
+              </label>
+              <label>
+                <span>PRAZO ESTIMADO</span>
+                <input value={deadline} onChange={(e) => setDeadline(e.target.value)} placeholder="Ex.: Final de Novembro" required />
+              </label>
+            </div>
+
+            <button className="mission-create-submit" style={{ background: '#8b73ff', color: '#fff', marginTop: '24px' }} type="submit" disabled={loading}>
+              {loading ? 'ANALISANDO & GERANDO BRIEFING...' : <>GERAR PROPOSTA ESTRATÉGICA COM SIX AI ✦</>}
+            </button>
+          </form>
+        ) : (
+          <div style={{ display: 'grid', gap: '20px', marginTop: '16px' }}>
+            <div style={{ background: 'rgba(139,115,255,0.08)', border: '1px solid rgba(139,115,255,0.25)', padding: '16px', borderRadius: '8px' }}>
+              <b style={{ fontSize: '8px', color: '#8b73ff', letterSpacing: '1px', textTransform: 'uppercase' }}>DIRETRIZ ESTRATÉGICA (SIX AI)</b>
+              <p style={{ margin: '8px 0 0', fontSize: '11.5px', color: '#dfdfd5', lineHeight: 1.5 }}>{aiResult?.strategicSuggestion}</p>
+            </div>
+
+            <div>
+              <b style={{ fontSize: '8px', color: '#a6a69f', letterSpacing: '1px', textTransform: 'uppercase' }}>CRONOGRAMA E MARCOS SUGERIDOS</b>
+              <div style={{ display: 'grid', gap: '8px', marginTop: '8px' }}>
+                {aiResult?.milestones.map((m, idx) => (
+                  <div key={idx} style={{ background: '#252522', padding: '10px', borderRadius: '6px', fontSize: '11px', display: 'flex', justifyContent: 'space-between' }}>
+                    <span><b>{m.name}</b>: {m.detail}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <b style={{ fontSize: '8px', color: '#a6a69f', letterSpacing: '1px', textTransform: 'uppercase' }}>MISSÕES OPERACIONAIS RECOMENDADAS</b>
+              <div style={{ display: 'grid', gap: '6px', marginTop: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                {aiResult?.missions.map((m, idx) => (
+                  <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#252522', padding: '10px', borderRadius: '6px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={!!m.checked} onChange={() => handleToggleMission(idx)} style={{ accentColor: '#8b73ff' }} />
+                    <div style={{ fontSize: '11px' }}>
+                      <b>{m.title}</b> <span style={{ color: '#8b73ff', fontWeight: 'bold', fontSize: '9px' }}>+{m.xp} XP</span>
+                      <p style={{ margin: '2px 0 0', color: '#85857e', fontSize: '10px' }}>{m.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+              <button className="mission-create-submit" style={{ flex: 1, margin: 0, background: '#8b73ff', color: '#fff' }} onClick={handleLaunch}>
+                LANÇAR PROJETO E MISSÕES RECOMENDADAS 🚀
+              </button>
+              <button className="mission-create-submit" style={{ width: '120px', margin: 0, background: '#353530', color: '#f3f3eb' }} onClick={() => setStep('form')}>
+                VOLTAR
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ProjectCreateModal({ clients, onClose, onCreate }: { clients: ClientIdentity[]; onClose: () => void; onCreate: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => void }) {
   const [name, setName] = useState('')
   const [client, setClient] = useState('')
@@ -1623,12 +2435,693 @@ function AgendaItem({ event }: { event: AgendaEvent }) {
   return <div className="agenda-item"><span className={`agenda-dot ${event.tone}`} /><time>{event.time}</time><p><b>{event.title}</b><small>{event.subtitle}</small></p></div>
 }
 
+function KudoModal({ team, onClose, onSent }: { team: TeamMember[]; onClose: () => void; onSent: () => void }) {
+  const [targetName, setTargetName] = useState('')
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!targetName || !reason.trim()) return
+    setSaving(true)
+    setError('')
+    try {
+      const res = await fetch('/api/feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetName, reason })
+      })
+      if (!res.ok) throw new Error('Não foi possível enviar kudos.')
+      onSent()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao processar kudo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="profile-edit-overlay" role="dialog" aria-modal="true" aria-label="Enviar Kudos">
+      <form className="profile-edit-dialog" onSubmit={handleSubmit} style={{ width: 'min(480px, 100%)' }}>
+        <button className="close-button" type="button" onClick={onClose} aria-label="Fechar modal de kudos">×</button>
+        <h2>Mandar <em>Kudos ✦</em></h2>
+        <div className="profile-edit-form">
+          <label>
+            <span>COLEGA DE EQUIPE</span>
+            <select value={targetName} onChange={(e) => setTargetName(e.target.value)} required>
+              <option value="" disabled>Selecione um colega</option>
+              {team.map((m) => <option value={m.name} key={m.id}>{m.name}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>MOTIVO DO ELOGIO / RECONHECIMENTO</span>
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Descreva por que você está elogiando este colega..." maxLength={200} required />
+          </label>
+          {error && <p style={{ margin: 0, color: '#d63031', fontSize: '11px' }}>{error}</p>}
+          <button className="profile-edit-submit" style={{ background: '#8b73ff', color: '#fff' }} type="submit" disabled={saving}>
+            {saving ? 'ENVIANDO...' : 'ENVIAR KUDOS ✦'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function FeedPage({ team }: { team: TeamMember[] }) {
+  const [feedItems, setFeedItems] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isKudoOpen, setIsKudoOpen] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
+
+  const loadFeed = useCallback(() => {
+    setIsLoading(true)
+    fetch('/api/feed')
+      .then(res => res.json())
+      .then((data: any) => {
+        if (Array.isArray(data)) {
+          setFeedItems(data)
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => setIsLoading(false))
+  }, [])
+
+  useEffect(() => {
+    loadFeed()
+  }, [loadFeed])
+
+  return (
+    <section className="profile-page">
+      {showCelebration && (
+        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, display: 'grid', placeItems: 'center' }}>
+          <style>{`
+            @keyframes celebrate {
+              0% { transform: scale(0.6) translateY(20px); opacity: 0; }
+              20% { transform: scale(1.1) translateY(-10px); opacity: 1; }
+              80% { transform: scale(1) translateY(0); opacity: 1; }
+              100% { transform: scale(0.9) translateY(-20px); opacity: 0; }
+            }
+            .celebrate-card {
+              background: #171717;
+              color: #c6ff38;
+              border: 2px solid #8b73ff;
+              padding: 24px 36px;
+              border-radius: 16px;
+              text-align: center;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+              animation: celebrate 2s ease-in-out forwards;
+            }
+          `}</style>
+          <div className="celebrate-card">
+            <span style={{ fontSize: '48px', display: 'block', marginBottom: '8px' }}>🎉</span>
+            <h2 style={{ margin: 0, fontSize: '20px', letterSpacing: '-1px' }}>KUDOS ENVIADOS!</h2>
+            <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#a5a59e' }}>+100 XP distribuídos para o time ✦</p>
+          </div>
+        </div>
+      )}
+
+      <div className="profile-banner" style={{ borderColor: '#8b73ff', minHeight: '140px' }}>
+        <button className="profile-edit-trigger" style={{ background: '#8b73ff', borderColor: '#8b73ff' }} onClick={() => setIsKudoOpen(true)}>
+          MANDAR KUDOS ✦
+        </button>
+        <div className="profile-banner-content" style={{ padding: '24px' }}>
+          <div className="profile-identity">
+            <span className="profile-role" style={{ color: '#8b73ff' }}>ACONTECENDO AGORA</span>
+            <h1 style={{ fontSize: '24px' }}>Feed da <em>Agência</em></h1>
+            <p className="profile-bio">Acompanhe as conquistas, kudos e atualizações operacionais do time em tempo real.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: '780px', margin: '24px auto', display: 'grid', gap: '14px' }}>
+        {isLoading ? (
+          <p style={{ color: '#85857e', fontSize: '12px', textAlign: 'center', padding: '40px' }}>Carregando atualizações da agência...</p>
+        ) : feedItems.length > 0 ? (
+          feedItems.map((item) => {
+            const initials = item.user_name ? item.user_name.split(/\s+/).map((p: any) => p.charAt(0)).join('').slice(0, 2).toLocaleUpperCase('pt-BR') : 'SX'
+            const isKudo = item.type === 'kudo_received'
+            const isMission = item.type === 'mission_completed'
+            const isProject = item.type === 'project_created'
+            
+            return (
+              <div key={item.id} style={{ display: 'flex', gap: '14px', background: '#fffefa', border: '1px solid #e1e1da', padding: '16px', borderRadius: '12px', alignItems: 'center' }}>
+                <span className="avatar avatar-purple" style={{ background: isKudo ? '#8b73ff' : isProject ? '#c6ff38' : '#222', color: isProject ? '#171717' : '#fff' }}>{initials}</span>
+                <div style={{ flex: 1, fontSize: '12px', color: '#171717' }}>
+                  <b style={{ textTransform: 'capitalize' }}>{item.user_name || 'Membro do Time'}</b> {item.title} <strong style={{ color: isKudo ? '#8b73ff' : isProject ? '#8b73ff' : '#171717' }}>{item.target_name}</strong>
+                  {item.xp_amount && <span style={{ marginLeft: '8px', color: '#8b73ff', fontWeight: 'bold', fontSize: '10px', background: 'rgba(139,115,255,0.08)', padding: '2px 6px', borderRadius: '4px' }}>+{item.xp_amount} XP</span>}
+                  <p style={{ margin: '4px 0 0', color: '#85857e', fontSize: '10px' }}>{new Date(item.created_at).toLocaleString('pt-BR')}</p>
+                </div>
+                {item.link && <a href={item.link} style={{ fontSize: '10px', color: '#8b73ff', fontWeight: 'bold', textDecoration: 'none' }}>VER ↗</a>}
+              </div>
+            )
+          })
+        ) : (
+          <p style={{ color: '#85857e', fontSize: '12px', textAlign: 'center', padding: '40px' }}>Nenhum evento registrado no feed até o momento.</p>
+        )}
+      </div>
+
+      {isKudoOpen && (
+        <KudoModal team={team} onClose={() => setIsKudoOpen(false)} onSent={() => { setIsKudoOpen(false); loadFeed(); setShowCelebration(true); setTimeout(() => setShowCelebration(false), 2000) }} />
+      )}
+    </section>
+  )
+}
+
+function DateTimePicker({ value, onChange }: { value: string; onChange: (val: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  const parsedDate = value ? new Date(value) : new Date()
+  const isValid = !isNaN(parsedDate.getTime())
+  const activeDate = isValid ? parsedDate : new Date()
+
+  const [currentYear, setCurrentYear] = useState(activeDate.getFullYear())
+  const [currentMonth, setCurrentMonth] = useState(activeDate.getMonth())
+  const [selectedDay, setSelectedDay] = useState(activeDate.getDate())
+  const [selectedHour, setSelectedHour] = useState(activeDate.getHours())
+  const [selectedMinute, setSelectedMinute] = useState(activeDate.getMinutes())
+
+  useEffect(() => {
+    if (value) {
+      const d = new Date(value)
+      if (!isNaN(d.getTime())) {
+        setCurrentYear(d.getFullYear())
+        setCurrentMonth(d.getMonth())
+        setSelectedDay(d.getDate())
+        setSelectedHour(d.getHours())
+        setSelectedMinute(d.getMinutes())
+      }
+    }
+  }, [value])
+
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ]
+
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay()
+
+  const prevDaysInMonth = new Date(currentYear, currentMonth, 0).getDate()
+  const prevDaysList = Array.from({ length: firstDayIndex }, (_, i) => prevDaysInMonth - firstDayIndex + 1 + i)
+  const currentDaysList = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+
+  function updateDateTime(day: number, hour: number, minute: number) {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const formatted = `${currentYear}-${pad(currentMonth + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}`
+    onChange(formatted)
+  }
+
+  function handleDaySelect(day: number) {
+    setSelectedDay(day)
+    updateDateTime(day, selectedHour, selectedMinute)
+  }
+
+  function handleHourChange(hour: number) {
+    setSelectedHour(hour)
+    updateDateTime(selectedDay, hour, selectedMinute)
+  }
+
+  function handleMinuteChange(minute: number) {
+    setSelectedMinute(minute)
+    updateDateTime(selectedDay, selectedHour, minute)
+  }
+
+  function handleQuickTime(h: number, m: number) {
+    setSelectedHour(h)
+    setSelectedMinute(m)
+    updateDateTime(selectedDay, h, m)
+  }
+
+  function nextMonth() {
+    if (currentMonth === 11) {
+      setCurrentMonth(0)
+      setCurrentYear(currentYear + 1)
+    } else {
+      setCurrentMonth(currentMonth + 1)
+    }
+  }
+
+  function prevMonth() {
+    if (currentMonth === 0) {
+      setCurrentMonth(11)
+      setCurrentYear(currentYear - 1)
+    } else {
+      setCurrentMonth(currentMonth - 1)
+    }
+  }
+
+  const displayDateStr = () => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${pad(selectedDay)}/${pad(currentMonth + 1)}/${currentYear}, ${pad(selectedHour)}:${pad(selectedMinute)}`
+  }
+
+  return (
+    <div className="custom-datetime-picker" style={{ width: '100%' }}>
+      <style>{`
+        .datepicker-trigger-btn {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          height: 41px;
+          padding: 0 12px;
+          background: #292926;
+          border: 1px solid #474743;
+          border-radius: 7px;
+          color: #fff;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: left;
+        }
+        .datepicker-trigger-btn:focus, .datepicker-trigger-btn:hover {
+          border-color: #c6ff38;
+          box-shadow: 0 0 0 3px rgba(198, 255, 56, 0.15);
+        }
+        .datepicker-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 9999999 !important;
+          display: grid;
+          place-items: center;
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(10px);
+          padding: 16px;
+          animation: datepickerFadeIn 0.2s ease;
+        }
+        @keyframes datepickerFadeIn {
+          from { opacity: 0; transform: scale(0.96); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .datepicker-modal-card {
+          width: min(390px, 94vw);
+          background: #171717;
+          border: 1px solid #383834;
+          border-radius: 20px;
+          box-shadow: 0 30px 90px rgba(0, 0, 0, 0.95);
+          padding: 24px;
+          color: #fff;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        .datepicker-modal-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+        }
+        .datepicker-modal-eyebrow {
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 1.1px;
+          color: #c6ff38;
+          display: block;
+          margin-bottom: 2px;
+        }
+        .datepicker-modal-head h3 {
+          margin: 0;
+          font-size: 20px;
+          letter-spacing: -0.8px;
+          font-weight: 800;
+        }
+        .datepicker-modal-close {
+          background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.12);
+          color: #fff;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          font-size: 20px;
+          display: grid;
+          place-items: center;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          line-height: 1;
+        }
+        .datepicker-modal-close:hover {
+          background: rgba(255,255,255,0.2);
+          color: #c6ff38;
+        }
+        .datepicker-month-nav {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 14px;
+          background: #22221f;
+          border: 1px solid #33332e;
+          border-radius: 10px;
+        }
+        .datepicker-month-nav b {
+          font-size: 13px;
+          letter-spacing: -0.3px;
+        }
+        .datepicker-month-nav button {
+          background: transparent;
+          border: none;
+          color: #c6ff38;
+          font-size: 18px;
+          font-weight: bold;
+          cursor: pointer;
+          padding: 0 8px;
+        }
+        .datepicker-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 6px;
+          text-align: center;
+        }
+        .datepicker-grid span.weekday {
+          font-size: 9px;
+          font-weight: 800;
+          color: #85857e;
+          padding-bottom: 2px;
+        }
+        .datepicker-grid button {
+          height: 34px;
+          border-radius: 8px;
+          font-size: 12px;
+          background: transparent;
+          border: none;
+          color: #fff;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          display: grid;
+          place-items: center;
+        }
+        .datepicker-grid button.other-month {
+          color: #4a4a45;
+          cursor: default;
+          pointer-events: none;
+        }
+        .datepicker-grid button:hover:not(.other-month) {
+          background: rgba(198, 255, 56, 0.15);
+          color: #c6ff38;
+        }
+        .datepicker-grid button.selected {
+          background: #c6ff38 !important;
+          color: #171717 !important;
+          font-weight: 900;
+        }
+        .timepicker-popup-box {
+          background: #22221f;
+          border: 1px solid #383834;
+          border-radius: 14px;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .timepicker-popup-label {
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 1.1px;
+          color: #85857e;
+          text-align: center;
+        }
+        .timepicker-popup-controls {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+        }
+        .timepicker-popup-controls label {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          align-items: center;
+        }
+        .timepicker-popup-controls label span {
+          font-size: 8px;
+          font-weight: 800;
+          letter-spacing: 1px;
+          color: #85857e;
+        }
+        .timepicker-popup-controls select {
+          background: #171717;
+          border: 1px solid #4a4a45;
+          border-radius: 8px;
+          color: #fff;
+          padding: 8px 14px;
+          font-size: 15px;
+          font-weight: 800;
+          cursor: pointer;
+          appearance: auto !important;
+          outline: none;
+        }
+        .timepicker-popup-controls select:focus {
+          border-color: #c6ff38;
+        }
+        .timepicker-colon {
+          font-size: 24px;
+          font-weight: 900;
+          color: #c6ff38;
+          margin-top: 12px;
+        }
+        .timepicker-popup-quick {
+          display: flex;
+          gap: 6px;
+        }
+        .timepicker-popup-quick button {
+          flex: 1;
+          padding: 7px 0;
+          background: #2a2a26;
+          border: 1px solid #3d3d38;
+          border-radius: 6px;
+          color: #aaa9a1;
+          font-size: 10px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .timepicker-popup-quick button:hover {
+          background: #33332e;
+          color: #c6ff38;
+          border-color: #c6ff38;
+        }
+        .datepicker-confirm-action {
+          width: 100%;
+          padding: 13px;
+          background: #c6ff38;
+          color: #171717;
+          border: none;
+          border-radius: 10px;
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.6px;
+          cursor: pointer;
+          text-align: center;
+          transition: background 0.15s ease;
+        }
+        .datepicker-confirm-action:hover {
+          background: #d4ff5c;
+        }
+      `}</style>
+      
+      <button 
+        type="button" 
+        className="datepicker-trigger-btn"
+        onClick={() => setIsOpen(true)}
+      >
+        <span>{displayDateStr()}</span>
+        <span style={{ color: '#c6ff38', fontSize: '15px' }}>📅</span>
+      </button>
+
+      {isOpen && createPortal(
+        <div 
+          className="datepicker-modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsOpen(false)
+          }}
+        >
+          <div className="datepicker-modal-card">
+            <div className="datepicker-modal-head">
+              <div>
+                <span className="datepicker-modal-eyebrow">AGENDA & PRAZOS</span>
+                <h3>Selecionar Data & Hora</h3>
+              </div>
+              <button 
+                type="button" 
+                className="datepicker-modal-close"
+                onClick={() => setIsOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="datepicker-month-nav">
+              <button type="button" onClick={prevMonth}>‹</button>
+              <b>{months[currentMonth]} de {currentYear}</b>
+              <button type="button" onClick={nextMonth}>›</button>
+            </div>
+
+            <div className="datepicker-grid">
+              <span className="weekday">DOM</span>
+              <span className="weekday">SEG</span>
+              <span className="weekday">TER</span>
+              <span className="weekday">QUA</span>
+              <span className="weekday">QUI</span>
+              <span className="weekday">SEX</span>
+              <span className="weekday">SÁB</span>
+
+              {prevDaysList.map((d, i) => (
+                <button key={`prev-${i}`} type="button" className="other-month">{d}</button>
+              ))}
+
+              {currentDaysList.map((d) => (
+                <button 
+                  key={`day-${d}`} 
+                  type="button" 
+                  className={selectedDay === d ? 'selected' : ''}
+                  onClick={() => handleDaySelect(d)}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+
+            <div className="timepicker-popup-box">
+              <span className="timepicker-popup-label">HORÁRIO DE ENTREGA / REUNIÃO</span>
+              <div className="timepicker-popup-controls">
+                <label>
+                  <span>HORA</span>
+                  <select 
+                    value={selectedHour} 
+                    onChange={(e) => handleHourChange(parseInt(e.target.value))}
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{String(i).padStart(2, '0')}h</option>
+                    ))}
+                  </select>
+                </label>
+                <span className="timepicker-colon">:</span>
+                <label>
+                  <span>MINUTOS</span>
+                  <select 
+                    value={selectedMinute} 
+                    onChange={(e) => handleMinuteChange(parseInt(e.target.value))}
+                  >
+                    {Array.from({ length: 60 }, (_, i) => (
+                      <option key={i} value={i}>{String(i).padStart(2, '0')}m</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="timepicker-popup-quick">
+                <button type="button" onClick={() => handleQuickTime(9, 0)}>09:00</button>
+                <button type="button" onClick={() => handleQuickTime(12, 0)}>12:00</button>
+                <button type="button" onClick={() => handleQuickTime(14, 30)}>14:30</button>
+                <button type="button" onClick={() => handleQuickTime(18, 0)}>18:00</button>
+              </div>
+            </div>
+
+            <button 
+              type="button" 
+              className="datepicker-confirm-action"
+              onClick={() => setIsOpen(false)}
+            >
+              CONFIRMAR E APLICAR <span>→</span>
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
 function ComingSoon({ title, onBack }: { title: string; onBack: () => void }) {
   return <section className="coming-soon"><p>EM CONSTRUÇÃO</p><h1>{title}</h1><span>Este módulo já tem navegação preparada. A próxima etapa conecta sua base de dados e os fluxos reais.</span><button onClick={onBack}>VOLTAR PARA O INÍCIO <span>←</span></button></section>
 }
 
-function JourneyPanel({ profile, completedCount, missionCount, totalXp, onClose }: { profile: DashboardData['profile']; completedCount: number; missionCount: number; totalXp: number; onClose: () => void }) {
-  const milestones = [{ name: 'Criador', target: 0, detail: 'Transforma intenção em entrega.' }, { name: 'Visionário', target: 8700, detail: 'Enxerga possibilidades antes do óbvio.' }, { name: 'Catalisador', target: 12000, detail: 'Move pessoas e ideias para a frente.' }]
+function ProfilePage({ accessSession, onLogoutSuccess }: { accessSession: AccessSession | null; onLogoutSuccess?: () => void }) {
+  const [profileData, setProfileData] = useState<ProfileData | null>(null)
+  const [error, setError] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+
+  useEffect(() => {
+    void getProfileData().then(setProfileData).catch((reason: Error) => setError(reason.message))
+  }, [])
+
+  if (error) return <section className="profile-page"><div className="profile-banner"><div className="profile-banner-content"><div className="profile-identity"><h1>Perfil indisponível</h1><p className="profile-bio">{error}. Os dados de demonstração serão usados no modo local.</p></div></div></div></section>
+
+  const profile = profileData?.profile
+  const ranking = profileData?.ranking ?? []
+  const stickers = profileData?.stickers ?? []
+  const stats = profileData?.stats ?? { projectsDelivered: 0, averageApproval: 100 }
+  const levelConfig = profileData?.levelConfig ?? [{ name: 'Criador', target: 0, detail: 'Transforma intenção em entrega.' }, { name: 'Visionário', target: 8700, detail: 'Enxerga possibilidades antes do óbvio.' }, { name: 'Catalisador', target: 12000, detail: 'Move pessoas e ideias para a frente.' }]
+  const currentLevel = profile ? ([...levelConfig].reverse().find((level) => (profile.xp ?? 0) >= level.target) ?? levelConfig[0]) : levelConfig[0]
+  const nextLevel = profile ? levelConfig.find((level) => level.target > (profile.xp ?? 0)) : levelConfig[1]
+  const displayName = profile?.socialName || profile?.name || accessSession?.name || 'Colaborador'
+  const displayRole = profile?.customRole || (accessSession?.role === 'admin' ? 'Administrador' : 'Especialista')
+  const highlightColor = profile?.highlightColor || '#c6ff38'
+  const initials = displayName.split(/\s+/).map((p: string) => p.charAt(0)).join('').slice(0, 2).toLocaleUpperCase('pt-BR') || 'SX'
+
+  function handleProfileSaved() {
+    setIsEditing(false)
+    void getProfileData().then(setProfileData).catch(() => undefined)
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {}
+    if (onLogoutSuccess) {
+      onLogoutSuccess()
+    } else {
+      window.location.assign('/?preview=login')
+    }
+  }
+
+  return <section className="profile-page"><div className="profile-banner" style={{ borderColor: highlightColor }}>{profile?.bannerUrl && <img className="profile-banner-image" src={profile.bannerUrl} alt="" />}<div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', gap: '8px', zIndex: 2 }}><button className="profile-edit-trigger" style={{ position: 'static' }} onClick={() => setIsEditing(true)}>EDITAR PERFIL</button><button className="profile-edit-trigger" style={{ position: 'static', background: 'rgba(214,48,49,0.2)', borderColor: 'rgba(214,48,49,0.3)' }} onClick={handleLogout}>SAIR</button></div><div className="profile-banner-content"><div className="profile-avatar-large" style={{ borderColor: highlightColor }}>{profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : initials}</div><div className="profile-identity"><span className="profile-role">{displayRole.toUpperCase()}</span><h1>{displayName}</h1>{profile?.bio && <p className="profile-bio">{profile.bio}</p>}</div></div></div><div className="profile-stats-grid"><div className="profile-stat-card highlight" style={{ background: highlightColor, borderColor: highlightColor }}><span style={{ color: '#171717' }}>XP TOTAL</span><b style={{ color: '#171717' }}>{(profile?.xp ?? 0).toLocaleString('pt-BR')}</b><small style={{ color: 'rgba(0,0,0,.5)' }}>pontos acumulados</small></div><div className="profile-stat-card"><span>NÍVEL</span><b>{currentLevel.name}</b><small>{currentLevel.detail}</small></div><div className="profile-stat-card"><span>STREAK</span><b>{profile?.streakDays ?? 0}</b><small>dias seguidos</small></div><div className="profile-stat-card"><span>PROJETOS</span><b>{stats.projectsDelivered}</b><small>entregues</small></div><div className="profile-stat-card"><span>APROVAÇÃO</span><b>{stats.averageApproval}%</b><small>taxa média</small></div></div><div className="profile-content"><div><section className="profile-section"><div className="profile-section-head"><div><span>CLASSIFICAÇÃO</span><h2>Ranking <em>do time</em></h2></div><b>{ranking.length} pessoas</b></div><div className="ranking-list">{ranking.map((member, index) => <div className="ranking-item" key={member.id}><span className="ranking-position">{index + 1}º</span><span className="ranking-avatar">{member.avatarUrl ? <img src={member.avatarUrl} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : (member.socialName || member.name).split(/\s+/).map((p: string) => p.charAt(0)).join('').slice(0, 2).toLocaleUpperCase('pt-BR')}</span><div className="ranking-name"><b>{member.socialName || member.name}</b><small>{member.level} · {member.xp.toLocaleString('pt-BR')} XP</small></div><span className="ranking-xp">{member.xp.toLocaleString('pt-BR')}</span></div>)}</div></section>{profile?.internalNetworks && Object.keys(profile.internalNetworks).length > 0 && <section className="profile-section" style={{ marginTop: 20 }}><div className="profile-section-head"><span>REDES INTERNAS</span></div>{Object.entries(profile.internalNetworks).map(([key, value]) => <div key={key} style={{ padding: '6px 0', fontSize: '11px' }}><b style={{ textTransform: 'uppercase', fontSize: '8px', letterSpacing: '1px', color: '#85857e' }}>{key}</b><br /><span style={{ color: '#171717' }}>{value as string}</span></div>)}</section>}{profile?.signature && <section className="profile-section" style={{ marginTop: 20 }}><div className="profile-section-head"><span>ASSINATURA</span></div><p style={{ margin: 0, fontSize: '12px', color: '#4e4e48', lineHeight: 1.5, fontStyle: 'italic' }}>{profile.signature}</p></section>}</div><div><section className="profile-section"><div className="profile-section-head"><div><span>CONQUISTAS</span><h2>Stickers <em>coletados</em></h2></div><b>{stickers.filter((s) => s.unlocked).length}/{stickers.length}</b></div><div className="sticker-grid">{stickers.map((sticker) => <div className={`sticker-card ${sticker.unlocked ? 'unlocked' : ''}`} key={sticker.code}><span className="sticker-emoji">{sticker.imageUrl}</span><b>{sticker.name}</b><small>{sticker.description}</small></div>)}</div></section>{nextLevel && <section className="profile-section" style={{ marginTop: 20 }}><div className="profile-section-head"><span>PRÓXIMO NÍVEL</span></div><div style={{ marginTop: 8 }}><b style={{ fontSize: '18px', letterSpacing: '-1px' }}>{nextLevel.name}</b><p style={{ margin: '4px 0 10px', fontSize: '10px', color: '#85857e' }}>{nextLevel.detail}</p><div style={{ height: 6, background: '#e2e2db', borderRadius: 6, overflow: 'hidden' }}><div style={{ height: '100%', width: `${Math.min(100, (((profile?.xp ?? 0) - currentLevel.target) / (nextLevel.target - currentLevel.target)) * 100)}%`, background: highlightColor, borderRadius: 'inherit', transition: 'width .35s ease' }} /></div><small style={{ display: 'block', marginTop: 6, fontSize: '9px', color: '#85857e' }}>Faltam {(nextLevel.target - (profile?.xp ?? 0)).toLocaleString('pt-BR')} XP</small></div></section>}</div></div>{isEditing && <ProfileEditModal profile={profile} onClose={() => setIsEditing(false)} onSaved={handleProfileSaved} />}</section>
+}
+
+function ProfileEditModal({ profile, onClose, onSaved }: { profile: UserProfile | undefined; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(profile?.name ?? '')
+  const [socialName, setSocialName] = useState(profile?.socialName ?? '')
+  const [customRole, setCustomRole] = useState(profile?.customRole ?? '')
+  const [bio, setBio] = useState(profile?.bio ?? '')
+  const [highlightColor, setHighlightColor] = useState(profile?.highlightColor ?? '#c6ff38')
+  const [signature, setSignature] = useState(profile?.signature ?? '')
+  const [saving, setSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onClose])
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setErrorMessage('')
+    try {
+      await updateProfile({ name: name.trim() || undefined, socialName: socialName.trim() || null, customRole: customRole.trim() || null, bio: bio.trim() || null, highlightColor: highlightColor || '#c6ff38', signature: signature.trim() || null } as Partial<UserProfile>)
+      onSaved()
+    } catch (reason: unknown) {
+      setErrorMessage(reason instanceof Error ? reason.message : 'Erro ao salvar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <div className="profile-edit-overlay" role="dialog" aria-modal="true" aria-label="Editar perfil"><form className="profile-edit-dialog" onSubmit={handleSubmit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar edição de perfil">×</button><h2>Editar <em>perfil</em></h2><div className="profile-edit-form"><div className="profile-edit-row"><label><span>NOME</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" /></label><label><span>NOME SOCIAL</span><input value={socialName} onChange={(e) => setSocialName(e.target.value)} placeholder="Como gostaria de ser chamado" /></label></div><div className="profile-edit-row"><label><span>CARGO DE EXIBIÇÃO</span><input value={customRole} onChange={(e) => setCustomRole(e.target.value)} placeholder="Ex.: Redator Principal" /></label><label><span>COR DE DESTAQUE <span className="profile-color-preview" style={{ background: highlightColor }} /></span><input type="color" value={highlightColor} onChange={(e) => setHighlightColor(e.target.value)} /></label></div><label><span>BIO</span><textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Conte um pouco sobre você..." maxLength={1000} /></label><label><span>ASSINATURA</span><textarea value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Sua assinatura profissional" maxLength={2000} /></label>{errorMessage && <p style={{ margin: 0, color: '#d63031', fontSize: '11px' }}>{errorMessage}</p>}<button className="profile-edit-submit" type="submit" disabled={saving}>{saving ? 'SALVANDO…' : 'SALVAR ALTERAÇÕES'} <span>→</span></button></div></form></div>
+}
+
+function JourneyPanel({ profile, completedCount, missionCount, totalXp, onClose }: { profile: DashboardData['profile'] & { levelConfig?: LevelConfigItem[] | null }; completedCount: number; missionCount: number; totalXp: number; onClose: () => void }) {
+  const milestones = profile.levelConfig ?? [{ name: 'Criador', target: 0, detail: 'Transforma intenção em entrega.' }, { name: 'Visionário', target: 8700, detail: 'Enxerga possibilidades antes do óbvio.' }, { name: 'Catalisador', target: 12000, detail: 'Move pessoas e ideias para a frente.' }]
   const currentMilestone = [...milestones].reverse().find((milestone) => totalXp >= milestone.target) ?? milestones[0]
   const nextMilestone = milestones.find((milestone) => milestone.target > totalXp)
   const progressStart = currentMilestone.target

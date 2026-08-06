@@ -2,6 +2,7 @@ import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequire
 
 type MissionReward = {
   id: string
+  title: string
   xp_reward: number
   ideas_reward: number
   status: string
@@ -13,12 +14,12 @@ export const onRequestPost: PagesFunction<Bindings, { id: string }> = async ({ e
   if (!user) return accessRequiredResponse()
 
   const mission = await env.DB.prepare(`
-    SELECT missions.id, missions.xp_reward, missions.ideas_reward, missions.status, MIN(mission_assignees.user_id) AS assigneeId
+    SELECT missions.id, missions.title, missions.xp_reward, missions.ideas_reward, missions.status, MIN(mission_assignees.user_id) AS assigneeId
     FROM missions
     JOIN projects ON projects.id = missions.project_id
     LEFT JOIN mission_assignees ON mission_assignees.mission_id = missions.id
     WHERE missions.id = ? AND projects.organization_id = ?
-    GROUP BY missions.id, missions.xp_reward, missions.ideas_reward, missions.status
+    GROUP BY missions.id, missions.title, missions.xp_reward, missions.ideas_reward, missions.status
   `).bind(params.id, user.organizationId).first<MissionReward>()
 
   if (!mission) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
@@ -55,6 +56,13 @@ export const onRequestPost: PagesFunction<Bindings, { id: string }> = async ({ e
       .bind(crypto.randomUUID(), recipientId, mission.id, mission.xp_reward, mission.ideas_reward, completedAt),
     env.DB.prepare(`INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, 'approved', 'Missão aprovada e XP liberado.', ?)`)
       .bind(crypto.randomUUID(), mission.id, user.id, completedAt),
+    env.DB.prepare(`INSERT INTO agency_feed (id, user_id, type, title, target_name, xp_amount, link, organization_id) VALUES (?, ?, 'mission_completed', 'concluiu a missão', ?, ?, '/?section=projects', ?)`).bind(
+      `feed-local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      recipientId,
+      mission.title,
+      mission.xp_reward,
+      user.organizationId
+    ),
   ])
 
   return Response.json({ missionId: mission.id, xp: mission.xp_reward, ideas: mission.ideas_reward })

@@ -1,7 +1,7 @@
 import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type AccessUser, type Bindings } from '../_access'
 
 type EventRow = { id: string; visibility: 'personal' | 'team'; ownerUserId: string | null }
-type UpdateAgendaInput = { title?: unknown; startsAt?: unknown; endsAt?: unknown; eventType?: unknown; description?: unknown; location?: unknown; projectId?: unknown }
+type UpdateAgendaInput = { title?: unknown; startsAt?: unknown; endsAt?: unknown; eventType?: unknown; visibility?: unknown; description?: unknown; location?: unknown; projectId?: unknown }
 
 const eventTypes = new Set(['meeting', 'deadline', 'appointment', 'vacation'])
 
@@ -29,21 +29,23 @@ export const onRequestPatch: PagesFunction<Bindings, { id: string }> = async ({ 
 
   const input = await request.json().catch(() => null) as UpdateAgendaInput | null
   if (!input) return Response.json({ error: 'Atualização inválida' }, { status: 400 })
-  const stored = await env.DB.prepare('SELECT title, starts_at AS startsAt, ends_at AS endsAt, event_type AS eventType, description, location, project_id AS projectId FROM calendar_events WHERE id = ?').bind(params.id).first<{ title: string; startsAt: string; endsAt: string | null; eventType: string; description: string; location: string | null; projectId: string | null }>()
+  const stored = await env.DB.prepare('SELECT title, starts_at AS startsAt, ends_at AS endsAt, event_type AS eventType, visibility, description, location, project_id AS projectId FROM calendar_events WHERE id = ?').bind(params.id).first<{ title: string; startsAt: string; endsAt: string | null; eventType: string; visibility: 'personal' | 'team'; description: string; location: string | null; projectId: string | null }>()
   if (!stored) return Response.json({ error: 'Evento não encontrado' }, { status: 404 })
 
   const title = text(input.title, 160) ?? stored.title
   const startsAt = toDate(input.startsAt) ?? stored.startsAt
   const endsAt = input.endsAt === '' ? null : toDate(input.endsAt) ?? stored.endsAt
   const eventType = typeof input.eventType === 'string' && eventTypes.has(input.eventType) ? input.eventType : stored.eventType
+  const requestedVisibility = input.visibility === 'team' ? 'team' : input.visibility === 'personal' ? 'personal' : stored.visibility
+  const visibility = requestedVisibility === 'team' && hasPermission(user, 'agenda.team.view') ? 'team' : requestedVisibility
   const description = text(input.description, 2000) ?? stored.description
   const location = input.location === '' ? null : text(input.location, 160) ?? stored.location
   const requestedProjectId = typeof input.projectId === 'string' ? input.projectId || null : stored.projectId
-  if (!title || (endsAt && Date.parse(endsAt) < Date.parse(startsAt))) return Response.json({ error: 'Dados do evento inválidos' }, { status: 400 })
+  if (!title || (requestedVisibility === 'team' && visibility !== 'team') || (endsAt && Date.parse(endsAt) < Date.parse(startsAt))) return Response.json({ error: 'Dados do evento inválidos' }, { status: 400 })
 
   const project = requestedProjectId ? await env.DB.prepare('SELECT id, client_id AS clientId FROM projects WHERE id = ? AND organization_id = ? LIMIT 1').bind(requestedProjectId, user.organizationId).first<{ id: string; clientId: string }>() : null
   if (requestedProjectId && !project) return Response.json({ error: 'Projeto não encontrado' }, { status: 404 })
-  await env.DB.prepare('UPDATE calendar_events SET title = ?, starts_at = ?, ends_at = ?, event_type = ?, description = ?, location = ?, project_id = ?, client_id = ?, updated_at = ? WHERE id = ?').bind(title, startsAt, endsAt, eventType, description, location, project?.id ?? null, project?.clientId ?? null, new Date().toISOString(), params.id).run()
+  await env.DB.prepare('UPDATE calendar_events SET title = ?, starts_at = ?, ends_at = ?, event_type = ?, visibility = ?, description = ?, location = ?, project_id = ?, client_id = ?, updated_at = ? WHERE id = ?').bind(title, startsAt, endsAt, eventType, visibility, description, location, project?.id ?? null, project?.clientId ?? null, new Date().toISOString(), params.id).run()
   return Response.json({ ok: true })
 }
 
