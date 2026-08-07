@@ -431,7 +431,572 @@ export default function App() {
 
   return <AppShell accessSession={accessSession} setAccessSession={setAccessSession} />
 }
+function SettingsModal({ onClose }: { onClose: () => void }) {
+  const [notifications, setNotifications] = useState(true)
+  const [soundAlerts, setSoundAlerts] = useState(true)
+  const [language, setLanguage] = useState('pt-BR')
+  const [saved, setSaved] = useState(false)
 
+  return (
+    <div className="generic-modal-overlay" role="dialog" aria-modal="true">
+      <div className="generic-modal-dialog">
+        <button className="close-button" type="button" onClick={onClose}>×</button>
+        <div className="generic-modal-head">
+          <h2>Configurações <em>do Sistema</em></h2>
+        </div>
+        <form className="generic-modal-form" onSubmit={(e) => { e.preventDefault(); setSaved(true); setTimeout(onClose, 1200); }}>
+          <label>
+            <span>IDIOMA DA INTERFACE</span>
+            <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+              <option value="pt-BR">Português (Brasil)</option>
+              <option value="en-US">English (US)</option>
+            </select>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>NOTIFICAÇÕES PUSH E SISTEMA</span>
+            <input type="checkbox" checked={notifications} onChange={(e) => setNotifications(e.target.checked)} style={{ width: 'auto' }} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>ALERTAS SONOROS DE MISSÃO</span>
+            <input type="checkbox" checked={soundAlerts} onChange={(e) => setSoundAlerts(e.target.checked)} style={{ width: 'auto' }} />
+          </label>
+          {saved && <p style={{ color: '#c6ff38', fontSize: '11px', margin: 0 }}>Configurações salvas com sucesso!</p>}
+          <button className="generic-modal-submit" type="submit">SALVAR CONFIGURAÇÕES →</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [message, setMessage] = useState('')
+  const [success, setSuccess] = useState(false)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newPassword || newPassword.length < 4) {
+      setMessage('A nova senha deve ter no mínimo 4 caracteres.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setMessage('A confirmação de senha não confere.')
+      return
+    }
+    setSuccess(true)
+    setMessage('Senha alterada com sucesso!')
+    setTimeout(onClose, 1500)
+  }
+
+  return (
+    <div className="generic-modal-overlay" role="dialog" aria-modal="true">
+      <div className="generic-modal-dialog">
+        <button className="close-button" type="button" onClick={onClose}>×</button>
+        <div className="generic-modal-head">
+          <h2>Alterar <em>Senha</em></h2>
+        </div>
+        <form className="generic-modal-form" onSubmit={handleSubmit}>
+          <label>
+            <span>SENHA ATUAL</span>
+            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+          </label>
+          <label>
+            <span>NOVA SENHA</span>
+            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+          </label>
+          <label>
+            <span>CONFIRMAR NOVA SENHA</span>
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+          </label>
+          {message && <p style={{ color: success ? '#c6ff38' : '#ff5936', fontSize: '11px', margin: 0 }}>{message}</p>}
+          <button className="generic-modal-submit" type="submit">ATUALIZAR SENHA →</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function PreferencesModal({ onClose }: { onClose: () => void }) {
+  const [density, setDensity] = useState('comfortable')
+  const [landingSection, setLandingSection] = useState('home')
+  const [saved, setSaved] = useState(false)
+
+  return (
+    <div className="generic-modal-overlay" role="dialog" aria-modal="true">
+      <div className="generic-modal-dialog">
+        <button className="close-button" type="button" onClick={onClose}>×</button>
+        <div className="generic-modal-head">
+          <h2>Preferências <em>de Exibição</em></h2>
+        </div>
+        <form className="generic-modal-form" onSubmit={(e) => { e.preventDefault(); setSaved(true); setTimeout(onClose, 1200); }}>
+          <label>
+            <span>DENSIDADE DA INTERFACE</span>
+            <select value={density} onChange={(e) => setDensity(e.target.value)}>
+              <option value="comfortable">Confortável (Padrão SIX)</option>
+              <option value="compact">Compacto (Alta Densidade)</option>
+            </select>
+          </label>
+          <label>
+            <span>TELA INICIAL DE ABERTURA</span>
+            <select value={landingSection} onChange={(e) => setLandingSection(e.target.value)}>
+              <option value="home">Início (Dashboard)</option>
+              <option value="feed">Feed da Agência</option>
+              <option value="missions">Missões</option>
+              <option value="agenda">Agenda</option>
+            </select>
+          </label>
+          {saved && <p style={{ color: '#c6ff38', fontSize: '11px', margin: 0 }}>Preferências salvas!</p>}
+          <button className="generic-modal-submit" type="submit">SALVAR PREFERÊNCIAS →</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+
+function TeamMemberProfileModal({ member, team, missions, projects, onClose }: { member: TeamMember; team: TeamMember[]; missions: Mission[]; projects: Project[]; completed?: string[]; onClose: () => void }) {
+  const memberMissions = missions.filter(m => m.assigneeId === member.id)
+  const completedCount = memberMissions.filter(m => m.status === 'completed' || m.approvalStatus === 'approved').length
+  const memberProjects = projects.filter(p => (p as any).teamIds?.includes(member.id) || p.client.toLowerCase().includes(member.name.toLowerCase()))
+  const initials = member.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
+
+  return (
+    <div className="generic-modal-overlay" role="dialog" aria-modal="true">
+      <div className="team-member-modal">
+        <button className="close-button" type="button" onClick={onClose}>×</button>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '20px', marginBottom: '24px' }}>
+          <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#c6ff38', color: '#111', display: 'grid', placeItems: 'center', fontSize: '24px', fontWeight: '900' }}>
+            {initials}
+          </div>
+          <div>
+            <span style={{ fontSize: '9px', fontWeight: '900', letterSpacing: '1.2px', color: '#c6ff38', textTransform: 'uppercase' }}>{member.role}</span>
+            <h1 style={{ margin: '2px 0 4px', fontSize: '26px', letterSpacing: '-1px' }}>{member.name}</h1>
+            <p style={{ margin: 0, fontSize: '11px', color: '#aaa' }}>{((member as any).email || `${member.name.toLowerCase().replace(/\s+/g, ".")}@agenciasix.com.br`)} · {member.availability}</p>
+          </div>
+        </div>
+
+        <div className="profile-stats-grid" style={{ marginTop: 0, marginBottom: '24px' }}>
+          <div className="profile-stat-card highlight" style={{ background: '#c6ff38', borderColor: '#c6ff38' }}>
+            <span style={{ color: '#171717' }}>CAPACIDADE ATUAL</span>
+            <b style={{ color: '#171717' }}>{member.capacity}%</b>
+            <small style={{ color: 'rgba(0,0,0,0.6)' }}>alocação em projetos</small>
+          </div>
+          <div className="profile-stat-card">
+            <span>MISSÕES</span>
+            <b>{memberMissions.length}</b>
+            <small>{completedCount} concluídas</small>
+          </div>
+          <div className="profile-stat-card">
+            <span>PROJETOS</span>
+            <b>{memberProjects.length || 1}</b>
+            <small>frentes ativas</small>
+          </div>
+          <div className="profile-stat-card">
+            <span>STATUS</span>
+            <b style={{ fontSize: '14px', textTransform: 'uppercase', color: '#c6ff38' }}>{member.availability}</b>
+            <small>disponibilidade</small>
+          </div>
+        </div>
+
+        <div className="profile-content">
+          <div>
+            <section className="profile-section">
+              <div className="profile-section-head">
+                <div><span>OPERAÇÃO</span><h2>Missões <em>Atribuídas</em></h2></div>
+              </div>
+              <div className="mission-list">
+                {memberMissions.map((m) => (
+                  <div key={m.id} className="mission-card" style={{ gridTemplateColumns: '1fr auto', minHeight: '60px', padding: '10px 14px' }}>
+                    <div>
+                      <b style={{ fontSize: '12px', display: 'block' }}>{m.title}</b>
+                      <small style={{ color: '#888', fontSize: '10px' }}>{m.client} · Prazo {m.deadline}</small>
+                    </div>
+                    <span style={{ fontSize: '10px', fontWeight: '800', color: m.status === 'completed' ? '#c6ff38' : '#ff7047' }}>
+                      +{m.xp} XP
+                    </span>
+                  </div>
+                ))}
+                {memberMissions.length === 0 && <p className="empty-state">Nenhuma missão atribuída no momento.</p>}
+              </div>
+            </section>
+          </div>
+
+          <div>
+            <section className="profile-section">
+              <div className="profile-section-head">
+                <div><span>NOTA OPERACIONAL</span><h2>Resumo <em>do Perfil</em></h2></div>
+              </div>
+              <p style={{ fontSize: '12px', color: '#aaa', lineHeight: 1.6, margin: 0 }}>{member.note}</p>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MissionHandoffModal({ mission, team, onClose, onHandoff }: { mission: Mission; team: TeamMember[]; onClose: () => void; onHandoff: (nextStage: string, assigneeId: string, note: string) => void }) {
+  const stages = ['Concepção', 'Atendimento', 'Redação', 'Criação', 'Revisão', 'Entrega']
+  const [nextStage, setNextStage] = useState(stages[0])
+  const [assigneeId, setAssigneeId] = useState(team[0]?.id ?? '')
+  const [note, setNote] = useState('')
+
+  return (
+    <div className="generic-modal-overlay" role="dialog" aria-modal="true">
+      <div className="generic-modal-dialog">
+        <button className="close-button" type="button" onClick={onClose}>×</button>
+        <div className="generic-modal-head">
+          <h2>Encaminhar <em>Missão</em></h2>
+        </div>
+        <p style={{ fontSize: '11px', color: '#aaa', margin: '0 0 16px' }}>Missão: <b>{mission.title}</b> ({mission.client})</p>
+        <form className="generic-modal-form" onSubmit={(e) => {
+          e.preventDefault()
+          if (nextStage && assigneeId) {
+            onHandoff(nextStage, assigneeId, note.trim())
+          }
+        }}>
+          <label>
+            <span>PRÓXIMA ETAPA DO FLUXO DE AGÊNCIA</span>
+            <select value={nextStage} onChange={(e) => setNextStage(e.target.value)}>
+              {stages.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>PRÓXIMO RESPONSÁVEL</span>
+            <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+              {team.map(m => <option key={m.id} value={m.id}>{m.name} · {m.role}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>NOTA DE ENCAMINHAMENTO / INSTRUÇÕES</span>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Descreva observações ou direcionamentos para a próxima etapa…" maxLength={1000} />
+          </label>
+          <button className="generic-modal-submit" type="submit">ENCAMINHAR ETAPA E NOTIFICAR →</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function AdminResetPasswordModal({ member, onClose, onReset }: { member: any; onClose: () => void; onReset: (newPassword: string) => void }) {
+  const [newPassword, setNewPassword] = useState('')
+  const [done, setDone] = useState(false)
+
+  return (
+    <div className="generic-modal-overlay" role="dialog" aria-modal="true">
+      <div className="generic-modal-dialog">
+        <button className="close-button" type="button" onClick={onClose}>×</button>
+        <div className="generic-modal-head">
+          <h2>Redefinir Senha <em>de {member.name}</em></h2>
+        </div>
+        <form className="generic-modal-form" onSubmit={(e) => {
+          e.preventDefault()
+          if (newPassword.trim()) {
+            onReset(newPassword.trim())
+            setDone(true)
+            setTimeout(onClose, 1200)
+          }
+        }}>
+          <label>
+            <span>NOVA SENHA INICIAL</span>
+            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Digite a nova senha..." required />
+          </label>
+          {done && <p style={{ color: '#c6ff38', fontSize: '11px', margin: 0 }}>Senha redefinida com sucesso!</p>}
+          <button className="generic-modal-submit" type="submit">REDEFINIR SENHA →</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function AdminEditUserPermissionsModal({ member, roles, onClose, onSave }: { member: any; roles: any[]; onClose: () => void; onSave: (role: string, department: string) => void }) {
+  const [selectedRole, setSelectedRole] = useState(member.role)
+  const [department, setDepartment] = useState('Criação & Conteúdo')
+  const [done, setDone] = useState(false)
+
+  return (
+    <div className="generic-modal-overlay" role="dialog" aria-modal="true">
+      <div className="generic-modal-dialog">
+        <button className="close-button" type="button" onClick={onClose}>×</button>
+        <div className="generic-modal-head">
+          <h2>Editar Permissões <em>de {member.name}</em></h2>
+        </div>
+        <form className="generic-modal-form" onSubmit={(e) => {
+          e.preventDefault()
+          onSave(selectedRole, department)
+          setDone(true)
+          setTimeout(onClose, 1200)
+        }}>
+          <label>
+            <span>CARGO E ESCOPO RBAC</span>
+            <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
+              {roles.map(r => <option key={r.code} value={r.code}>{r.name} ({r.permissionCount} permissões)</option>)}
+            </select>
+          </label>
+          <label>
+            <span>DEPARTAMENTO</span>
+            <select value={department} onChange={(e) => setDepartment(e.target.value)}>
+              <option value="Atendimento">Atendimento</option>
+              <option value="Redação & Conteúdo">Redação & Conteúdo</option>
+              <option value="Criação & Design">Criação & Design</option>
+              <option value="Mídia & Analytics">Mídia & Analytics</option>
+              <option value="Tecnologia">Tecnologia</option>
+              <option value="Administração">Administração</option>
+            </select>
+          </label>
+          {done && <p style={{ color: '#c6ff38', fontSize: '11px', margin: 0 }}>Permissões atualizadas com sucesso!</p>}
+          <button className="generic-modal-submit" type="submit">SALVAR PERMISSÕES →</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function AppleCalendar({ agenda, missions, team, onAddEvent }: { agenda: AgendaEvent[]; missions: Mission[]; team: TeamMember[]; onAddEvent: (event: any) => void }) {
+  const [viewMode, setViewMode] = useState<'monthly' | 'weekly' | 'daily'>('monthly')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [isAddEventOpen, setIsAddEventOpen] = useState(false)
+  const [editingDayPopup, setEditingDayPopup] = useState<{ day: number; event: any | null } | null>(null)
+
+  const events = useMemo(() => {
+    const items = agenda.map(a => ({
+      id: a.id,
+      title: a.title,
+      date: a.day === 'Hoje' ? new Date().toISOString().slice(0, 10) : '2026-08-05',
+      time: a.time,
+      type: (a.title.toLowerCase().includes('reunião') || a.title.toLowerCase().includes('sync') ? 'reuniao' : a.title.toLowerCase().includes('aniversário') ? 'aniversario' : 'compromisso'),
+      categoryLabel: a.title.toLowerCase().includes('reunião') ? 'Reunião' : 'Compromisso',
+      description: (a as any).project ?? (a as any).scope
+    }))
+
+    const missionEvents = missions.map(m => ({
+      id: `m-${m.id}`,
+      title: `Prazo: ${m.title}`,
+      date: '2026-08-05',
+      time: '18:00',
+      type: 'missao',
+      categoryLabel: 'Missão',
+      description: `${m.client} · ${(m as any).assignee || "Responsável"}`
+    }))
+
+    const birthdays = [
+      { id: 'bday-1', title: 'Aniversário de Lorraine', date: '2026-08-12', time: 'Dia todo', type: 'aniversario', categoryLabel: 'Aniversário', description: 'Redação & Conteúdo' },
+      { id: 'bday-2', title: 'Aniversário de Guilherme', date: '2026-08-24', time: 'Dia todo', type: 'aniversario', categoryLabel: 'Aniversário', description: 'Administração & Tech' }
+    ]
+
+    return [...items, ...missionEvents, ...birthdays]
+  }, [agenda, missions])
+
+  const filteredEvents = events.filter(e => selectedCategory === 'all' || e.type === selectedCategory)
+  const daysInMonth = Array.from({ length: 31 }, (_, i) => i + 1)
+
+  return (
+    <section className="apple-calendar">
+      <div className="apple-calendar-header">
+        <div>
+          <span className="eyebrow">AGENDA SINCRO NATIVA ✦ APPLE STYLE</span>
+          <h2 style={{ margin: 0, fontSize: '24px', letterSpacing: '-1px' }}>Agosto de <em>2026</em></h2>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div className="apple-calendar-views">
+            <button className={viewMode === 'monthly' ? 'active' : ''} onClick={() => setViewMode('monthly')}>MENSAL</button>
+            <button className={viewMode === 'weekly' ? 'active' : ''} onClick={() => setViewMode('weekly')}>SEMANAL</button>
+            <button className={viewMode === 'daily' ? 'active' : ''} onClick={() => setViewMode('daily')}>DIÁRIO</button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <button style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '10px', background: selectedCategory === 'all' ? '#171717' : '#eee', color: selectedCategory === 'all' ? '#c6ff38' : '#333', border: 0, cursor: 'pointer', fontWeight: 700 }} onClick={() => setSelectedCategory('all')}>TODOS</button>
+        <button style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '10px', background: selectedCategory === 'reuniao' ? '#4328b7' : '#e0dbff', color: selectedCategory === 'reuniao' ? '#fff' : '#4328b7', border: 0, cursor: 'pointer', fontWeight: 700 }} onClick={() => setSelectedCategory('reuniao')}>REUNIÕES</button>
+        <button style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '10px', background: selectedCategory === 'missao' ? '#2e4e00' : '#e2f9a2', color: selectedCategory === 'missao' ? '#fff' : '#2e4e00', border: 0, cursor: 'pointer', fontWeight: 700 }} onClick={() => setSelectedCategory('missao')}>MISSÕES & PRAZOS</button>
+        <button style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '10px', background: selectedCategory === 'aniversario' ? '#8d1c5a' : '#ffe6f3', color: selectedCategory === 'aniversario' ? '#fff' : '#8d1c5a', border: 0, cursor: 'pointer', fontWeight: 700 }} onClick={() => setSelectedCategory('aniversario')}>ANIVERSÁRIOS</button>
+      </div>
+
+      {viewMode === 'monthly' && (
+        <>
+          <div className="week-days" style={{ gridTemplateColumns: 'repeat(7, 1fr)', fontSize: '10px', fontWeight: '800', textAlign: 'center', marginBottom: '8px', color: '#888' }}>
+            <span>DOM</span><span>SEG</span><span>TER</span><span>QUA</span><span>QUI</span><span>SEX</span><span>SÁB</span>
+          </div>
+          <div className="apple-calendar-grid">
+            {daysInMonth.map((day) => {
+              const isToday = day === 4 || day === 5
+              const dayEvents = filteredEvents.slice((day * 3) % filteredEvents.length, ((day * 3) % filteredEvents.length) + 2)
+              return (
+                <div key={day} className={`apple-calendar-day ${isToday ? 'today' : ''}`} onClick={() => setEditingDayPopup({ day, event: dayEvents[0] || null })}>
+                  <b style={{ color: isToday ? '#171717' : '#555', fontWeight: isToday ? '900' : '600' }}>{day}</b>
+                  {dayEvents.map((ev, idx) => (
+                    <span key={idx} className={`apple-calendar-event ${ev.type}`} onClick={(e) => { e.stopPropagation(); setEditingDayPopup({ day, event: ev }); }}>
+                      {ev.time !== 'Dia todo' ? `${ev.time} ` : ''}{ev.title}
+                    </span>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {viewMode === 'weekly' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', marginTop: '16px' }}>
+          {['Segunda (04)', 'Terça (05)', 'Quarta (06)', 'Quinta (07)', 'Sexta (08)', 'Sábado (09)', 'Domingo (10)'].map((dayLabel, idx) => (
+            <div key={idx} style={{ background: '#f7f6f2', padding: '12px', borderRadius: '10px', border: '1px solid #e2e2db' }}>
+              <b style={{ fontSize: '11px', display: 'block', marginBottom: '10px', color: '#171717' }}>{dayLabel}</b>
+              <div style={{ display: 'grid', gap: '6px' }}>
+                {filteredEvents.slice(idx % filteredEvents.length, (idx % filteredEvents.length) + 2).map((ev, eIdx) => (
+                  <div key={eIdx} className={`apple-calendar-event ${ev.type}`} style={{ padding: '6px 8px' }}>
+                    <small style={{ display: 'block', fontSize: '8px', opacity: 0.8 }}>{ev.time}</small>
+                    <b>{ev.title}</b>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {viewMode === 'daily' && (
+        <div style={{ marginTop: '16px', display: 'grid', gap: '10px' }}>
+          <b style={{ fontSize: '14px' }}>Compromissos do Dia (05 de Agosto)</b>
+          {filteredEvents.map((ev, idx) => (
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px 16px', background: '#f7f6f2', borderRadius: '10px', borderLeft: `4px solid ${ev.type === 'reuniao' ? '#4328b7' : ev.type === 'missao' ? '#c6ff38' : '#8d1c5a'}` }}>
+              <time style={{ fontWeight: '800', fontSize: '12px', minWidth: '60px' }}>{ev.time}</time>
+              <div>
+                <b style={{ fontSize: '13px', display: 'block' }}>{ev.title}</b>
+                <small style={{ color: '#666', fontSize: '10px' }}>{ev.description}</small>
+              </div>
+              <span className={`apple-calendar-event ${ev.type}`} style={{ marginLeft: 'auto' }}>{ev.categoryLabel}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isAddEventOpen && (
+        <div className="generic-modal-overlay" role="dialog">
+          <div className="generic-modal-dialog">
+            <button className="close-button" type="button" onClick={() => setIsAddEventOpen(false)}>×</button>
+            <div className="generic-modal-head">
+              <h2>Novo <em>Evento / Reunião</em></h2>
+            </div>
+            <form className="generic-modal-form" onSubmit={(e) => {
+              e.preventDefault()
+              const formData = new FormData(e.currentTarget)
+              onAddEvent({
+                id: `agenda-${Date.now()}`,
+                title: formData.get('title') as string,
+                day: 'Hoje',
+                time: formData.get('time') as string,
+                scope: formData.get('scope') as string,
+                project: formData.get('project') as string
+              })
+              setIsAddEventOpen(false)
+            }}>
+              <label>
+                <span>TÍTULO DO EVENTO</span>
+                <input name="title" required placeholder="Ex: Reunião de Alinhamento com Atendimento" />
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <label>
+                  <span>HORÁRIO</span>
+                  <input name="time" type="time" defaultValue="14:00" required />
+                </label>
+                <label>
+                  <span>TIPO DE EVENTO</span>
+                  <select name="scope">
+                    <option value="Reunião Pessoal">Reunião Pessoal</option>
+                    <option value="Reunião de Equipe">Reunião de Equipe</option>
+                    <option value="Prazos">Prazo de Entrega</option>
+                    <option value="Compromisso">Compromisso</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                <span>PROJETO VINCULADO (OPCIONAL)</span>
+                <input name="project" placeholder="Ex: Sicredi — Campanha Conectados" />
+              </label>
+              <button className="generic-modal-submit" type="submit">CRIAR EVENTO E AGENDAR →</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingDayPopup && (
+        <div className="generic-modal-overlay" role="dialog" aria-modal="true">
+          <div className="generic-modal-dialog" style={{ width: 'min(480px, 100%)' }}>
+            <button className="close-button" type="button" onClick={() => setEditingDayPopup(null)}>×</button>
+            <div className="generic-modal-head">
+              <h2>{editingDayPopup.event ? 'Editar Evento' : 'Novo Evento no Dia'} <em>{editingDayPopup.day} de Agosto</em></h2>
+            </div>
+            <form className="generic-modal-form" onSubmit={(e) => {
+              e.preventDefault()
+              const formData = new FormData(e.currentTarget)
+              onAddEvent({
+                id: editingDayPopup.event ? editingDayPopup.event.id : `event-day-${editingDayPopup.day}-${Date.now()}`,
+                title: formData.get('title') as string,
+                day: 'Hoje',
+                time: formData.get('time') as string,
+                scope: formData.get('scope') as string,
+                project: formData.get('project') as string
+              })
+              setEditingDayPopup(null)
+            }}>
+              <label>
+                <span>TÍTULO DO EVENTO</span>
+                <input name="title" defaultValue={editingDayPopup.event?.title ?? ''} required placeholder="Ex: Reunião de Alinhamento" />
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <label>
+                  <span>HORÁRIO</span>
+                  <input name="time" type="time" defaultValue={editingDayPopup.event?.time && editingDayPopup.event.time !== 'Dia todo' ? editingDayPopup.event.time : '14:00'} required />
+                </label>
+                <label>
+                  <span>CATEGORIA</span>
+                  <select name="scope" defaultValue={editingDayPopup.event?.categoryLabel ?? 'Reunião Pessoal'}>
+                    <option value="Reunião Pessoal">Reunião Pessoal</option>
+                    <option value="Reunião de Equipe">Reunião de Equipe</option>
+                    <option value="Prazo">Prazo de Entrega</option>
+                    <option value="Compromisso">Compromisso</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                <span>DETALHES / PROJETO</span>
+                <input name="project" defaultValue={editingDayPopup.event?.description ?? ''} placeholder="Ex: Projeto Sicredi" />
+              </label>
+              <button className="generic-modal-submit" type="submit">
+                {editingDayPopup.event ? 'SALVAR ALTERAÇÕES →' : 'CRIAR EVENTO →'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function HelpModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="generic-modal-overlay" role="dialog" aria-modal="true">
+      <div className="generic-modal-dialog">
+        <button className="close-button" type="button" onClick={onClose}>×</button>
+        <div className="generic-modal-head">
+          <h2>Ajuda & <em>Suporte SIX.OS</em></h2>
+        </div>
+        <div style={{ fontSize: '12px', lineHeight: '1.6', color: '#ccc' }}>
+          <h3 style={{ color: '#c6ff38', fontSize: '14px', margin: '0 0 10px' }}>Atalhos de Teclado Rápido</h3>
+          <ul style={{ paddingLeft: '20px', margin: '0 0 20px' }}>
+            <li><kbd style={{ background: '#333', padding: '2px 6px', borderRadius: '4px' }}>⌘ K</kbd> — Abrir Busca Global e Comandos</li>
+            <li><kbd style={{ background: '#333', padding: '2px 6px', borderRadius: '4px' }}>Esc</kbd> — Fechar modais e janelas sobrepostas</li>
+          </ul>
+          <h3 style={{ color: '#c6ff38', fontSize: '14px', margin: '0 0 10px' }}>Suporte da Operação</h3>
+          <p style={{ margin: '0 0 10px' }}>Dúvidas ou problemas operacionais? Fale diretamente com a equipe de tecnologia da SIX através do e-mail <b>suporte@sixos.app</b>.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
 function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSession | null; setAccessSession: (session: AccessSession | null) => void }) {
   const [activeSection, setActiveSection] = useState('home')
   const [libraryProjectId, setLibraryProjectId] = useState<string | null>(null)
@@ -445,6 +1010,16 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
   const [completionMessage, setCompletionMessage] = useState('')
   const [clientIdentities, setClientIdentities] = useState<ClientIdentity[]>(clientIdentitySeed)
   const [dashboardData, setDashboardData] = useState(() => ({ ...dashboardSeed, missions: applyStoredMissionAssignees([...dashboardSeed.missions, ...getStoredCustomMissions()]), projects: applyStoredProjectEdits([...dashboardSeed.projects, ...getStoredCustomProjects()]) }))
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const [activeModal, setActiveModal] = useState<'settings' | 'change-password' | 'preferences' | 'help' | null>(null)
+
+  async function handleLogout() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch {}
+    setAccessSession(null)
+    window.location.assign('/?preview=login')
+  }
 
   const [feedItemsCount, setFeedItemsCount] = useState(0)
   const [seenFeedCount, setSeenFeedCount] = useState(() => {
@@ -740,11 +1315,36 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
           <span className="arrow">↗</span>
         </button>
 
-        <button className="account" onClick={() => setActiveSection('profile')}>
-          <Avatar initials={accessSession ? getInitials(accessSession.name) : 'GS'} tone="photo" small />
-          <span><b>{accessSession?.name ?? 'Guilherme'}</b><small>{accessSession ? accessSession.role === 'admin' ? 'Administrador' : 'Sessão SIX' : 'Modo local'}</small></span>
-          <span>•••</span>
-        </button>
+        <div className="account-container">
+          {isAccountMenuOpen && (
+            <div className="account-popover-menu">
+              <button type="button" onClick={() => { setIsAccountMenuOpen(false); setActiveSection('profile'); }}>
+                <Icon name="profile" /> <span>Meu Perfil</span>
+              </button>
+              <button type="button" onClick={() => { setIsAccountMenuOpen(false); setActiveModal('settings'); }}>
+                <span>⚙️</span> <span>Configurações</span>
+              </button>
+              <button type="button" onClick={() => { setIsAccountMenuOpen(false); setActiveModal('change-password'); }}>
+                <span>🔑</span> <span>Alterar senha</span>
+              </button>
+              <button type="button" onClick={() => { setIsAccountMenuOpen(false); setActiveModal('preferences'); }}>
+                <span>🎛️</span> <span>Preferências</span>
+              </button>
+              <button type="button" onClick={() => { setIsAccountMenuOpen(false); setActiveModal('help'); }}>
+                <span>❓</span> <span>Ajuda & Suporte</span>
+              </button>
+              <div className="menu-divider" />
+              <button className="danger" type="button" onClick={() => { setIsAccountMenuOpen(false); void handleLogout(); }}>
+                <span>🚪</span> <span>Sair</span>
+              </button>
+            </div>
+          )}
+          <button className="account" type="button" onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}>
+            <Avatar initials={accessSession ? getInitials(accessSession.name) : 'GS'} tone="photo" small />
+            <span><b>{accessSession?.name ?? 'Guilherme'}</b><small>{accessSession ? accessSession.role === 'admin' ? 'Administrador' : 'Sessão SIX' : 'Modo local'}</small></span>
+            <span>•••</span>
+          </button>
+        </div>
       </aside>
 
       <section className="content-area">
@@ -753,7 +1353,7 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
           <div className="topbar-actions">
             <button className="icon-button" onClick={() => setIsCommandOpen(true)} aria-label="Pesquisar">⌘ K</button>
             <button className="round-button" onClick={() => setIsNotificationsOpen(true)} aria-label="Notificações">⌁{unreadNotificationCount > 0 && <span />}</button>
-            <button className="date-chip">Hoje <span>⌄</span></button>
+            <button className="date-chip" onClick={() => setActiveSection("agenda")} aria-label="Abrir agenda completa">Hoje <span>⌄</span></button>
           </div>
         </header>
 
@@ -839,6 +1439,10 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
       {isNotificationsOpen && <NotificationsPanel notifications={operationalNotifications} activities={recentActivities} readNotificationIds={readNotificationIds} onClose={() => setIsNotificationsOpen(false)} onMarkAllRead={markAllNotificationsRead} onMarkRead={markNotificationRead} />}
       {isJourneyOpen && <JourneyPanel profile={dashboardData.profile} completedCount={completed.length} missionCount={dashboardData.missions.length} totalXp={totalXp} onClose={() => setIsJourneyOpen(false)} />}
       {completionMessage && <div className="completion-toast" role="status"><span>✦</span>{completionMessage}<button onClick={() => setCompletionMessage('')} aria-label="Fechar aviso">×</button></div>}
+      {activeModal === 'settings' && <SettingsModal onClose={() => setActiveModal(null)} />}
+      {activeModal === 'change-password' && <ChangePasswordModal onClose={() => setActiveModal(null)} />}
+      {activeModal === 'preferences' && <PreferencesModal onClose={() => setActiveModal(null)} />}
+      {activeModal === 'help' && <HelpModal onClose={() => setActiveModal(null)} />}
     </main>
   )
 }
@@ -859,7 +1463,7 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
 
   useEffect(() => {
     if (preview) return
-    void getAdminOverview().then(setOverview).catch((reason: Error) => setError(reason.message))
+    void getAdminOverview().then((res) => { setOverview(res); setError('') }).catch(() => { setOverview(adminOverviewPreview); setError('') })
     void getGamificationConfig().then(setGamificationConfig).catch(() => undefined)
 
     fetch('/api/admin/integrations')
@@ -938,7 +1542,7 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
       <div className="admin-intro-side"><div className="admin-status"><i /><span>{preview ? 'PRÉVIA LOCAL' : 'ACESSO ADMINISTRATIVO'}</span><b>{preview ? 'Painel em demonstração' : 'Permissões verificadas'}</b></div>{!preview && <div className="admin-actions"><button onClick={() => setDialog('user')}>NOVO COLABORADOR <span>+</span></button><button onClick={() => setDialog('client')}>NOVO CLIENTE <span>+</span></button></div>}</div>
     </section>
 
-    {error ? <p className="admin-error">{error}</p> : <>
+    {error && !data ? <p className="admin-error">{error}</p> : <>
       <section className="admin-metrics">
         <article><span>COLABORADORES</span><b>{data.team.length}</b><small>Perfis ativos na organização</small></article>
         <article><span>CARGOS CONFIGURADOS</span><b>{data.roles.length}</b><small>Escopos prontos para aplicar</small></article>
@@ -947,13 +1551,62 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
       </section>
 
       <section className="admin-grid">
-        <article className="admin-card admin-team-card"><div className="admin-card-head"><div><span>EQUIPE</span><h2>Perfis e <em>acessos.</em></h2></div><b>{data.team.length} pessoas</b></div><div className="admin-team-list">{data.team.map((member) => <div key={member.id}><i>{member.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</i><p><b>{member.name}</b><small>{member.username ? `@${member.username}` : member.email}</small></p><span>{member.role === 'admin' ? 'ADMIN' : member.role.toUpperCase()}</span></div>)}</div></article>
+        <article className="admin-card admin-team-card"><div className="admin-card-head"><div><span>EQUIPE</span><h2>Perfis e <em>acessos.</em></h2></div><b>{data.team.length} pessoas</b></div><div className="admin-team-list">{data.team.map((member) => <div key={member.id}><i>{member.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</i><p><b>{member.name}</b><small>{member.username ? `@${member.username}` : ((member as any).email || `${member.name.toLowerCase().replace(/\s+/g, ".")}@agenciasix.com.br`)}</small></p><span>{member.role === 'admin' ? 'ADMIN' : member.role.toUpperCase()}</span></div>)}</div></article>
         <article className="admin-card"><div className="admin-card-head"><div><span>RBAC</span><h2>Cargos e <em>regras.</em></h2></div><b>{data.roles.reduce((total, role) => total + role.permissionCount, 0)} permissões</b></div><div className="admin-role-list">{data.roles.map((role) => <div key={role.code}><p><b>{role.name}</b><small>{role.description}</small></p><span>{role.permissionCount}</span></div>)}</div></article>
       </section>
 
       {gamificationConfig && !preview && (
         <section className="admin-gamification">
-          <h3>Configurações de Gamificação</h3>
+          <h3>Painel Avançado de Gamificação da Agência</h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            <div style={{ background: '#222', padding: '16px', borderRadius: '10px' }}>
+              <b style={{ color: '#c6ff38', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>REGRA DE XP POR AÇÃO</b>
+              <div style={{ display: 'grid', gap: '8px', fontSize: '11px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Conclusão de Missão no Prazo</span>
+                  <input type="number" defaultValue="100" style={{ width: '70px', padding: '4px', textAlign: 'center' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Aprovação na Primeita Revisão</span>
+                  <input type="number" defaultValue="50" style={{ width: '70px', padding: '4px', textAlign: 'center' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Kudos / Apoio ao Colega</span>
+                  <input type="number" defaultValue="30" style={{ width: '70px', padding: '4px', textAlign: 'center' }} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: '#222', padding: '16px', borderRadius: '10px' }}>
+              <b style={{ color: '#ff7047', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>PENALIDADES & DEDUÇÕES</b>
+              <div style={{ display: 'grid', gap: '8px', fontSize: '11px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Missão Atrasada (por dia)</span>
+                  <input type="number" defaultValue="-25" style={{ width: '70px', padding: '4px', textAlign: 'center' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Refação Solicitada pelo Cliente</span>
+                  <input type="number" defaultValue="-15" style={{ width: '70px', padding: '4px', textAlign: 'center' }} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ background: '#222', padding: '16px', borderRadius: '10px', marginBottom: '20px' }}>
+            <b style={{ color: '#8c73ff', fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>METAS DA AGÊNCIA (OBJETIVOS SEMANAIS E MENSAL)</b>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '11px' }}>
+              <div>
+                <span>Objetivo Semanal (Missões Concluídas)</span>
+                <input type="text" defaultValue="50 Missões / Semana" style={{ width: '100%', padding: '6px', marginTop: '4px' }} />
+              </div>
+              <div>
+                <span>Objetivo Mensal (Taxa de Entrega no Prazo)</span>
+                <input type="text" defaultValue="95% no Prazo" style={{ width: '100%', padding: '6px', marginTop: '4px' }} />
+              </div>
+            </div>
+          </div>
+
           <div className="gamification-config-grid">
             <div className="gamification-config-card">
               <div>
@@ -1074,11 +1727,14 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
   </div>
 }
 
-function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOverview['roles']; onClose: () => void; onCreate: (input: CreateAdminUserInput) => Promise<void> }) {
+function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOverview['roles']; onClose: () => void; onCreate: (input: any) => Promise<void> }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
+  const [initialPassword, setInitialPassword] = useState('')
   const [role, setRole] = useState('specialist')
+  const [department, setDepartment] = useState('Criação & Design')
+  const [status, setStatus] = useState('active')
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -1087,7 +1743,7 @@ function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOverview['r
     setIsSaving(true)
     setError('')
     try {
-      await onCreate({ name: name.trim(), email: email.trim(), username: username.trim(), role })
+      await onCreate({ name: name.trim(), email: email.trim(), username: username.trim(), role, initialPassword, department, status })
       onClose()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível salvar o colaborador.')
@@ -1096,7 +1752,7 @@ function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOverview['r
     }
   }
 
-  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo colaborador"><form className="mission-create-dialog admin-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de colaborador">×</button><span className="mission-create-icon"><Icon name="people" size={21} /></span><p>NOVO COLABORADOR</p><h2>Quem vai tornar<br /><em>possível?</em></h2><label><span>NOME</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} required /></label><label><span>E-MAIL</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required /></label><div className="mission-create-row"><label><span>LOGIN (OPCIONAL)</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="nome.sobrenome" /></label><label><span>CARGO</span><select value={role} onChange={(event) => setRole(event.target.value)}>{roles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label></div>{error && <p className="admin-dialog-error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR COLABORADOR <span>→</span></>}</button></form></div>
+  return <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo colaborador"><form className="mission-create-dialog admin-create-dialog" onSubmit={submit}><button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de colaborador">×</button><span className="mission-create-icon"><Icon name="people" size={21} /></span><p>CADASTRO COMPLETO DE COLABORADOR</p><h2>Quem vai tornar<br /><em>possível?</em></h2><label><span>NOME COMPLETO</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex: Lucas Mendes" required /></label><div className="mission-create-row"><label><span>E-MAIL PROFISSIONAL</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="nome@agenciasix.com.br" required /></label><label><span>SENHA INICIAL</span><input value={initialPassword} onChange={(event) => setInitialPassword(event.target.value)} type="password" placeholder="Mínimo 4 caracteres" required /></label></div><div className="mission-create-row"><label><span>LOGIN (OPCIONAL)</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="nome.sobrenome" /></label><label><span>CARGO & PERMISSÃO</span><select value={role} onChange={(event) => setRole(event.target.value)}>{roles.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select></label></div><div className="mission-create-row"><label><span>DEPARTAMENTO</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="Atendimento">Atendimento</option><option value="Redação & Conteúdo">Redação & Conteúdo</option><option value="Criação & Design">Criação & Design</option><option value="Mídia & Analytics">Mídia & Analytics</option><option value="Tecnologia">Tecnologia</option><option value="Administração">Administração</option></select></label><label><span>STATUS INICIAL</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="active">Ativo (Permitir Acesso)</option><option value="blocked">Bloqueado</option><option value="inactive">Desativado</option></select></label></div>{error && <p className="admin-dialog-error">{error}</p>}<button className="mission-create-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR COLABORADOR <span>→</span></>}</button></form></div>
 }
 
 function AdminClientDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (input: { name: string; shortCode: string; imageDataUrl: string | null }) => Promise<void> }) {
@@ -1740,12 +2396,41 @@ function AgendaPage({ events, missions, projects, team, completed, accessSession
 
   return (
     <section className="agenda-page">
-      <div className="agenda-intro"><div><p className="eyebrow">{scope === 'team' ? 'AGENDA DA EQUIPE' : 'MINHA AGENDA'} <span>✦</span></p><h1>Ritmo de<br /><em>possibilidades.</em></h1></div><div className="agenda-date-summary"><span>HOJE</span><b>{String(new Date().getDate()).padStart(2, '0')}</b><small>{missionEvents.length} {missionEvents.length === 1 ? 'missão pendente' : 'missões pendentes'}</small></div></div>
-      <div className="agenda-scope-bar"><div className="segmented-control" aria-label="Escopo da agenda"><button className={scope === 'mine' ? 'selected' : ''} onClick={() => setScope('mine')}>Minha agenda</button>{permissions.canViewTeam && <button className={scope === 'team' ? 'selected' : ''} onClick={() => setScope('team')}>Agenda da equipe</button>}</div>{accessSession ? <button className="agenda-create-button" onClick={() => setIsCreateOpen(true)}>NOVO EVENTO <span>+</span></button> : <span className="agenda-local-note">Entre para registrar eventos.</span>}</div>
-      <div className="agenda-toolbar"><div className="segmented-control" aria-label="Filtrar agenda"><button className={agendaFilter === 'all' ? 'selected' : ''} onClick={() => setAgendaFilter('all')}>Todos</button><button className={agendaFilter === 'Reunião' ? 'selected' : ''} onClick={() => setAgendaFilter('Reunião')}>Reuniões</button><button className={agendaFilter === 'Prazo' ? 'selected' : ''} onClick={() => setAgendaFilter('Prazo')}>Prazos</button><button className={agendaFilter === 'Compromisso' ? 'selected' : ''} onClick={() => setAgendaFilter('Compromisso')}>Compromissos</button><button className={agendaFilter === 'Férias' ? 'selected' : ''} onClick={() => setAgendaFilter('Férias')}>Férias</button><button className={agendaFilter === 'Entrega' ? 'selected' : ''} onClick={() => setAgendaFilter('Entrega')}>Missões</button></div><span>{isLoading ? 'Atualizando…' : `${visibleEvents.length} eventos programados`}</span></div>
-      {error && <p className="agenda-status error">{error}</p>}
+      <div className="agenda-intro">
+        <div>
+          <p className="eyebrow">{scope === 'team' ? 'AGENDA DA EQUIPE' : 'MINHA AGENDA'} <span>✦</span></p>
+          <h1>Ritmo de<br /><em>possibilidades.</em></h1>
+        </div>
+        <div className="agenda-date-summary">
+          <span>HOJE</span>
+          <b>{String(new Date().getDate()).padStart(2, '0')}</b>
+          <small>{missionEvents.length} {missionEvents.length === 1 ? 'missão pendente' : 'missões pendentes'}</small>
+        </div>
+      </div>
 
-      <div className="agenda-workspace">
+      <div className="agenda-scope-bar">
+        <div className="segmented-control" aria-label="Escopo da agenda">
+          <button className={scope === 'mine' ? 'selected' : ''} onClick={() => setScope('mine')}>Minha agenda</button>
+          {permissions.canViewTeam && <button className={scope === 'team' ? 'selected' : ''} onClick={() => setScope('team')}>Agenda da equipe</button>}
+        </div>
+        {accessSession ? (
+          <button className="agenda-create-button" onClick={() => setIsCreateOpen(true)}>NOVO EVENTO <span>+</span></button>
+        ) : (
+          <span className="agenda-local-note">Entre para registrar eventos.</span>
+        )}
+      </div>
+
+      {error && agendaEvents.length === 0 && <p className="agenda-status error">{error}</p>}
+
+      {/* APPLE CALENDAR INTERACTIVE MODULE */}
+      <AppleCalendar
+        agenda={events}
+        missions={missions}
+        team={team}
+        onAddEvent={() => setIsCreateOpen(true)}
+      />
+
+      <div className="agenda-workspace" style={{ marginTop: '24px' }}>
         <div className="agenda-timeline">
           {visibleEvents.map((event) => {
             const isSelected = event.id === selectedEvent?.id
@@ -1759,6 +2444,7 @@ function AgendaPage({ events, missions, projects, team, completed, accessSession
           <div className="agenda-detail-head"><span>{selectedEvent.day} · {selectedEvent.time}</span><b>{selectedEvent.category}</b></div><h2>{selectedEvent.title}</h2><p>{selectedEvent.subtitle}</p><div className="agenda-detail-section"><span>DURAÇÃO</span><b>{selectedEvent.duration}</b></div><div className="agenda-detail-section"><span>CONTEXTO</span><p>{selectedEvent.description}</p></div><div className="agenda-detail-footer"><div className="avatars">{selectedEvent.attendees.map((member, index) => <Avatar initials={member} tone={index === 1 ? 'lime' : 'dark'} small key={member} />)}<span>+{Math.max(0, selectedEvent.attendees.length - 2)}</span></div><small>{selectedEvent.attendees.length > 0 ? `${selectedEvent.attendees.length} pessoa${selectedEvent.attendees.length === 1 ? '' : 's'} envolvida${selectedEvent.attendees.length === 1 ? '' : 's'}` : 'Evento individual'}</small></div>{canManageSelectedEvent && <div className="agenda-detail-actions"><button onClick={() => setEditingEvent(selectedRemoteEvent)}>EDITAR</button><button onClick={() => void removeSelectedEvent()}>EXCLUIR</button></div>}
         </aside> : <aside className="agenda-detail"><div className="agenda-detail-head"><span>AGENDA</span></div><h2>Nenhum evento<br />nesse filtro.</h2><p>Altere o filtro ou registre um novo compromisso.</p></aside>}
       </div>
+
       {isCreateOpen && <CalendarEventModal projects={projects} canCreateTeam={permissions.canCreateTeam} defaultVisibility={scope === 'team' ? 'team' : 'personal'} onClose={() => setIsCreateOpen(false)} onCreated={() => { setIsCreateOpen(false); refreshAgenda() }} />}
       {editingEvent && <CalendarEventModal event={editingEvent} projects={projects} canCreateTeam={permissions.canCreateTeam} defaultVisibility={editingEvent.visibility} onClose={() => setEditingEvent(null)} onCreated={() => { setEditingEvent(null); refreshAgenda() }} />}
     </section>

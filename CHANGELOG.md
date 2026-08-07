@@ -2,6 +2,17 @@
 
 Histórico de entregas e atualizações de funcionalidades do sistema operacional da agência.
 
+## [0.43.0] — 2026-08-06
+
+### Em Desenvolvimento (Estabilização do MVP & Refinamento de UX)
+- **Menu da Conta (3 pontos)**: Popover de opções do perfil (Meu Perfil, Configurações, Alterar Senha, Preferências, Ajuda, Sair).
+- **Gestão Completa de Colaboradores**: Cadastro com departamento, senha inicial, bloqueio/desativação, reset de senha e edição de permissões.
+- **Perfil do Colaborador na Equipe**: Detalhes completos ao clicar em qualquer membro (XP, Ranking, Missões, Projetos, Histórico).
+- **Módulo de Agenda Expandido (Estilo Apple Calendar)**: Visão mensal, semanal e diária com integração de Missões, Reuniões, Prazos, Aniversários e Eventos.
+- **Fluxo Operacional de Agência nas Missões**: Etapas sequenciais (Concepção → Atendimento → Redação → Criação → Revisão → Entrega) com encaminhamento automatizado entre responsáveis.
+- **Comentários com @Menção**: Notificação e destaque ao mencionar colaboradores.
+- **RBAC Matricial & Gamificação Avançada**: Controle fino de permissões e recompensas.
+
 ## [0.42.0] — 2026-08-06
 
 ### Adicionado / Melhorado

@@ -189,3 +189,50 @@ button { border: 0; cursor: pointer; }
   overflow: visible !important;
 }
 
+.account-container { position: relative; flex-shrink: 0; }
+.account-popover-menu { position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 8px; background: #1a1a19; border: 1px solid #383833; border-radius: 12px; padding: 6px; box-shadow: 0 12px 35px rgba(0,0,0,0.5); z-index: 20; display: grid; gap: 2px; }
+.account-popover-menu button { display: flex; align-items: center; gap: 10px; padding: 8px 10px; width: 100%; background: transparent; border-radius: 7px; color: #d0d0c8; font-size: 11px; font-weight: 600; text-align: left; transition: .15s ease; }
+.account-popover-menu button:hover { background: #2a2a27; color: #c6ff38; }
+.account-popover-menu button.danger:hover { color: #ff5936; background: rgba(255,89,54,0.12); }
+.account-popover-menu .menu-divider { height: 1px; background: #33332d; margin: 4px 0; }
+.generic-modal-overlay { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(18,18,17,.65); backdrop-filter: blur(8px); }
+.generic-modal-dialog { position: relative; width: min(560px, 100%); background: #191919; border: 1px solid #42423d; border-radius: 16px; color: #fff; padding: 32px; box-shadow: 0 25px 80px rgba(0,0,0,.5); max-height: calc(100vh - 40px); overflow-y: auto; }
+.generic-modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 14px; }
+.generic-modal-head h2 { margin: 0; font-size: 22px; letter-spacing: -1px; }
+.generic-modal-form { display: grid; gap: 16px; }
+.generic-modal-form label { display: grid; gap: 6px; font-size: 11px; color: #aaa; }
+.generic-modal-form label > span { font-size: 8.5px; font-weight: 900; letter-spacing: 1.1px; color: #85857e; text-transform: uppercase; }
+.generic-modal-form input, .generic-modal-form select, .generic-modal-form textarea { width: 100%; padding: 10px 12px; background: #242422; border: 1px solid #3d3d37; border-radius: 8px; color: #fff; font-size: 12px; outline: none; transition: .18s; }
+.generic-modal-form input:focus, .generic-modal-form select:focus, .generic-modal-form textarea:focus { border-color: #c6ff38; }
+.generic-modal-submit { padding: 12px 18px; background: #c6ff38; border-radius: 8px; color: #111; font-size: 11px; font-weight: 900; letter-spacing: 0.5px; cursor: pointer; transition: .18s; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; margin-top: 8px; }
+.generic-modal-submit:hover { background: #b5ef25; }
+.mention-tag { display: inline-flex; align-items: center; padding: 2px 6px; background: rgba(198,255,56,0.15); border: 1px solid rgba(198,255,56,0.3); border-radius: 4px; color: #c6ff38; font-weight: 700; font-size: 11px; margin: 0 2px; }
+.mention-dropdown { position: absolute; z-index: 40; background: #222; border: 1px solid #444; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-height: 160px; overflow-y: auto; width: 200px; }
+.mention-dropdown-item { padding: 8px 12px; cursor: pointer; font-size: 11px; color: #eee; display: flex; align-items: center; gap: 8px; }
+.mention-dropdown-item:hover { background: #333; color: #c6ff38; }
+.mission-stage-stepper { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 12px; background: #20201d; border-radius: 10px; margin: 16px 0; overflow-x: auto; }
+.mission-stage-step { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 9px; font-weight: 800; color: #666; flex: 1; text-align: center; position: relative; }
+.mission-stage-step.active { color: #c6ff38; }
+.mission-stage-step.completed { color: #8c73ff; }
+.mission-stage-dot { width: 12px; height: 12px; border-radius: 50%; background: #333; border: 2px solid #555; }
+.mission-stage-step.active .mission-stage-dot { background: #c6ff38; border-color: #c6ff38; box-shadow: 0 0 10px rgba(198,255,56,0.5); }
+.mission-stage-step.completed .mission-stage-dot { background: #8c73ff; border-color: #8c73ff; }
+.apple-calendar { background: #fffefa; border: 1px solid #e1e1da; border-radius: 16px; padding: 24px; margin-top: 24px; box-sizing: border-box; width: 100%; max-width: 100%; overflow: hidden; }
+.apple-calendar-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.apple-calendar-views { display: flex; gap: 4px; background: #e5e4df; padding: 3px; border-radius: 8px; }
+.apple-calendar-views button { padding: 6px 12px; background: transparent; border-radius: 6px; font-size: 11px; font-weight: 700; color: #666; transition: .18s; border: 0; cursor: pointer; }
+.apple-calendar-views button.active { background: #171717; color: #c6ff38; }
+.apple-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-top: 16px; width: 100%; box-sizing: border-box; }
+.apple-calendar-day { min-height: 100px; padding: 8px; background: #f7f6f2; border-radius: 10px; border: 1px solid #e8e7e1; font-size: 11px; display: flex; flex-direction: column; gap: 4px; transition: .18s; cursor: pointer; min-width: 0; width: 100%; box-sizing: border-box; overflow: hidden; }
+.apple-calendar-day:hover { border-color: #c6ff38; background: #fff; transform: translateY(-1px); }
+.apple-calendar-day.today { border-color: #171717; background: #fffefa; box-shadow: 0 0 0 2px rgba(198,255,56,0.4); }
+.apple-calendar-event { padding: 4px 6px; border-radius: 5px; font-size: 9.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; box-sizing: border-box; cursor: pointer; }
+.apple-calendar-event.reuniao { background: #e0dbff; color: #4328b7; }
+.apple-calendar-event.missao { background: #e2f9a2; color: #2e4e00; }
+.apple-calendar-event.prazo { background: #ffe3db; color: #9c2706; }
+.apple-calendar-event.aniversario { background: #ffe6f3; color: #8d1c5a; }
+.rbac-matrix { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.rbac-matrix th, .rbac-matrix td { padding: 10px 12px; border: 1px solid #333; text-align: center; font-size: 11px; }
+.rbac-matrix th { background: #222; color: #c6ff38; text-align: left; }
+.team-member-modal { width: min(840px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; background: #181817; border-radius: 18px; padding: 32px; color: #fff; box-shadow: 0 30px 100px rgba(0,0,0,0.6); border: 1px solid #3d3d37; }
+

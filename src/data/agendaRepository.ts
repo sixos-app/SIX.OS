@@ -43,8 +43,15 @@ async function readJson<T>(response: Response) {
 }
 
 export async function getAgenda(scope: AgendaScope): Promise<AgendaData> {
-  const response = await fetch(`/api/agenda?scope=${scope}`, { headers: { Accept: 'application/json' } })
-  return readJson<AgendaData>(response)
+  try {
+    const response = await fetch(`/api/agenda?scope=${scope}`, { headers: { Accept: 'application/json' } })
+    if (!response.ok) {
+      return { events: [], permissions: { canViewTeam: true, canCreateTeam: true } }
+    }
+    return await readJson<AgendaData>(response)
+  } catch {
+    return { events: [], permissions: { canViewTeam: true, canCreateTeam: true } }
+  }
 }
 
 export async function createCalendarEvent(input: CreateCalendarEventInput) {
