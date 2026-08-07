@@ -11,7 +11,9 @@
     "preview:local": "npm run build && npx wrangler pages dev dist --compatibility-date=2026-08-04 --local",
     "version:patch": "npm version patch --no-git-tag-version",
     "version:minor": "npm version minor --no-git-tag-version",
-    "version:major": "npm version major --no-git-tag-version"
+    "version:major": "npm version major --no-git-tag-version",
+    "db:reset:local": "npx wrangler d1 execute six-os --local --file=./scripts/launch_reset_production.sql",
+    "db:reset:production": "npx wrangler d1 execute six-os --remote --file=./scripts/launch_reset_production.sql"
   },
   "dependencies": {
     "react": "19.2.8",

@@ -99,7 +99,7 @@ const DEFAULT_FALLBACK_PROFILE_DATA: ProfileData = {
   stickers: [
     { code: 'speed', name: 'Ritmo Veloz', description: 'Concluiu uma missão em menos de 24h.', imageUrl: '⚡', unlocked: true },
     { code: 'perfect-score', name: 'Entrega Perfeita', description: 'Aprovado sem nenhuma refação.', imageUrl: '✨', unlocked: true },
-    { code: 'night-owl', name: 'Coruja da Noite', description: 'Missão concluída após as 22h.', imageUrl: '🦉', unlocked: false },
+
     { code: 'organizer', name: 'Mestre da Organização', description: 'Criou ou organizou 10 checklists.', imageUrl: '📋', unlocked: false },
     { code: 'streak-3', name: 'Fogo Sagrado', description: 'Manteve 3 dias seguidos de streak.', imageUrl: '🔥', unlocked: true },
     { code: 'streak-7', name: 'Inabalável', description: 'Manteve 7 dias seguidos de streak.', imageUrl: '🛡️', unlocked: false }

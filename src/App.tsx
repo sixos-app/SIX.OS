@@ -56,6 +56,7 @@ const missionEditsStorageKey = 'six-os:mission-edits'
 const projectEditsStorageKey = 'six-os:project-edits'
 
 function deadlineToMissionDate(value: string) {
+  if (!value) return new Date().toISOString()
   const directDate = Date.parse(value)
   if (!Number.isNaN(directDate)) return new Date(directDate).toISOString()
   const date = new Date()
@@ -72,13 +73,16 @@ function missionDateTimeInputValue(value: string) {
 
 function formatMissionDeadline(value: string) {
   const date = new Date(deadlineToMissionDate(value))
-  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1)
-  const dateOnly = new Date(date); dateOnly.setHours(0, 0, 0, 0)
-  if (dateOnly.getTime() === today.getTime()) return `Hoje · ${time}`
-  if (dateOnly.getTime() === tomorrow.getTime()) return `Amanhã · ${time}`
-  return `${date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} · ${time}`
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+  const dateStr = date.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+  const todayStr = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+
+  if (dateStr === todayStr) return `Hoje · ${time}`
+  if (dateStr === tomorrowStr) return `Amanhã · ${time}`
+  return `${date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })} · ${time}`
 }
 
 function isMissionCompleted(mission: Mission, locallyCompleted: string[]) {
@@ -1341,7 +1345,7 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
           )}
           <button className="account" type="button" onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}>
             <Avatar initials={accessSession ? getInitials(accessSession.name) : 'GS'} tone="photo" small />
-            <span><b>{accessSession?.name ?? 'Guilherme'}</b><small>{accessSession ? accessSession.role === 'admin' ? 'Administrador' : 'Sessão SIX' : 'Modo local'}</small></span>
+            <span><b>{accessSession?.name ?? ''}</b><small>{accessSession ? accessSession.role === 'admin' ? 'Administrador' : 'Sessão SIX' : 'Modo local'}</small></span>
             <span>•••</span>
           </button>
         </div>
@@ -1435,7 +1439,7 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
       </nav>
 
       {isAiOpen && <AiPanel dashboardData={dashboardData} completed={completed} onClose={() => setIsAiOpen(false)} onNavigate={(section) => { setActiveSection(section); setIsAiOpen(false) }} />}
-      {isCommandOpen && <CommandPalette onClose={() => setIsCommandOpen(false)} onNavigate={(section) => { setActiveSection(section); setIsCommandOpen(false) }} onOpenAi={() => { setIsAiOpen(true); setIsCommandOpen(false) }} />}
+      {isCommandOpen && <CommandPalette projects={dashboardData.projects} missions={dashboardData.missions} team={dashboardData.team} clients={clientIdentities} onClose={() => setIsCommandOpen(false)} onNavigate={(section) => { setActiveSection(section); setIsCommandOpen(false) }} onOpenAi={() => { setIsAiOpen(true); setIsCommandOpen(false) }} />}
       {isNotificationsOpen && <NotificationsPanel notifications={operationalNotifications} activities={recentActivities} readNotificationIds={readNotificationIds} onClose={() => setIsNotificationsOpen(false)} onMarkAllRead={markAllNotificationsRead} onMarkRead={markNotificationRead} />}
       {isJourneyOpen && <JourneyPanel profile={dashboardData.profile} completedCount={completed.length} missionCount={dashboardData.missions.length} totalXp={totalXp} onClose={() => setIsJourneyOpen(false)} />}
       {completionMessage && <div className="completion-toast" role="status"><span>✦</span>{completionMessage}<button onClick={() => setCompletionMessage('')} aria-label="Fechar aviso">×</button></div>}
@@ -1686,11 +1690,12 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
-                  type="text"
+                  type="password"
                   placeholder="Webhook URL (ex: https://hooks.slack.com/...)"
                   value={slackWebhook}
                   onChange={(e) => setSlackWebhook(e.target.value)}
                   style={{ width: '320px', textAlign: 'left' }}
+                  autoComplete="off"
                 />
                 <button className="gamification-save-button" style={{ margin: 0, padding: '8px 12px' }} onClick={() => handleSaveIntegration('slack', JSON.stringify({ webhookUrl: slackWebhook }), true)}>
                   {savingSlack ? 'SALVANDO...' : 'SALVAR & ATIVAR'}
@@ -1706,11 +1711,12 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
-                  type="text"
+                  type="password"
                   placeholder="API Token do Runrun.it"
                   value={runrunToken}
                   onChange={(e) => setRunrunToken(e.target.value)}
                   style={{ width: '320px', textAlign: 'left' }}
+                  autoComplete="off"
                 />
                 <button className="gamification-save-button" style={{ margin: 0, padding: '8px 12px' }} onClick={() => handleSaveIntegration('runrunit', JSON.stringify({ token: runrunToken }), true)}>
                   {savingRunrun ? 'SALVANDO...' : 'SALVAR & ATIVAR'}
@@ -3827,13 +3833,49 @@ function JourneyPanel({ profile, completedCount, missionCount, totalXp, onClose 
   return <div className="journey-overlay" role="dialog" aria-modal="true" aria-label="Minha jornada"><div className="journey-dialog"><button className="close-button" onClick={onClose} aria-label="Fechar jornada">×</button><div className="journey-hero"><span>SEU NÍVEL ATUAL</span><div className="journey-level-mark">{currentMilestone.name.charAt(0)}</div><p>{currentMilestone.name.toUpperCase()}</p><h2>{currentMilestone.detail}</h2><small>{profile.ideas.toLocaleString('pt-BR')} ideias registradas até aqui.</small></div><div className="journey-progress"><div><span>{totalXp.toLocaleString('pt-BR')} XP</span><b>{nextMilestone ? `Faltam ${(nextMilestone.target - totalXp).toLocaleString('pt-BR')} XP para ${nextMilestone.name}` : 'Você alcançou o nível máximo atual.'}</b></div><i><span style={{ width: `${progress}%` }} /></i><div className="journey-milestones">{milestones.map((milestone) => <span className={totalXp >= milestone.target ? 'reached' : ''} key={milestone.name}><b>{milestone.name}</b><small>{milestone.target.toLocaleString('pt-BR')} XP</small></span>)}</div></div><div className="journey-achievements"><div><span>CONQUISTAS</span><h3>O que você já<br /><em>tornou possível.</em></h3></div><div className="achievement-list">{achievements.map((achievement) => <article className={achievement.unlocked ? 'unlocked' : ''} key={achievement.title}><span>{achievement.unlocked ? '✦' : '○'}</span><div><b>{achievement.title}</b><p>{achievement.detail}</p></div></article>)}</div></div></div></div>
 }
 
-function CommandPalette({ onClose, onNavigate, onOpenAi }: { onClose: () => void; onNavigate: (section: string) => void; onOpenAi: () => void }) {
+function CommandPalette({ projects = [], missions = [], team = [], clients = [], onClose, onNavigate, onOpenAi }: { projects?: Project[]; missions?: Mission[]; team?: TeamMember[]; clients?: ClientIdentity[]; onClose: () => void; onNavigate: (section: string, filterText?: string) => void; onOpenAi: () => void }) {
   const [query, setQuery] = useState('')
-  const commands = [
-    ...navigation.map((item) => ({ id: item.id, label: item.label, hint: 'Abrir módulo', icon: item.icon, action: 'navigate' as const })),
-    { id: 'six-ai', label: 'SIX AI', hint: 'Fazer uma pergunta', icon: 'sparkle' as IconName, action: 'ai' as const },
-  ]
-  const matchingCommands = commands.filter((command) => command.label.toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR')))
+  const q = query.trim().toLocaleLowerCase('pt-BR')
+
+  const commands = useMemo(() => {
+    const items: { id: string; label: string; hint: string; icon: IconName; action: 'navigate' | 'ai'; section?: string }[] = [
+      ...navigation.map((item) => ({ id: item.id, label: item.label, hint: 'Módulo da Agência', icon: item.icon, action: 'navigate' as const, section: item.id })),
+      { id: 'six-ai', label: 'SIX AI', hint: 'Fazer uma pergunta operacional', icon: 'sparkle' as IconName, action: 'ai' as const },
+    ]
+
+    if (q) {
+      projects.forEach((p) => {
+        if (p.name.toLocaleLowerCase('pt-BR').includes(q) || p.client.toLocaleLowerCase('pt-BR').includes(q) || p.code.toLocaleLowerCase('pt-BR').includes(q)) {
+          items.push({ id: `proj-${p.id}`, label: p.name, hint: `Projeto · ${p.client}`, icon: 'folder', action: 'navigate', section: 'projects' })
+        }
+      })
+
+      missions.forEach((m) => {
+        if (m.title.toLocaleLowerCase('pt-BR').includes(q) || m.client.toLocaleLowerCase('pt-BR').includes(q)) {
+          items.push({ id: `miss-${m.id}`, label: m.title, hint: `Demanda/Missão · ${m.client}`, icon: 'target', action: 'navigate', section: 'missions' })
+        }
+      })
+
+      team.forEach((t) => {
+        if (t.name.toLocaleLowerCase('pt-BR').includes(q) || t.role.toLocaleLowerCase('pt-BR').includes(q)) {
+          items.push({ id: `team-${t.id}`, label: t.name, hint: `Equipe · ${t.role}`, icon: 'people', action: 'navigate', section: 'team' })
+        }
+      })
+
+      clients.forEach((c) => {
+        if (c.name.toLocaleLowerCase('pt-BR').includes(q) || (c.shortCode && c.shortCode.toLocaleLowerCase('pt-BR').includes(q))) {
+          items.push({ id: `cli-${c.id}`, label: c.name, hint: `Cliente · ${c.shortCode || 'SIX'}`, icon: 'folder', action: 'navigate', section: 'projects' })
+        }
+      })
+    }
+
+    return items
+  }, [q, projects, missions, team, clients])
+
+  const matchingCommands = useMemo(() => {
+    if (!q) return commands.filter((c) => c.action === 'ai' || c.hint === 'Módulo da Agência')
+    return commands.filter((command) => command.label.toLocaleLowerCase('pt-BR').includes(q) || command.hint.toLocaleLowerCase('pt-BR').includes(q))
+  }, [q, commands])
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
@@ -3844,7 +3886,33 @@ function CommandPalette({ onClose, onNavigate, onOpenAi }: { onClose: () => void
     return () => window.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
-  return <div className="command-overlay" role="dialog" aria-modal="true" aria-label="Busca rápida"><div className="command-dialog"><div className="command-input"><Icon name="sparkle" size={17} /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar no SIX.OS…" aria-label="Buscar no SIX.OS" /><kbd>ESC</kbd></div><p>IR PARA</p><div className="command-list">{matchingCommands.map((command) => <button onClick={() => command.action === 'ai' ? onOpenAi() : onNavigate(command.id)} key={command.id}><span className="command-icon"><Icon name={command.icon} size={16} /></span><span><b>{command.label}</b><small>{command.hint}</small></span><i>↵</i></button>)}{matchingCommands.length === 0 && <span className="command-empty">Nenhum atalho encontrado.</span>}</div><div className="command-footer"><span><kbd>↑↓</kbd> navegar</span><span><kbd>↵</kbd> abrir</span><span><kbd>esc</kbd> fechar</span></div></div></div>
+  return (
+    <div className="command-overlay" role="dialog" aria-modal="true" aria-label="Busca global">
+      <div className="command-dialog">
+        <div className="command-input">
+          <Icon name="sparkle" size={17} />
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Busca global (Clientes, Projetos, Demandas, Tarefas, Equipe)…" aria-label="Buscar no SIX.OS" />
+          <kbd>ESC</kbd>
+        </div>
+        <p>{q ? 'RESULTADOS DA BUSCA' : 'MÓDULOS E ATALHOS'}</p>
+        <div className="command-list">
+          {matchingCommands.map((command) => (
+            <button key={command.id} onClick={() => { command.action === 'ai' ? onOpenAi() : onNavigate(command.section || 'home'); onClose() }}>
+              <span className="command-icon"><Icon name={command.icon} size={16} /></span>
+              <span><b>{command.label}</b><small>{command.hint}</small></span>
+              <i>↵</i>
+            </button>
+          ))}
+          {matchingCommands.length === 0 && <span className="command-empty">Nenhum resultado encontrado para "{query}".</span>}
+        </div>
+        <div className="command-footer">
+          <span><kbd>↑↓</kbd> navegar</span>
+          <span><kbd>↵</kbd> abrir</span>
+          <span><kbd>esc</kbd> fechar</span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function NotificationsPanel({ notifications, activities, readNotificationIds, onClose, onMarkAllRead, onMarkRead }: { notifications: AppNotification[]; activities: AppNotification[]; readNotificationIds: string[]; onClose: () => void; onMarkAllRead: () => void; onMarkRead: (id: string) => void }) {
