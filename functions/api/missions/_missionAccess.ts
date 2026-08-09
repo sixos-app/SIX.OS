@@ -1,4 +1,4 @@
-import { hasPermission, type AccessUser, type Bindings } from '../_access'
+import { hasPermissionV2, type AccessUser, type Bindings } from '../_access'
 
 export type MissionAccess = {
   id: string
@@ -23,10 +23,10 @@ export async function getMissionAccess(env: Bindings, user: AccessUser, missionI
   `).bind(missionId, user.organizationId).first<MissionAccess>()
 }
 
-export function canManageMission(user: AccessUser) {
-  return hasPermission(user, 'missions.assign') || hasPermission(user, 'missions.approve')
+export async function canManageMission(env: Bindings, request: Request, user: AccessUser) {
+  return (await hasPermissionV2(env, request, user, 'missions.assign')) || (await hasPermissionV2(env, request, user, 'missions.approve'))
 }
 
-export function canAccessMission(user: AccessUser, mission: MissionAccess) {
-  return canManageMission(user) || (mission.assigneeId === user.id && hasPermission(user, 'missions.update_own'))
+export async function canAccessMission(env: Bindings, request: Request, user: AccessUser, mission: MissionAccess) {
+  return (await canManageMission(env, request, user)) || (mission.assigneeId === user.id && (await hasPermissionV2(env, request, user, 'missions.update_own')))
 }

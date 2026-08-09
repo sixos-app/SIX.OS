@@ -9,7 +9,7 @@ function normalizeText(value: unknown) {
 export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) => {
   const administrator = await getAccessUser(request, env)
   if (!administrator) return accessRequiredResponse()
-  if (!hasPermission(administrator, 'users.manage')) return permissionRequiredResponse()
+  if (!(await hasPermissionV2(env, request, administrator, 'users.manage'))) return permissionRequiredResponse()
 
   let payload: CreateUserPayload
   try {
@@ -40,4 +40,28 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   }
 
   return Response.json({ member: { id, name, email, username, role } }, { status: 201 })
+}
+
+export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
+  const administrator = await getAccessUser(request, env)
+  if (!administrator) return accessRequiredResponse()
+  
+  // Checking both users.manage and roles.manage. For this specific endpoint, users.manage is sufficient to list basic org data.
+  const hasUsersManage = await hasPermissionV2(env, request, administrator, 'users.manage')
+  const hasRolesManage = await hasPermissionV2(env, request, administrator, 'roles.manage')
+  if (!hasUsersManage && !hasRolesManage) return permissionRequiredResponse()
+
+  const { results } = await env.DB.prepare(`
+    SELECT
+      users.id, users.name, users.email, users.username,
+      users.status, users.department_id, users.position_id, users.professional_level_id,
+      users.access_profile_id, users.manager_id, users.created_at,
+      COALESCE(user_role_assignments.role_code, users.role) AS legacy_role
+    FROM users
+    LEFT JOIN user_role_assignments ON user_role_assignments.user_id = users.id
+    WHERE users.organization_id = ?
+    ORDER BY users.name ASC
+  `).bind(administrator.organizationId).all()
+
+  return Response.json(results)
 }

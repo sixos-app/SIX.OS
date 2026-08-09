@@ -6,7 +6,7 @@ export const onRequestPost: PagesFunction<Bindings, { id: string }> = async ({ e
   if (!user) return accessRequiredResponse()
   const mission = await getMissionAccess(env, user, params.id)
   if (!mission) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
-  if (!canAccessMission(user, mission)) return permissionRequiredResponse()
+  if (!(await canAccessMission(env, request, user, mission))) return permissionRequiredResponse()
   const body = await request.json().catch(() => null) as { body?: unknown } | null
   const commentBody = typeof body?.body === 'string' ? body.body.trim().slice(0, 3000) : ''
   if (!commentBody) return Response.json({ error: 'Escreva um comentário' }, { status: 400 })

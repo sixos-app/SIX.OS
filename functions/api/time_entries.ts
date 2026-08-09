@@ -1,8 +1,27 @@
-import { accessRequiredResponse, getAccessUser, type Bindings } from './_access'
+import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, getPermissionScope, hasPermissionV2, type Bindings } from './_access'
 
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
+
+  const scope = await getPermissionScope(env, request, user, 'time_entries.view')
+  if (!scope) return permissionRequiredResponse()
+
+  let scopeFilter = ''
+  const binds: any[] = [user.organizationId]
+
+  if (scope === 'own') {
+    scopeFilter = ' AND t.user_id = ?'
+    binds.push(user.id)
+  } else if (scope === 'team') {
+    scopeFilter = ' AND t.user_id IN (SELECT id FROM users WHERE manager_id = ?)'
+    binds.push(user.id)
+  } else if (scope === 'department') {
+    scopeFilter = ' AND t.user_id IN (SELECT id FROM users WHERE department_id = ?)'
+    binds.push(user.departmentId || 'none')
+  } else if (scope !== 'all') {
+    return Response.json([])
+  }
 
   const { results: entries } = await env.DB.prepare(`
     SELECT 
@@ -13,9 +32,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     FROM time_entries t
     JOIN users u ON t.user_id = u.id
     JOIN clients c ON t.client_id = c.id
-    WHERE t.organization_id = ?
+    WHERE t.organization_id = ?${scopeFilter}
     ORDER BY t.created_at DESC
-  `).bind(user.organizationId).all()
+  `).bind(...binds).all()
 
   return Response.json(entries ?? [])
 }
@@ -24,9 +43,19 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
 
+  const canCreate = await hasPermissionV2(env, request, user, 'time_entries.create')
+  if (!canCreate) return permissionRequiredResponse()
+
   const body = await request.json().catch(() => null) as any
   if (!body || !body.clientId || (body.hours === undefined && body.minutes === undefined)) {
     return Response.json({ error: 'Cliente e horas/minutos são obrigatórios' }, { status: 400 })
+  }
+
+  let targetUserId = user.id
+  if (body.userId && body.userId !== user.id) {
+    const canManage = await hasPermissionV2(env, request, user, 'time_entries.manage')
+    if (!canManage) return permissionRequiredResponse()
+    targetUserId = body.userId
   }
 
   const id = crypto.randomUUID()
@@ -44,7 +73,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     body.demandId || null,
     body.taskId || null,
     body.clientId,
-    user.id,
+    targetUserId,
     body.hours || 0,
     body.minutes || 0,
     dateStr,
@@ -53,5 +82,5 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     now
   ).run()
 
-  return Response.json({ id, ...body, userId: user.id, date: dateStr }, { status: 201 })
+  return Response.json({ id, ...body, userId: targetUserId, date: dateStr }, { status: 201 })
 }

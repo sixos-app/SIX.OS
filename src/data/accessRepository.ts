@@ -1,18 +1,24 @@
+export type AccessCapabilities = Record<string, string[]>
+
 export type AccessSession = {
   id: string
   name: string
   email: string
   role: string
+  capabilities?: AccessCapabilities
+  isLocalMock?: boolean
 }
 
-type LoginResult = { user?: AccessSession; error?: string }
+type LoginResult = { user?: AccessSession; capabilities?: AccessCapabilities; error?: string }
 
 export async function getAccessSession(): Promise<AccessSession | null> {
   try {
     const response = await fetch('/api/session', { headers: { Accept: 'application/json' } })
     if (response.ok && response.headers.get('content-type')?.includes('application/json')) {
-      const payload = await response.json() as { user?: AccessSession }
-      if (payload.user) return payload.user
+      const payload = await response.json() as { user?: AccessSession; capabilities?: AccessCapabilities }
+      if (payload.user) {
+        return { ...payload.user, capabilities: payload.capabilities }
+      }
     }
   } catch {}
 
@@ -40,13 +46,14 @@ export async function loginWithPassword(username: string, password: string): Pro
     if (response.headers.get('content-type')?.includes('application/json')) {
       const payload = await response.json() as LoginResult
       if (response.ok && payload.user) {
-        localStorage.setItem('sixos_local_user', JSON.stringify(payload.user))
-        return payload
+        const fullUser = { ...payload.user, capabilities: payload.capabilities }
+        localStorage.setItem('sixos_local_user', JSON.stringify(fullUser))
+        return { user: fullUser }
       }
     }
 
     if (isAdminCandidate && isAcceptedPass) {
-      const fallbackUser: AccessSession = { id: 'user-agsix-admin', name: 'Administração SIX', email: 'agsix@sixos.app', role: 'admin' }
+      const fallbackUser: AccessSession = { id: 'user-agsix-admin', name: 'Administração SIX', email: 'agsix@sixos.app', role: 'mock', isLocalMock: true }
       localStorage.setItem('sixos_local_user', JSON.stringify(fallbackUser))
       return { user: fallbackUser }
     }
@@ -54,7 +61,7 @@ export async function loginWithPassword(username: string, password: string): Pro
     return { error: 'Login ou senha inválidos' }
   } catch {
     if (isAdminCandidate && isAcceptedPass) {
-      const fallbackUser: AccessSession = { id: 'user-agsix-admin', name: 'Administração SIX', email: 'agsix@sixos.app', role: 'admin' }
+      const fallbackUser: AccessSession = { id: 'user-agsix-admin', name: 'Administração SIX', email: 'agsix@sixos.app', role: 'mock', isLocalMock: true }
       localStorage.setItem('sixos_local_user', JSON.stringify(fallbackUser))
       return { user: fallbackUser }
     }

@@ -1,11 +1,11 @@
-import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../_access'
+import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
 
 type CreateClientPayload = { name?: unknown; shortCode?: unknown; imageDataUrl?: unknown }
 
 export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  if (!hasPermission(user, 'clients.manage')) return permissionRequiredResponse()
+  if (!(await hasPermissionV2(env, request, user, 'clients.manage'))) return permissionRequiredResponse()
 
   let payload: CreateClientPayload
   try {

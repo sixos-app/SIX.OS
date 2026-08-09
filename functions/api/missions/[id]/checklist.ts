@@ -6,7 +6,7 @@ export const onRequestPost: PagesFunction<Bindings, { id: string }> = async ({ e
   if (!user) return accessRequiredResponse()
   const mission = await getMissionAccess(env, user, params.id)
   if (!mission) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
-  if (!canAccessMission(user, mission)) return permissionRequiredResponse()
+  if (!(await canAccessMission(env, request, user, mission))) return permissionRequiredResponse()
   const body = await request.json().catch(() => null) as { label?: unknown } | null
   const label = typeof body?.label === 'string' ? body.label.trim().slice(0, 240) : ''
   if (!label) return Response.json({ error: 'Informe o item do checklist' }, { status: 400 })
@@ -25,7 +25,7 @@ export const onRequestPatch: PagesFunction<Bindings, { id: string }> = async ({ 
   if (!user) return accessRequiredResponse()
   const mission = await getMissionAccess(env, user, params.id)
   if (!mission) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
-  if (!canAccessMission(user, mission)) return permissionRequiredResponse()
+  if (!(await canAccessMission(env, request, user, mission))) return permissionRequiredResponse()
   const body = await request.json().catch(() => null) as { id?: unknown; isCompleted?: unknown } | null
   const itemId = typeof body?.id === 'string' ? body.id : ''
   if (!itemId || typeof body?.isCompleted !== 'boolean') return Response.json({ error: 'Item do checklist inválido' }, { status: 400 })

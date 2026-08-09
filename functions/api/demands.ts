@@ -1,8 +1,27 @@
-import { accessRequiredResponse, getAccessUser, type Bindings } from './_access'
+import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, getPermissionScope, hasPermissionV2, type Bindings } from './_access'
 
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
+
+  const scope = await getPermissionScope(env, request, user, 'demands.view')
+  if (!scope) return permissionRequiredResponse()
+
+  let scopeFilter = ''
+  const binds: any[] = [user.organizationId]
+
+  if (scope === 'assigned_clients') {
+    scopeFilter = ' AND d.client_id IN (SELECT id FROM clients WHERE account_manager_id = ?)'
+    binds.push(user.id)
+  } else if (scope === 'participating_projects') {
+    scopeFilter = ' AND d.project_id IN (SELECT project_id FROM missions JOIN mission_assignees ON mission_assignees.mission_id = missions.id WHERE mission_assignees.user_id = ?)'
+    binds.push(user.id)
+  } else if (scope === 'department') {
+    scopeFilter = ' AND (d.department = ? OR d.department IN (SELECT name FROM departments WHERE id = ?))'
+    binds.push(user.departmentId || 'none', user.departmentId || 'none')
+  } else if (scope !== 'all') {
+    return Response.json([])
+  }
 
   const { results: demands } = await env.DB.prepare(`
     SELECT 
@@ -16,9 +35,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     FROM demands d
     JOIN clients c ON d.client_id = c.id
     LEFT JOIN projects p ON d.project_id = p.id
-    WHERE d.organization_id = ?
+    WHERE d.organization_id = ?${scopeFilter}
     ORDER BY d.created_at DESC
-  `).bind(user.organizationId).all()
+  `).bind(...binds).all()
 
   return Response.json(demands ?? [])
 }
@@ -26,6 +45,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
 export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
+
+  const canCreate = await hasPermissionV2(env, request, user, 'demands.create')
+  if (!canCreate) return permissionRequiredResponse()
 
   const body = await request.json().catch(() => null) as any
   if (!body || !body.title || !body.clientId) {

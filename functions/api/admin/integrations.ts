@@ -1,9 +1,9 @@
-import { getAccessUser, type Bindings } from '../_access'
+import { getAccessUser, hasPermissionV2, type Bindings } from '../_access'
 
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
-  if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 })
-  if (user.role !== 'admin') return Response.json({ error: 'Não autorizado' }, { status: 403 })
+  if (!user) return Response.json({ error: 'Não autenticado' }, { status: 401 })
+  if (!(await hasPermissionV2(env, request, user, 'gamification.manage'))) return Response.json({ error: 'Não autorizado' }, { status: 403 })
 
   try {
     const { results } = await env.DB.prepare(`
@@ -20,8 +20,8 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
 
 export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
-  if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 })
-  if (user.role !== 'admin') return Response.json({ error: 'Não autorizado' }, { status: 403 })
+  if (!user) return Response.json({ error: 'Não autenticado' }, { status: 401 })
+  if (!(await hasPermissionV2(env, request, user, 'gamification.manage'))) return Response.json({ error: 'Não autorizado' }, { status: 403 })
 
   let payload: {
     provider: string

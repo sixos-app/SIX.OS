@@ -1,4 +1,4 @@
-import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../_access'
+import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
 import { canAccessMission, canManageMission, getMissionAccess } from './_missionAccess'
 
 type DetailRow = {
@@ -10,7 +10,7 @@ export const onRequestGet: PagesFunction<Bindings, { id: string }> = async ({ en
   if (!user) return accessRequiredResponse()
   const mission = await getMissionAccess(env, user, params.id)
   if (!mission) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
-  if (!canAccessMission(user, mission)) return permissionRequiredResponse()
+  if (!(await canAccessMission(env, request, user, mission))) return permissionRequiredResponse()
 
   const detail = await env.DB.prepare(`
     SELECT missions.id, missions.title, missions.description, clients.name AS client,
@@ -35,7 +35,12 @@ export const onRequestGet: PagesFunction<Bindings, { id: string }> = async ({ en
     env.DB.prepare('SELECT attachments.id, attachments.library_file_id AS libraryFileId, attachments.file_name AS fileName, attachments.file_version AS fileVersion, attachments.created_at AS createdAt FROM mission_attachments attachments WHERE attachments.mission_id = ? ORDER BY attachments.created_at DESC').bind(mission.id).all(),
     env.DB.prepare('SELECT history.id, history.action, history.detail, history.created_at AS createdAt, users.name AS actor FROM mission_history history LEFT JOIN users ON users.id = history.actor_user_id WHERE history.mission_id = ? ORDER BY history.created_at DESC LIMIT 30').bind(mission.id).all(),
   ])
-  return Response.json({ mission: detail, checklist: checklist.results, comments: comments.results, attachments: attachments.results, history: history.results, permissions: { canInteract: canAccessMission(user, mission), canManage: canManageMission(user), canApprove: hasPermission(user, 'missions.approve') } })
+  const [canInteract, canManage, canApprove] = await Promise.all([
+    canAccessMission(env, request, user, mission),
+    canManageMission(env, request, user),
+    hasPermissionV2(env, request, user, 'missions.approve')
+  ])
+  return Response.json({ mission: detail, checklist: checklist.results, comments: comments.results, attachments: attachments.results, history: history.results, permissions: { canInteract, canManage, canApprove } })
 }
 
 type UpdateMissionInput = {
@@ -56,7 +61,7 @@ export const onRequestPatch: PagesFunction<Bindings, { id: string }> = async ({ 
   if (!user) return accessRequiredResponse()
   const current = await getMissionAccess(env, user, params.id)
   if (!current) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
-  if (!canManageMission(user)) return permissionRequiredResponse()
+  if (!(await canManageMission(env, request, user))) return permissionRequiredResponse()
   const body = await request.json().catch(() => null) as UpdateMissionInput | null
   if (!body) return Response.json({ error: 'Atualização inválida' }, { status: 400 })
 

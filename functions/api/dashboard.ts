@@ -1,4 +1,4 @@
-import { accessRequiredResponse, getAccessUser, type Bindings } from './_access'
+import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, getPermissionScope, type Bindings } from './_access'
 
 type MissionRow = {
   id: string
@@ -19,6 +19,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
 
+  const scope = await getPermissionScope(env, request, user, 'missions.view')
+  if (!scope) return permissionRequiredResponse()
+
   const profile = await env.DB.prepare(`
     SELECT xp, ideas, level
     FROM gamification_profiles
@@ -27,6 +30,20 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   `).bind(user.id).first<{ xp: number; ideas: number; level: string }>()
 
   if (!profile) return Response.json({ error: 'Nenhum perfil disponível' }, { status: 404 })
+
+  let scopeFilter = ''
+  const binds: any[] = [user.organizationId]
+
+  if (scope === 'own' || scope === 'participating_projects') {
+    scopeFilter = ' AND missions.id IN (SELECT mission_id FROM mission_assignees WHERE user_id = ?)'
+    binds.push(user.id)
+  } else if (scope === 'department') {
+    scopeFilter = ' AND (missions.department = ? OR missions.department IN (SELECT name FROM departments WHERE id = ?))'
+    binds.push(user.departmentId || 'none', user.departmentId || 'none')
+  } else if (scope === 'assigned_clients') {
+    scopeFilter = ' AND clients.account_manager_id = ?'
+    binds.push(user.id)
+  }
 
   const { results } = await env.DB.prepare(`
     SELECT
@@ -51,11 +68,11 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     JOIN projects ON projects.id = missions.project_id
     LEFT JOIN mission_assignees ON mission_assignees.mission_id = missions.id
     WHERE missions.status IN ('open', 'in_progress', 'completed')
-      AND projects.organization_id = ?
+      AND projects.organization_id = ?${scopeFilter}
     GROUP BY missions.id, missions.title, clients.name, missions.project_id, missions.due_at, missions.xp_reward, missions.ideas_reward, missions.visual_tone, missions.priority, missions.status, missions.approval_status
     ORDER BY CASE WHEN missions.status = 'completed' THEN 1 ELSE 0 END, missions.due_at ASC
     LIMIT 20
-  `).bind(user.organizationId).all<MissionRow>()
+  `).bind(...binds).all<MissionRow>()
 
   let levelConfig = null
   try {

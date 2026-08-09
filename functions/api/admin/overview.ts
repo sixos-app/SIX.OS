@@ -1,9 +1,9 @@
-import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../_access'
+import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
 
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  if (!hasPermission(user, 'users.manage')) return permissionRequiredResponse()
+  if (!(await hasPermissionV2(env, request, user, 'users.manage'))) return permissionRequiredResponse()
 
   const [team, roles, clients] = await Promise.all([
     env.DB.prepare(`

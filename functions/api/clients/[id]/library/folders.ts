@@ -1,9 +1,9 @@
-import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../../../_access'
+import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../../_access'
 
 export const onRequestPost: PagesFunction<Bindings, { id: string }> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  if (!hasPermission(user, 'library.manage')) return permissionRequiredResponse()
+  if (!(await hasPermissionV2(env, request, user, 'library.manage'))) return permissionRequiredResponse()
 
   const client = await env.DB.prepare('SELECT id FROM clients WHERE id = ? AND organization_id = ?').bind(params.id, user.organizationId).first<{ id: string }>()
   if (!client) return Response.json({ error: 'Cliente não encontrado' }, { status: 404 })

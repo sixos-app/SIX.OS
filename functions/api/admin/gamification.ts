@@ -1,4 +1,4 @@
-import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../_access'
+import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
 
 type SettingsRow = {
   xp_multiplier: number
@@ -21,7 +21,7 @@ const DEFAULT_REWARDS = [
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  if (!hasPermission(user, 'gamification.manage')) return permissionRequiredResponse()
+  if (!(await hasPermissionV2(env, request, user, 'gamification.manage'))) return permissionRequiredResponse()
 
   const settings = await env.DB.prepare(`
     SELECT xp_multiplier, level_config, rewards_config
@@ -54,7 +54,7 @@ type SaveGamificationInput = {
 export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  if (!hasPermission(user, 'gamification.manage')) return permissionRequiredResponse()
+  if (!(await hasPermissionV2(env, request, user, 'gamification.manage'))) return permissionRequiredResponse()
 
   const input = await request.json().catch(() => null) as SaveGamificationInput | null
   if (!input) return Response.json({ error: 'Dados inválidos' }, { status: 400 })

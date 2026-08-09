@@ -1,4 +1,4 @@
-import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../../../_access'
+import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../../_access'
 
 type ProjectRow = { id: string }
 type PositionRow = { position: number }
@@ -10,7 +10,7 @@ function slugPart(value: string) {
 export const onRequestPost: PagesFunction<Bindings, { id: string }> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  if (!hasPermission(user, 'library.manage')) return permissionRequiredResponse()
+  if (!(await hasPermissionV2(env, request, user, 'library.manage'))) return permissionRequiredResponse()
 
   const project = await env.DB.prepare('SELECT id FROM projects WHERE id = ? AND organization_id = ? LIMIT 1')
     .bind(params.id, user.organizationId)

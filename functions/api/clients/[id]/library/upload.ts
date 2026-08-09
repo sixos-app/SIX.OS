@@ -1,9 +1,9 @@
-import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../../../_access'
+import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../../_access'
 type Env = Bindings & { FILES: R2Bucket }
 const clean = (name: string) => name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'arquivo'
 export const onRequestPost: PagesFunction<Env, { id: string }> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env); if (!user) return accessRequiredResponse()
-  if (!hasPermission(user, 'library.manage')) return permissionRequiredResponse()
+  if (!(await hasPermissionV2(env, request, user, 'library.manage'))) return permissionRequiredResponse()
   const client = await env.DB.prepare('SELECT id FROM clients WHERE id = ? AND organization_id = ?').bind(params.id, user.organizationId).first<{ id: string }>(); if (!client) return Response.json({ error: 'Cliente não encontrado' }, { status: 404 })
   const form = await request.formData(), folderId = form.get('folderId'), file = form.get('file')
   if (typeof folderId !== 'string' || !(file instanceof File) || !file.size) return Response.json({ error: 'Selecione uma pasta e um arquivo válido' }, { status: 400 }); if (file.size > 25 * 1024 * 1024) return Response.json({ error: 'O arquivo deve ter no máximo 25 MB' }, { status: 413 })

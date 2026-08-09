@@ -31,7 +31,7 @@ export const onRequestGet: PagesFunction<Bindings, { id: string }> = async ({ en
     .first<ProjectRow>()
 
   if (!project) return Response.json({ error: 'Projeto não encontrado' }, { status: 404 })
-  if (!await canAccessProjectLibrary(env, user, project.id)) return permissionRequiredResponse()
+  if (!await canAccessProjectLibrary(env, request, user, project.id)) return permissionRequiredResponse()
 
   const [folderResult, fileResult] = await Promise.all([
     env.DB.prepare(`

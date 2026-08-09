@@ -1,4 +1,4 @@
-import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from '../../_access'
+import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../_access'
 
 type MissionReward = {
   id: string
@@ -25,8 +25,8 @@ export const onRequestPost: PagesFunction<Bindings, { id: string }> = async ({ e
   if (!mission) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
   if (mission.status === 'completed') return Response.json({ error: 'Missão já concluída' }, { status: 409 })
 
-  const canApprove = hasPermission(user, 'missions.approve')
-  const isAssignee = mission.assigneeId === user.id && hasPermission(user, 'missions.update_own')
+  const canApprove = await hasPermissionV2(env, request, user, 'missions.approve')
+  const isAssignee = mission.assigneeId === user.id && (await hasPermissionV2(env, request, user, 'missions.update_own'))
   if (!canApprove && !isAssignee) return permissionRequiredResponse()
 
   const completedAt = new Date().toISOString()

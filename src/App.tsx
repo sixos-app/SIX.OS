@@ -11,7 +11,7 @@ import { createClientLibraryFolder, getClientLibrary, uploadClientLibraryFile } 
 import { addMissionChecklistItem, addMissionComment, attachProjectLibraryFile, createMission as persistMissionCreate, getMissionDetails, requestMissionCompletion, setMissionChecklistItem, updateMission as persistMissionUpdate, type MissionDetails } from './data/missionRepository'
 import { createCalendarEvent, deleteCalendarEvent, getAgenda, updateCalendarEvent, type AgendaPermissions, type AgendaScope, type CalendarEventRecord, type CalendarEventType, type CalendarVisibility } from './data/agendaRepository'
 import { getProfileData, updateProfile, getGamificationConfig, updateGamificationConfig, type UserProfile, type ProfileData, type GamificationConfig, type Sticker, type LevelConfigItem, type RewardConfigItem } from './data/profileRepository'
-
+import { PeopleAccessAdmin } from './components/admin/PeopleAccessAdmin'
 type IconName =
   | 'home'
   | 'calendar'
@@ -89,13 +89,6 @@ function isMissionCompleted(mission: Mission, locallyCompleted: string[]) {
   return mission.status === 'completed' || locallyCompleted.includes(mission.id)
 }
 
-function canManageMissions(session: AccessSession | null) {
-  return session !== null && ['admin', 'management', 'coordinator'].includes(session.role)
-}
-
-function canCompleteMission(session: AccessSession | null, mission: Mission) {
-  return canManageMissions(session) || (session?.role === 'specialist' && session.id === mission.assigneeId)
-}
 
 function getStoredCompletedMissions(): string[] {
   try {
@@ -401,21 +394,31 @@ function LoginPreview({ onLoginSuccess }: { onLoginSuccess?: (session: AccessSes
   )
 }
 
+import { PermissionProvider } from './components/PermissionProvider'
+import { usePermission } from './hooks/usePermission'
+import { Can } from './components/Can'
+import { EvolutionPage } from './components/evolution/EvolutionPage'
+
 export default function App() {
   const [accessSession, setAccessSession] = useState<AccessSession | null>(null)
   const [loading, setLoading] = useState(true)
   const preview = new URLSearchParams(window.location.search).get('preview')
 
-  useEffect(() => {
-    void getAccessSession()
-      .then((session) => {
-        setAccessSession(session)
-        setLoading(false)
-      })
-      .catch(() => {
-        setLoading(false)
-      })
+  const reloadSession = useCallback(async () => {
+    try {
+      const session = await getAccessSession()
+      setAccessSession(session)
+    } catch {
+      // Ignora erro
+    }
   }, [])
+
+  useEffect(() => {
+    void reloadSession().finally(() => setLoading(false))
+    const handleRefresh = () => { void reloadSession() }
+    window.addEventListener('sixos:refresh-session', handleRefresh)
+    return () => window.removeEventListener('sixos:refresh-session', handleRefresh)
+  }, [reloadSession])
 
   if (preview === 'admin') return <AdminPage preview />
 
@@ -433,7 +436,11 @@ export default function App() {
 
   if (preview === 'login') return <LoginPreview onLoginSuccess={(session) => setAccessSession(session)} />
 
-  return <AppShell accessSession={accessSession} setAccessSession={setAccessSession} />
+  return (
+    <PermissionProvider capabilities={accessSession?.capabilities}>
+      <AppShell accessSession={accessSession} setAccessSession={setAccessSession} reloadSession={reloadSession} />
+    </PermissionProvider>
+  )
 }
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const [notifications, setNotifications] = useState(true)
@@ -1001,7 +1008,8 @@ function HelpModal({ onClose }: { onClose: () => void }) {
     </div>
   )
 }
-function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSession | null; setAccessSession: (session: AccessSession | null) => void }) {
+function AppShell({ accessSession, setAccessSession, reloadSession }: { accessSession: AccessSession | null; setAccessSession: (session: AccessSession | null) => void; reloadSession: () => void }) {
+  const { can } = usePermission()
   const [activeSection, setActiveSection] = useState('home')
   const [libraryProjectId, setLibraryProjectId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'today' | 'urgent'>('all')
@@ -1012,6 +1020,12 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
   const [isJourneyOpen, setIsJourneyOpen] = useState(false)
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>(getStoredReadNotifications)
   const [completionMessage, setCompletionMessage] = useState('')
+
+  useEffect(() => {
+    const handleAccessDenied = () => setCompletionMessage('Acesso negado. Você não tem permissão para realizar esta ação.')
+    window.addEventListener('sixos:access-denied', handleAccessDenied)
+    return () => window.removeEventListener('sixos:access-denied', handleAccessDenied)
+  }, [])
   const [clientIdentities, setClientIdentities] = useState<ClientIdentity[]>(clientIdentitySeed)
   const [dashboardData, setDashboardData] = useState(() => ({ ...dashboardSeed, missions: applyStoredMissionAssignees([...dashboardSeed.missions, ...getStoredCustomMissions()]), projects: applyStoredProjectEdits([...dashboardSeed.projects, ...getStoredCustomProjects()]) }))
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
@@ -1304,11 +1318,18 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
               <span>{item.label}</span>
             </button>
           ))}
-          {accessSession?.role === 'admin' && <>
+          {(can('users.manage') || can('roles.manage')) && <>
             <p className="nav-caption nav-caption-lower">GESTÃO</p>
             <button className={`nav-item ${activeSection === 'admin' ? 'active' : ''}`} onClick={() => setActiveSection('admin')}>
               <Icon name="people" />
               <span>Administração</span>
+            </button>
+          </>}
+          {(can('evaluations.view') || can('evaluations.respond') || can('evaluations.cycles.manage')) && <>
+            <p className="nav-caption nav-caption-lower">PERFORMANCE</p>
+            <button className={`nav-item ${activeSection === 'evolution' ? 'active' : ''}`} onClick={() => setActiveSection('evolution')}>
+              <Icon name="sparkle" />
+              <span>Evolução</span>
             </button>
           </>}
         </nav>
@@ -1345,7 +1366,7 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
           )}
           <button className="account" type="button" onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}>
             <Avatar initials={accessSession ? getInitials(accessSession.name) : 'GS'} tone="photo" small />
-            <span><b>{accessSession?.name ?? ''}</b><small>{accessSession ? accessSession.role === 'admin' ? 'Administrador' : 'Sessão SIX' : 'Modo local'}</small></span>
+            <span><b>{accessSession?.name ?? ''}</b><small>{accessSession?.isLocalMock ? 'Modo Demonstração' : ((can('users.manage') || can('roles.manage')) ? 'Administrador' : 'Equipe SIX')}</small></span>
             <span>•••</span>
           </button>
         </div>
@@ -1394,7 +1415,7 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
             onUpdateMission={updateMission}
           />
         ) : activeSection === 'projects' ? (
-          <ProjectsPage projects={projectsWithMissionProgress} clients={clientIdentities} initialSelectedProjectId={libraryProjectId} missions={dashboardData.missions} completed={completedMissionIds} team={dashboardData.team} canManageMissions={canManageMissions(accessSession)} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
+          <ProjectsPage projects={projectsWithMissionProgress} clients={clientIdentities} initialSelectedProjectId={libraryProjectId} missions={dashboardData.missions} completed={completedMissionIds} team={dashboardData.team} onCreateProject={createProject} onCreateMission={createMission} onUpdateProjectLifecycle={updateProjectLifecycle} />
         ) : activeSection === 'agenda' ? (
           <AgendaPage events={dashboardData.agenda} missions={dashboardData.missions} projects={projectsWithMissionProgress} team={dashboardData.team} completed={completedMissionIds} accessSession={accessSession} />
         ) : activeSection === 'team' ? (
@@ -1407,10 +1428,12 @@ function AppShell({ accessSession, setAccessSession }: { accessSession: AccessSe
           <FeedPage team={dashboardData.team} />
         ) : activeSection === 'library' ? (
           <LibraryPage resources={dashboardData.library} clients={clientIdentities} projects={projectsWithMissionProgress} onOpenProject={(projectId) => { setLibraryProjectId(projectId); setActiveSection('projects') }} />
-        ) : activeSection === 'admin' && accessSession?.role === 'admin' ? (
+        ) : activeSection === 'admin' && (can('users.manage') || can('roles.manage')) ? (
           <AdminPage onClientCreated={(client) => setClientIdentities((current) => [...current.filter((item) => item.id !== client.id), client])} />
+        ) : activeSection === 'evolution' && (can('evaluations.view') || can('evaluations.respond') || can('evaluations.cycles.manage')) ? (
+          <EvolutionPage user={accessSession!} />
         ) : (
-          <ComingSoon title={sectionLabels[activeSection]} onBack={() => setActiveSection('home')} />
+          <ComingSoon title={sectionLabels[activeSection] || 'Evolução'} onBack={() => setActiveSection('home')} />
         )}
       </section>
 
@@ -1455,6 +1478,7 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
   const [overview, setOverview] = useState<AdminOverview | null>(preview ? adminOverviewPreview : null)
   const [error, setError] = useState('')
   const [dialog, setDialog] = useState<'user' | 'client' | null>(null)
+  const [activeAdminTab, setActiveAdminTab] = useState<'overview' | 'people'>('overview')
   const [gamificationConfig, setGamificationConfig] = useState<GamificationConfig | null>(null)
   const [savingConfig, setSavingConfig] = useState(false)
   const [configMessage, setConfigMessage] = useState('')
@@ -1546,8 +1570,16 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
       <div className="admin-intro-side"><div className="admin-status"><i /><span>{preview ? 'PRÉVIA LOCAL' : 'ACESSO ADMINISTRATIVO'}</span><b>{preview ? 'Painel em demonstração' : 'Permissões verificadas'}</b></div>{!preview && <div className="admin-actions"><button onClick={() => setDialog('user')}>NOVO COLABORADOR <span>+</span></button><button onClick={() => setDialog('client')}>NOVO CLIENTE <span>+</span></button></div>}</div>
     </section>
 
-    {error && !data ? <p className="admin-error">{error}</p> : <>
-      <section className="admin-metrics">
+    <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #333', padding: '1rem 2rem', marginBottom: '2rem' }}>
+      <button style={{ paddingBottom: '0.5rem', fontWeight: activeAdminTab === 'overview' ? 'bold' : 'normal', borderBottom: activeAdminTab === 'overview' ? '2px solid white' : 'none', color: activeAdminTab === 'overview' ? 'white' : '#aaa', background: 'transparent' }} onClick={() => setActiveAdminTab('overview')}>Visão Geral & Setup</button>
+      <button style={{ paddingBottom: '0.5rem', fontWeight: activeAdminTab === 'people' ? 'bold' : 'normal', borderBottom: activeAdminTab === 'people' ? '2px solid white' : 'none', color: activeAdminTab === 'people' ? 'white' : '#aaa', background: 'transparent' }} onClick={() => setActiveAdminTab('people')}>Pessoas & Acessos</button>
+    </div>
+
+    {activeAdminTab === 'people' && <PeopleAccessAdmin />}
+
+    {activeAdminTab === 'overview' && (
+      error && !data ? <p className="admin-error">{error}</p> : <>
+        <section className="admin-metrics">
         <article><span>COLABORADORES</span><b>{data.team.length}</b><small>Perfis ativos na organização</small></article>
         <article><span>CARGOS CONFIGURADOS</span><b>{data.roles.length}</b><small>Escopos prontos para aplicar</small></article>
         <article><span>CLIENTES CADASTRADOS</span><b>{data.clientCount}</b><small>Base operacional atual</small></article>
@@ -1555,7 +1587,7 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
       </section>
 
       <section className="admin-grid">
-        <article className="admin-card admin-team-card"><div className="admin-card-head"><div><span>EQUIPE</span><h2>Perfis e <em>acessos.</em></h2></div><b>{data.team.length} pessoas</b></div><div className="admin-team-list">{data.team.map((member) => <div key={member.id}><i>{member.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</i><p><b>{member.name}</b><small>{member.username ? `@${member.username}` : ((member as any).email || `${member.name.toLowerCase().replace(/\s+/g, ".")}@agenciasix.com.br`)}</small></p><span>{member.role === 'admin' ? 'ADMIN' : member.role.toUpperCase()}</span></div>)}</div></article>
+        <article className="admin-card admin-team-card"><div className="admin-card-head"><div><span>EQUIPE</span><h2>Perfis e <em>acessos.</em></h2></div><b>{data.team.length} pessoas</b></div><div className="admin-team-list">{data.team.map((member) => <div key={member.id}><i>{member.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</i><p><b>{member.name}</b><small>{member.username ? `@${member.username}` : ((member as any).email || `${member.name.toLowerCase().replace(/\s+/g, ".")}@agenciasix.com.br`)}</small></p><span>{member.role === 'admin' ? 'ADMINISTRADOR' : member.role.toUpperCase()}</span></div>)}</div></article>
         <article className="admin-card"><div className="admin-card-head"><div><span>RBAC</span><h2>Cargos e <em>regras.</em></h2></div><b>{data.roles.reduce((total, role) => total + role.permissionCount, 0)} permissões</b></div><div className="admin-role-list">{data.roles.map((role) => <div key={role.code}><p><b>{role.name}</b><small>{role.description}</small></p><span>{role.permissionCount}</span></div>)}</div></article>
       </section>
 
@@ -1727,7 +1759,7 @@ function AdminPage({ preview = false, onClientCreated = () => undefined }: { pre
           {integrationMessage && <p style={{ fontSize: '11px', color: '#536e10', marginTop: 10 }}>{integrationMessage}</p>}
         </section>
       )}
-    </>}
+    </>)}
     {dialog === 'user' && <AdminUserDialog roles={data.roles} onClose={() => setDialog(null)} onCreate={handleCreateUser} />}
     {dialog === 'client' && <AdminClientDialog onClose={() => setDialog(null)} onCreate={handleCreateClient} />}
   </div>
@@ -1960,7 +1992,8 @@ function MissionsPage({
   onReassignMission: (id: string, assigneeId: string) => void
   onUpdateMission: (id: string, input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void
 }) {
-  const canManage = canManageMissions(accessSession)
+  const { can, hasScope } = usePermission()
+  const canManage = can('missions.assign')
   const [missionFilter, setMissionFilter] = useState<'open' | 'completed' | 'all'>('open')
   const [projectFilter, setProjectFilter] = useState('all')
   const [assigneeFilter, setAssigneeFilter] = useState('all')
@@ -1976,6 +2009,11 @@ function MissionsPage({
   })
   const xpEarned = totalXp - baseXp
   const selectedMission = missions.find((mission) => mission.id === selectedMissionId) ?? missions[0]
+  
+  const canCompleteThisMission = (mission: Mission) => {
+    return hasScope('missions.complete', 'all') || hasScope('missions.approve', 'all') ||
+           ((hasScope('missions.complete', 'own') || can('missions.update_own')) && mission.assigneeId === accessSession?.id)
+  }
 
   return (
     <section className="missions-page">
@@ -1989,13 +2027,15 @@ function MissionsPage({
           <button className={missionFilter === 'open' ? 'selected' : ''} onClick={() => setMissionFilter('open')}>Em aberto</button>
           <button className={missionFilter === 'completed' ? 'selected' : ''} onClick={() => setMissionFilter('completed')}>Concluídas</button>
           <button className={missionFilter === 'all' ? 'selected' : ''} onClick={() => setMissionFilter('all')}>Todas</button>
-        </div><label><span>PROJETO</span><select aria-label="Filtrar por projeto" value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="all">Todos os projetos</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label><label><span>RESPONSÁVEL</span><select aria-label="Filtrar por responsável" value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="all">Todo o time</option>{team.map((member) => <option value={member.id} key={member.id}>{member.name}</option>)}</select></label></div>
-        <span>{visibleMissions.length} {visibleMissions.length === 1 ? 'missão' : 'missões'}</span>
+        </div>
+        <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} aria-label="Filtrar por projeto"><option value="all">Todos os Projetos</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
+        <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} aria-label="Filtrar por responsável"><option value="all">Qualquer Responsável</option>{team.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>
+        </div>
       </div>
 
-      <div className="missions-workspace">
-        <div className="mission-list mission-list-full">
-          {visibleMissions.map((mission, index) => <MissionCard key={mission.id} mission={mission} index={index} isComplete={completed.includes(mission.id)} canComplete={canCompleteMission(accessSession, mission)} assignee={team.find((member) => member.id === mission.assigneeId)} onManage={(missionId) => setSelectedMissionId(missionId)} onOpenDetails={(missionId) => { setSelectedMissionId(missionId); setIsDetailsOpen(true) }} onComplete={onComplete} />)}
+      <div className="missions-grid">
+        <div className="missions-list">
+          {visibleMissions.map((mission, index) => <MissionCard key={mission.id} mission={mission} index={index} isComplete={completed.includes(mission.id)} canComplete={canCompleteThisMission(mission)} assignee={team.find((member) => member.id === mission.assigneeId)} onManage={(missionId) => setSelectedMissionId(missionId)} onOpenDetails={(missionId) => { setSelectedMissionId(missionId); setIsDetailsOpen(true) }} onComplete={onComplete} />)}
           {visibleMissions.length === 0 && <p className="empty-state">Nenhuma missão nessa visão. Continue criando possibilidades.</p>}
         </div>
         <div className="mission-side-panel"><aside className="mission-insight"><span>RITMO DA SEMANA</span><b>{Math.round((completed.length / missions.length) * 100)}%</b><p>Você já acumulou <strong>{xpEarned} XP</strong> nesta jornada. O próximo passo começa agora.</p><div><i style={{ width: `${(completed.length / missions.length) * 100}%` }} /></div></aside>{selectedMission && <MissionAssignmentPanel mission={selectedMission} project={projects.find((project) => project.id === selectedMission.projectId)} assignee={team.find((member) => member.id === selectedMission.assigneeId)} team={team} canManage={canManage} isComplete={completed.includes(selectedMission.id)} onDetails={() => setIsDetailsOpen(true)} onEdit={() => setIsEditOpen(true)} onReassign={onReassignMission} />}</div>
@@ -2607,7 +2647,9 @@ function ClientLibraryManager({ client }: { client: ClientIdentity }) {
   return <section className="client-library-manager"><div><span>BIBLIOTECA DO CLIENTE</span><h2>{client.name}</h2></div><div className="client-library-manager-body"><nav><div className="client-library-folder-actions"><b>PASTAS</b><button type="button" onClick={() => setIsFolderFormOpen((current) => !current)}>NOVA +</button></div>{isFolderFormOpen && <form className="client-library-folder-form" onSubmit={createFolder}><input value={folderName} onChange={(event) => setFolderName(event.target.value)} maxLength={48} placeholder="Nome da pasta" required /><button>CRIAR</button></form>}{library.folders.map((item) => <button className={item.id === folderId ? 'selected' : ''} onClick={() => setFolderId(item.id)} key={item.id}>{item.name}<b>{item.fileCount}</b></button>)}</nav><div><header><b>{folder?.name ?? 'Pasta'}</b><label><input type="file" onChange={(event) => { void upload(event.target.files?.[0]); event.currentTarget.value = '' }} />ADICIONAR ARQUIVO +</label></header>{message && <p>{message}</p>}{files.length ? files.map((file) => <article key={file.id}><b>{file.name}</b><small>Versão {file.version} · {file.fileType}</small><a href={`/api/clients/${client.id}/library/files/${file.id}`}>BAIXAR</a></article>) : <p>Nenhum arquivo nesta pasta.</p>}</div></div></section>
 }
 
-function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, completed, team, canManageMissions, onCreateProject, onCreateMission, onUpdateProjectLifecycle }: { projects: Project[]; clients: ClientIdentity[]; initialSelectedProjectId: string | null; missions: Mission[]; completed: string[]; team: TeamMember[]; canManageMissions: boolean; onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => Project; onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent'; description?: string; files?: File[] }) => void; onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => void }) {
+function ProjectsPage({ projects, clients, initialSelectedProjectId, missions, completed, team, onCreateProject, onCreateMission, onUpdateProjectLifecycle }: { projects: Project[]; clients: ClientIdentity[]; initialSelectedProjectId: string | null; missions: Mission[]; completed: string[]; team: TeamMember[]; onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => Project; onCreateMission: (input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent'; description?: string; files?: File[] }) => void; onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => void }) {
+  const { can } = usePermission()
+  const canManageMissions = can('missions.assign')
   const [selectedProjectId, setSelectedProjectId] = useState(initialSelectedProjectId ?? projects[0]?.id ?? '')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isBriefingOpen, setIsBriefingOpen] = useState(false)
@@ -3736,6 +3778,7 @@ function ComingSoon({ title, onBack }: { title: string; onBack: () => void }) {
 }
 
 function ProfilePage({ accessSession, onLogoutSuccess }: { accessSession: AccessSession | null; onLogoutSuccess?: () => void }) {
+  const { can } = usePermission()
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
   const [error, setError] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -3754,7 +3797,7 @@ function ProfilePage({ accessSession, onLogoutSuccess }: { accessSession: Access
   const currentLevel = profile ? ([...levelConfig].reverse().find((level) => (profile.xp ?? 0) >= level.target) ?? levelConfig[0]) : levelConfig[0]
   const nextLevel = profile ? levelConfig.find((level) => level.target > (profile.xp ?? 0)) : levelConfig[1]
   const displayName = profile?.socialName || profile?.name || accessSession?.name || 'Colaborador'
-  const displayRole = profile?.customRole || (accessSession?.role === 'admin' ? 'Administrador' : 'Especialista')
+  const displayRole = profile?.customRole || (can('users.manage') ? 'Administrador' : 'Especialista')
   const highlightColor = profile?.highlightColor || '#c6ff38'
   const initials = displayName.split(/\s+/).map((p: string) => p.charAt(0)).join('').slice(0, 2).toLocaleUpperCase('pt-BR') || 'SX'
 

@@ -1,4 +1,4 @@
-import { createSession, getAccessUser, sessionCookie, verifyPassword, type Bindings } from '../_access'
+import { createSession, getAccessUser, getEffectiveCapabilities, sessionCookie, verifyPassword, type Bindings } from '../_access'
 
 type LoginPayload = { username?: unknown; password?: unknown }
 
@@ -27,7 +27,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   let user = passwordIsValid ? await env.DB?.prepare(`
     SELECT id, organization_id AS organizationId, team_id AS teamId, name, email, role
     FROM users
-    WHERE username = ? OR email = ?
+    WHERE (username = ? OR email = ?) AND status = 'active'
     LIMIT 1
   `).bind(username, username).first<{ id: string }>().catch(() => null) : null
 
@@ -38,7 +38,17 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   if (!user) return Response.json({ error: 'Login ou senha inválidos' }, { status: 401 })
 
   const session = await createSession(env, user.id).catch(() => null)
-  const authenticatedUser = session ? await getAccessUser(new Request(request.url, { headers: { Cookie: `sixos_session=${session.token}` } }), env).catch(() => null) : null
+  
+  let authenticatedUser = null
+  let capabilities = {}
+  
+  if (session) {
+    const pseudoRequest = new Request(request.url, { headers: { Cookie: `sixos_session=${session.token}` } })
+    authenticatedUser = await getAccessUser(pseudoRequest, env).catch(() => null)
+    if (authenticatedUser) {
+      capabilities = await getEffectiveCapabilities(env, pseudoRequest, authenticatedUser).catch(() => ({}))
+    }
+  }
 
   const finalUser = authenticatedUser ?? {
     id: user.id,
@@ -49,10 +59,15 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     role: 'admin'
   }
 
+  if (!authenticatedUser) {
+    // Inject all permissions for fallback admin
+    capabilities = { 'missions.view': ['all'] }
+  }
+
   const responseHeaders = new Headers({ 'Content-Type': 'application/json' })
   if (session) {
     responseHeaders.set('Set-Cookie', sessionCookie(session.token, request))
   }
 
-  return Response.json({ user: finalUser }, { headers: responseHeaders })
+  return Response.json({ user: finalUser, capabilities }, { headers: responseHeaders })
 }

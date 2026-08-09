@@ -45,6 +45,7 @@ export function getRoleLabel(role: string) {
   return isRoleCode(role) ? roleLabels[role] : 'Colaborador'
 }
 
+/** @deprecated Use usePermission() or capabilities from AccessSession instead (RBAC V2) */
 export function hasPermission(role: string, permission: PermissionCode) {
   return isRoleCode(role) && permissionsByRole[role].includes(permission)
 }
