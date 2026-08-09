@@ -8,9 +8,14 @@ export function EvolutionOverview({ onNavigate }: { onNavigate: (tab: any) => vo
   useEffect(() => {
     fetch('/api/evolution/overview')
       .then(async r => {
-        const d = await r.json()
+        let d;
+        try {
+          d = await r.json()
+        } catch(e) {
+          throw new Error('Payload inválido da API.')
+        }
         if (!r.ok) {
-          throw new Error(d.error || 'Erro ao carregar dados.')
+          throw new Error(d?.error || 'Erro ao carregar dados.')
         }
         return d
       })
@@ -26,10 +31,9 @@ export function EvolutionOverview({ onNavigate }: { onNavigate: (tab: any) => vo
 
   if (loading) return <div style={{ color: '#888' }}>Carregando visão geral...</div>
   if (error) return (
-    <div style={{ color: '#ff5252', background: 'rgba(255, 82, 82, 0.1)', padding: '24px', borderRadius: '8px' }}>
-      <h3 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>Erro ao carregar módulo Evolução</h3>
-      <p style={{ margin: 0, fontSize: '14px' }}>{error}</p>
-      <button onClick={() => window.location.reload()} style={{ marginTop: '16px', background: '#ff5252', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Tentar novamente</button>
+    <div style={{ color: '#fff', background: '#2a2a2a', padding: '24px', borderRadius: '8px', border: '1px solid #444', textAlign: 'center' }}>
+      <p style={{ margin: '0 0 16px 0', fontSize: '14px' }}>Não foi possível carregar esta área.</p>
+      <button onClick={() => window.location.reload()} style={{ background: '#c6ff38', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Tentar novamente</button>
     </div>
   )
   if (!data) return null
