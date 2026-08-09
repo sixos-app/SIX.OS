@@ -3,19 +3,36 @@ import { useState, useEffect } from 'react'
 export function EvolutionOverview({ onNavigate }: { onNavigate: (tab: any) => void }) {
   const [data, setData] = useState<{ activeCycles: any[], pendingAssignments: number, resultsAvailable: number } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/evolution/overview')
-      .then(r => r.json())
+      .then(async r => {
+        const d = await r.json()
+        if (!r.ok) {
+          throw new Error(d.error || 'Erro ao carregar dados.')
+        }
+        return d
+      })
       .then(d => {
         setData(d)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch((e) => {
+        setError(e.message)
+        setLoading(false)
+      })
   }, [])
 
   if (loading) return <div style={{ color: '#888' }}>Carregando visão geral...</div>
-  if (!data) return <div style={{ color: '#ff5252' }}>Erro ao carregar dados.</div>
+  if (error) return (
+    <div style={{ color: '#ff5252', background: 'rgba(255, 82, 82, 0.1)', padding: '24px', borderRadius: '8px' }}>
+      <h3 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>Erro ao carregar módulo Evolução</h3>
+      <p style={{ margin: 0, fontSize: '14px' }}>{error}</p>
+      <button onClick={() => window.location.reload()} style={{ marginTop: '16px', background: '#ff5252', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Tentar novamente</button>
+    </div>
+  )
+  if (!data) return null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

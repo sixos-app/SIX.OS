@@ -82,6 +82,27 @@ export async function onRequestPost({ request, env }: { request: Request; env: B
     }
   }
 
+  // Confidentiality Check (Obscured)
+  if (body.sourceCycleId) {
+    const cycle = await env.DB.prepare(`SELECT results_available_at FROM evaluation_cycles WHERE id = ? AND organization_id = ?`).bind(body.sourceCycleId, user.organizationId).first<{ results_available_at: string | null }>()
+    if (cycle && cycle.results_available_at) {
+      if (new Date(cycle.results_available_at).getTime() > Date.now()) {
+        return Response.json({ error: 'Cycle results are obscured and not available yet' }, { status: 403 })
+      }
+    }
+  }
+  if (body.sourceDebriefId) {
+    const debrief = await env.DB.prepare(`SELECT cycle_id FROM evaluation_debriefs WHERE id = ? AND organization_id = ?`).bind(body.sourceDebriefId, user.organizationId).first<{ cycle_id: string | null }>()
+    if (debrief && debrief.cycle_id) {
+      const cycle = await env.DB.prepare(`SELECT results_available_at FROM evaluation_cycles WHERE id = ? AND organization_id = ?`).bind(debrief.cycle_id, user.organizationId).first<{ results_available_at: string | null }>()
+      if (cycle && cycle.results_available_at) {
+        if (new Date(cycle.results_available_at).getTime() > Date.now()) {
+          return Response.json({ error: 'Debrief results are obscured and not available yet' }, { status: 403 })
+        }
+      }
+    }
+  }
+
   const id = crypto.randomUUID()
 
   await env.DB.prepare(`

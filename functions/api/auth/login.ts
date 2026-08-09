@@ -17,23 +17,12 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
 
   let passwordIsValid = await verifyPassword(env, username, password).catch(() => false)
 
-  // Resilient fallback for agsix admin user
-  if (!passwordIsValid && (username === 'agsix' || username === 'agsix@sixos.app')) {
-    if (['agsix', 'agsix123', 'admin', 'admin123', 'sixos', 'sixos123', '123456', 'senha123'].includes(password)) {
-      passwordIsValid = true
-    }
-  }
-
   let user = passwordIsValid ? await env.DB?.prepare(`
     SELECT id, organization_id AS organizationId, team_id AS teamId, name, email, role
     FROM users
     WHERE (username = ? OR email = ?) AND status = 'active'
     LIMIT 1
   `).bind(username, username).first<{ id: string }>().catch(() => null) : null
-
-  if (passwordIsValid && !user && (username === 'agsix' || username === 'agsix@sixos.app')) {
-    user = { id: 'user-agsix-admin' }
-  }
 
   if (!user) return Response.json({ error: 'Login ou senha inválidos' }, { status: 401 })
 
@@ -50,18 +39,8 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     }
   }
 
-  const finalUser = authenticatedUser ?? {
-    id: user.id,
-    organizationId: 'org-six',
-    teamId: 'team-six',
-    name: 'Administração SIX',
-    email: 'agsix@sixos.app',
-    role: 'admin'
-  }
-
   if (!authenticatedUser) {
-    // Inject all permissions for fallback admin
-    capabilities = { 'missions.view': ['all'] }
+    return Response.json({ error: 'Erro ao inicializar sessão' }, { status: 500 })
   }
 
   const responseHeaders = new Headers({ 'Content-Type': 'application/json' })
@@ -69,5 +48,5 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     responseHeaders.set('Set-Cookie', sessionCookie(session.token, request))
   }
 
-  return Response.json({ user: finalUser, capabilities }, { headers: responseHeaders })
+  return Response.json({ user: authenticatedUser, capabilities }, { headers: responseHeaders })
 }

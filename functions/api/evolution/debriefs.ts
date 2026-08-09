@@ -61,8 +61,18 @@ export async function onRequestPost({ request, env }: { request: Request; env: B
       return permissionRequiredResponse()
     } else if (scope === 'team' && subject.manager_id !== user.id) {
       return permissionRequiredResponse()
-    } else if (scope === 'own') {
-      return permissionRequiredResponse() // Usually you don't create your own debrief, your manager does. But if allowed:
+    } else if (scope === 'own' && body.subjectUserId !== user.id) {
+      return permissionRequiredResponse()
+    }
+  }
+
+  // Confidentiality Check (Obscured)
+  if (body.cycleId) {
+    const cycle = await env.DB.prepare(`SELECT results_available_at FROM evaluation_cycles WHERE id = ? AND organization_id = ?`).bind(body.cycleId, user.organizationId).first<{ results_available_at: string | null }>()
+    if (cycle && cycle.results_available_at) {
+      if (new Date(cycle.results_available_at).getTime() > Date.now()) {
+        return Response.json({ error: 'Cycle results are obscured and not available yet' }, { status: 403 })
+      }
     }
   }
 

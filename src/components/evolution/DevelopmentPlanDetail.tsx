@@ -4,6 +4,8 @@ export function DevelopmentPlanDetail({ planId, onBack, user }: { planId: string
   const [plan, setPlan] = useState<any>(null)
   const [goals, setGoals] = useState<any[]>([])
   const [actions, setActions] = useState<any[]>([])
+  const [timeline, setTimeline] = useState<any[]>([])
+  const [checkins, setCheckins] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   const [newGoalTitle, setNewGoalTitle] = useState('')
@@ -21,9 +23,17 @@ export function DevelopmentPlanDetail({ planId, onBack, user }: { planId: string
       const aRes = await fetch(`/api/evolution/development-plans/${planId}/actions`)
       const a = await aRes.json()
 
+      const tRes = await fetch(`/api/evolution/development-plans/${planId}/timeline`)
+      const t = await tRes.json()
+
+      const cRes = await fetch(`/api/evolution/development-plans/${planId}/checkins`)
+      const c = await cRes.json()
+
       setPlan(p)
       setGoals(g || [])
       setActions(a || [])
+      setTimeline(t || [])
+      setCheckins(c || [])
     } catch (e) {
       console.error(e)
     } finally {
@@ -102,6 +112,45 @@ export function DevelopmentPlanDetail({ planId, onBack, user }: { planId: string
             ))}
           </div>
         )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+        <div style={{ background: '#141414', border: '1px solid #2a2a2a', padding: '24px', borderRadius: '8px' }}>
+          <h3 style={{ margin: '0 0 16px 0', color: '#fff', fontSize: '16px' }}>Check-ins de Acompanhamento</h3>
+          {checkins.length === 0 ? (
+            <p style={{ color: '#888' }}>Nenhum check-in agendado.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {checkins.map(c => (
+                <div key={c.id} style={{ background: '#1a1a1a', border: '1px solid #333', padding: '12px', borderRadius: '6px' }}>
+                  <div style={{ color: '#c6ff38', fontSize: '14px', fontWeight: 'bold' }}>{new Date(c.meetingDate).toLocaleDateString()}</div>
+                  <div style={{ color: '#888', fontSize: '12px' }}>Status: {c.status}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ background: '#141414', border: '1px solid #2a2a2a', padding: '24px', borderRadius: '8px' }}>
+          <h3 style={{ margin: '0 0 16px 0', color: '#fff', fontSize: '16px' }}>Timeline do PDI</h3>
+          {timeline.length === 0 ? (
+            <p style={{ color: '#888' }}>Nenhum evento registrado.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative' }}>
+              {timeline.map((evt, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#c6ff38', marginTop: '6px' }}></div>
+                  <div>
+                    <div style={{ color: '#fff', fontSize: '13px' }}>{evt.description}</div>
+                    <div style={{ color: '#888', fontSize: '11px' }}>
+                      {new Date(evt.timestamp).toLocaleString()} • {evt.authorName}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

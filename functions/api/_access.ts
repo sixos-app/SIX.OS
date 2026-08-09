@@ -1,52 +1,13 @@
-export type Bindings = { DB: D1Database }
-
-export type AccessUser = {
-  id: string
-  organizationId: string
-  teamId: string | null
-  departmentId: string | null
-  accessProfileId: string | null
-  managerId: string | null
-  name: string
-  email: string
-  role: string
+export type Bindings = { 
+  DB: D1Database
+  ALLOW_DEV_AUTH_BYPASS?: string
+  CF_ACCESS_TEAM_DOMAIN?: string
+  CF_ACCESS_AUD?: string
 }
 
-type CredentialRow = {
-  passwordSalt: string
-  passwordHash: string
-  iterations: number
-}
+import { createRemoteJWKSet, jwtVerify } from 'jose'
 
 const encoder = new TextEncoder()
-
-const rolePermissions: Record<string, readonly string[]> = {
-  admin: ['users.manage', 'roles.manage', 'gamification.manage', 'projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.update_own', 'clients.manage', 'library.manage', 'finance.view', 'ai.use', 'reports.view', 'agenda.team.view'],
-  management: ['projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view'],
-  coordinator: ['projects.manage', 'missions.assign', 'missions.approve', 'agenda.team.view'],
-  service: ['projects.create', 'clients.manage', 'agenda.team.view'],
-  specialist: ['missions.update_own'],
-}
-
-function parseCookies(request: Request) {
-  return Object.fromEntries((request.headers.get('cookie') ?? '').split(';').map((item) => {
-    const [key, ...value] = item.trim().split('=')
-    return [key, value.join('=')]
-  }).filter(([key]) => key))
-}
-
-function fromBase64(value: string) {
-  const binary = atob(value)
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
-}
-
-function sameBytes(left: Uint8Array, right: Uint8Array) {
-  if (left.length !== right.length) return false
-
-  let difference = 0
-  for (let index = 0; index < left.length; index += 1) difference |= left[index] ^ right[index]
-  return difference === 0
-}
 
 async function digest(value: string) {
   const bytes = await crypto.subtle.digest('SHA-256', encoder.encode(value))
@@ -72,9 +33,41 @@ async function getUserByCondition(env: Bindings, condition: string, value: strin
   `).bind(value).first<AccessUser>()
 }
 
+async function verifyCloudflareJwt(jwt: string, env: Bindings): Promise<boolean> {
+  if (!env.CF_ACCESS_TEAM_DOMAIN || !env.CF_ACCESS_AUD) {
+    console.error('CF_ACCESS_TEAM_DOMAIN or CF_ACCESS_AUD missing for JWT validation')
+    return false
+  }
+
+  try {
+    const jwksUri = new URL('/cdn-cgi/access/certs', env.CF_ACCESS_TEAM_DOMAIN)
+    const jwks = createRemoteJWKSet(jwksUri)
+    const { payload } = await jwtVerify(jwt, jwks, {
+      audience: env.CF_ACCESS_AUD,
+      issuer: env.CF_ACCESS_TEAM_DOMAIN
+    })
+    return !!payload.email
+  } catch (err) {
+    console.error('JWT Verification failed:', err)
+    return false
+  }
+}
+
 export async function getAccessUser(request: Request, env: Bindings): Promise<AccessUser | null> {
   const accessEmail = request.headers.get('Cf-Access-Authenticated-User-Email')?.trim().toLocaleLowerCase('en-US')
-  if (accessEmail) return (await getUserByCondition(env, 'users.email', accessEmail)) ?? null
+  const accessJwt = request.headers.get('Cf-Access-Jwt-Assertion')
+  
+  if (accessEmail && accessJwt) {
+    const isValid = await verifyCloudflareJwt(accessJwt, env)
+    if (isValid) {
+      return (await getUserByCondition(env, 'users.email', accessEmail)) ?? null
+    }
+  }
+
+  // Security Boundary: Only allow local bypass if explicitly enabled by ALLOW_DEV_AUTH_BYPASS
+  if (accessEmail && env.ALLOW_DEV_AUTH_BYPASS === 'true') {
+    return (await getUserByCondition(env, 'users.email', accessEmail)) ?? null
+  }
 
   const sessionToken = parseCookies(request).sixos_session
   if (!sessionToken) return null
@@ -108,6 +101,56 @@ export async function getAccessUser(request: Request, env: Bindings): Promise<Ac
   await env.DB.prepare('DELETE FROM auth_sessions WHERE token_hash = ?').bind(tokenHash).run()
   return null
 }
+
+export type AccessUser = {
+  id: string
+  organizationId: string
+  teamId: string | null
+  departmentId: string | null
+  accessProfileId: string | null
+  managerId: string | null
+  name: string
+  email: string
+  role: string
+}
+
+type CredentialRow = {
+  passwordSalt: string
+  passwordHash: string
+  iterations: number
+}
+
+
+
+const rolePermissions: Record<string, readonly string[]> = {
+  admin: ['users.manage', 'roles.manage', 'gamification.manage', 'projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.update_own', 'clients.manage', 'library.manage', 'finance.view', 'ai.use', 'reports.view', 'agenda.team.view'],
+  management: ['projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view'],
+  coordinator: ['projects.manage', 'missions.assign', 'missions.approve', 'agenda.team.view'],
+  service: ['projects.create', 'clients.manage', 'agenda.team.view'],
+  specialist: ['missions.update_own'],
+}
+
+function parseCookies(request: Request) {
+  return Object.fromEntries((request.headers.get('cookie') ?? '').split(';').map((item) => {
+    const [key, ...value] = item.trim().split('=')
+    return [key, value.join('=')]
+  }).filter(([key]) => key))
+}
+
+function fromBase64(value: string) {
+  const binary = atob(value)
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
+}
+
+function sameBytes(left: Uint8Array, right: Uint8Array) {
+  if (left.length !== right.length) return false
+
+  let difference = 0
+  for (let index = 0; index < left.length; index += 1) difference |= left[index] ^ right[index]
+  return difference === 0
+}
+
+
 
 export async function verifyPassword(env: Bindings, username: string, password: string) {
   const credential = await env.DB.prepare(`
@@ -143,7 +186,7 @@ export async function deleteSession(request: Request, env: Bindings) {
 
 export function sessionCookie(token: string, request: Request, maxAge = 60 * 60 * 12) {
   const secure = new URL(request.url).protocol === 'https:' ? '; Secure' : ''
-  return `sixos_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`
+  return `sixos_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`
 }
 
 export function accessRequiredResponse() {

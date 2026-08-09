@@ -30,4 +30,4 @@ INSERT OR IGNORE INTO user_role_assignments (user_id, role_code) VALUES
   ('user-agsix-admin', 'admin');
 
 INSERT OR IGNORE INTO user_credentials (user_id, password_salt, password_hash, iterations) VALUES
-  ('user-agsix-admin', 'jA5xtnOfAnX46jbLQZicyA==', 'f2D1qRbTAWqQabn/0eVOILcZBUwNi4XG7cOzmkqUa8E=', 310000);
+  ('user-agsix-admin', 'MKfeKYaVzqLsgqUtFa5g+g==', 'rE/3XV2yHGDxylW0NXbz5cJN5bCD+ebD2q18nj1wqY0=', 310000);

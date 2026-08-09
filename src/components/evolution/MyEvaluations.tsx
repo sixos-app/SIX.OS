@@ -5,6 +5,7 @@ export function MyEvaluations() {
   const [assignments, setAssignments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAssignments()
@@ -12,13 +13,21 @@ export function MyEvaluations() {
 
   const fetchAssignments = () => {
     setLoading(true)
+    setError(null)
     fetch('/api/evolution/assignments')
-      .then(r => r.json())
+      .then(async r => {
+        const d = await r.json()
+        if (!r.ok) throw new Error(d.error || 'Erro ao carregar avaliações.')
+        return d
+      })
       .then(d => {
         setAssignments(d)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch((e) => {
+        setError(e.message)
+        setLoading(false)
+      })
   }
 
   if (selectedId) {
@@ -26,6 +35,12 @@ export function MyEvaluations() {
   }
 
   if (loading) return <div style={{ color: '#888' }}>Carregando avaliações...</div>
+  if (error) return (
+    <div style={{ color: '#ff5252', background: 'rgba(255, 82, 82, 0.1)', padding: '24px', borderRadius: '8px' }}>
+      <h3 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>Erro</h3>
+      <p style={{ margin: 0, fontSize: '14px' }}>{error}</p>
+    </div>
+  )
 
   const relationshipLabels: Record<string, string> = {
     self: 'Autoavaliação',

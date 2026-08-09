@@ -17,6 +17,7 @@
     "version:major": "npm version major --no-git-tag-version"
   },
   "dependencies": {
+    "jose": "^6.2.8",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

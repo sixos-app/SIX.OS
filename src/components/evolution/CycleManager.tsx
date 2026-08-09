@@ -7,19 +7,29 @@ export function CycleManager() {
   const [isCreating, setIsCreating] = useState(false)
   const [selectedCycle, setSelectedCycle] = useState<any | null>(null)
 
+  const [error, setError] = useState<string | null>(null)
+
   useEffect(() => {
     fetchCycles()
   }, [])
 
   const fetchCycles = () => {
     setLoading(true)
+    setError(null)
     fetch('/api/evolution/admin/cycles')
-      .then(r => r.json())
+      .then(async r => {
+        const d = await r.json()
+        if (!r.ok) throw new Error(d.error || 'Erro ao carregar ciclos.')
+        return d
+      })
       .then(d => {
         setCycles(Array.isArray(d) ? d : [])
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch((e) => {
+        setError(e.message)
+        setLoading(false)
+      })
   }
 
   const handleActivate = async (id: string) => {
@@ -80,6 +90,12 @@ export function CycleManager() {
   }
 
   if (loading) return <div style={{ color: '#888', padding: '20px' }}>Carregando ciclos...</div>
+  if (error) return (
+    <div style={{ color: '#ff5252', background: 'rgba(255, 82, 82, 0.1)', padding: '24px', borderRadius: '8px' }}>
+      <h3 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>Erro</h3>
+      <p style={{ margin: 0, fontSize: '14px' }}>{error}</p>
+    </div>
+  )
 
   return (
     <div>
