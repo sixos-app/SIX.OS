@@ -293,7 +293,8 @@ export const SYSTEM_PERMISSIONS = [
   'demands.view', 'demands.create',
   'time_entries.view', 'time_entries.create', 'time_entries.manage',
   'ai.use', 'reports.view', 'agenda.team.view',
-  'evaluations.view', 'evaluations.respond', 'evaluations.results.view_own', 'evaluations.results.view_team', 'evaluations.cycles.view', 'evaluations.cycles.manage', 'evaluations.competencies.manage', 'evaluations.assign_reviewers', 'evaluations.monitor', 'evaluations.close_cycle', 'evaluations.confidential.view'
+  'evaluations.view', 'evaluations.respond', 'evaluations.results.view_own', 'evaluations.results.view_team', 'evaluations.cycles.view', 'evaluations.cycles.manage', 'evaluations.competencies.manage', 'evaluations.assign_reviewers', 'evaluations.monitor', 'evaluations.close_cycle', 'evaluations.confidential.view',
+  'development.plans.view', 'development.plans.create', 'development.plans.edit', 'development.plans.manage', 'development.monitor', 'development.debriefs.view', 'development.debriefs.edit'
 ] as const
 
 export type Capabilities = Record<string, PermissionScope[]>
