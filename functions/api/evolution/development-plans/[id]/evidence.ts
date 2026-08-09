@@ -1,5 +1,5 @@
 import { getAccessUser, accessRequiredResponse, permissionRequiredResponse, type Bindings } from '../../../_access'
-import { validateDevelopmentScope } from '../development/_domain'
+import { validateDevelopmentScope } from '../../development/_domain'
 
 export async function onRequestPost({ request, env, params }: { request: Request; env: Bindings; params: { id: string } }) {
   const user = await getAccessUser(request, env)

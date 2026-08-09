@@ -306,18 +306,16 @@ export async function getEffectiveCapabilities(
 ): Promise<Capabilities> {
   const capabilities: Capabilities = {}
   
-  // Resolve all system permissions in parallel
-  await Promise.all(
-    SYSTEM_PERMISSIONS.map(async (permissionCode) => {
-      const result = await resolvePermission(env, request, user, permissionCode)
-      if (result.granted && result.scope) {
-        if (!capabilities[permissionCode]) {
-          capabilities[permissionCode] = []
-        }
-        capabilities[permissionCode].push(result.scope)
+  // Resolve all system permissions sequentially to avoid local D1 concurrency overload
+  for (const permissionCode of SYSTEM_PERMISSIONS) {
+    const result = await resolvePermission(env, request, user, permissionCode)
+    if (result.granted && result.scope) {
+      if (!capabilities[permissionCode]) {
+        capabilities[permissionCode] = []
       }
-    })
-  )
+      capabilities[permissionCode].push(result.scope)
+    }
+  }
 
   // Map legacy permissions that act as a bundle (e.g. clients.manage -> clients.view, create, edit)
   // This helps older code transition smoothly to new atomic permissions.

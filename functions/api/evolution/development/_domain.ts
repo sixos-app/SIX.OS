@@ -1,5 +1,5 @@
 import { D1Database } from '@cloudflare/workers-types'
-import { AccessUser, getPermissionScope } from '../_access'
+import { AccessUser, getPermissionScope } from '../../_access'
 
 /**
  * Validates if the user has permission to access a specific subject user's data
@@ -37,6 +37,8 @@ export async function validateDevelopmentScope(
 
   if (!subject) return false
 
+  console.log(`validateDevelopmentScope: user=${user.id} subject=${subjectUserId} scope=${scope} subject.managerId=${subject.managerId}`)
+
   // Multi-org boundary check (Critical Invariant)
   if (subject.organizationId !== user.organizationId) {
     return false
@@ -48,8 +50,6 @@ export async function validateDevelopmentScope(
 
   if (scope === 'team') {
     // Check if the current user is the direct manager of the subject.
-    // In a real system we might need to check indirect managers (tree traversal), 
-    // but for this MVP, direct manager_id match is sufficient as per ADR "manager_id na tabela de usuários".
     if (subject.managerId === user.id) {
       return true
     }

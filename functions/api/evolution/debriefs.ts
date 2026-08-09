@@ -1,4 +1,4 @@
-import { getAccessUser, hasPermissionV2, getPermissionScope, accessRequiredResponse, permissionRequiredResponse, type Bindings } from '../../_access'
+import { getAccessUser, hasPermissionV2, getPermissionScope, accessRequiredResponse, permissionRequiredResponse, type Bindings } from '../_access'
 
 export async function onRequestGet({ request, env }: { request: Request; env: Bindings }) {
   const user = await getAccessUser(request, env)

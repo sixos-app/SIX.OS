@@ -133,18 +133,15 @@ INSERT OR IGNORE INTO permissions (code, module, action, description, sensitivit
 ('development.debriefs.edit', 'evolution', 'edit', 'Conduzir e registrar devolutivas.', 'high');
 
 -- Atribuição de permissões aos perfis
--- Todos (Acesso próprio)
+-- RH / Operations Management / Admin (Acesso Monitor / Departamental / Total)
 INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
-SELECT id, 'development.plans.view', 'own' FROM access_profiles WHERE is_active = 1;
+SELECT id, 'development.monitor', 'department' FROM access_profiles WHERE code IN ('operations_management');
 
 INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
-SELECT id, 'development.plans.create', 'own' FROM access_profiles WHERE is_active = 1;
+SELECT id, 'development.monitor', 'all' FROM access_profiles WHERE code IN ('admin_tech');
 
 INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
-SELECT id, 'development.plans.edit', 'own' FROM access_profiles WHERE is_active = 1;
-
-INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
-SELECT id, 'development.debriefs.view', 'own' FROM access_profiles WHERE is_active = 1;
+SELECT id, 'development.plans.manage', 'all' FROM access_profiles WHERE code IN ('admin_tech');
 
 -- Liderança e Coordenação (Acesso Equipe)
 INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
@@ -162,12 +159,15 @@ SELECT id, 'development.debriefs.view', 'team' FROM access_profiles WHERE code I
 INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
 SELECT id, 'development.debriefs.edit', 'team' FROM access_profiles WHERE code IN ('coordinator', 'operations_management', 'admin_tech');
 
--- RH / Operations Management / Admin (Acesso Monitor / Departamental)
+-- Todos (Acesso próprio para os demais)
 INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
-SELECT id, 'development.monitor', 'department' FROM access_profiles WHERE code IN ('operations_management');
+SELECT id, 'development.plans.view', 'own' FROM access_profiles WHERE is_active = 1;
 
 INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
-SELECT id, 'development.monitor', 'all' FROM access_profiles WHERE code IN ('admin_tech');
+SELECT id, 'development.plans.create', 'own' FROM access_profiles WHERE is_active = 1;
 
 INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
-SELECT id, 'development.plans.manage', 'all' FROM access_profiles WHERE code IN ('admin_tech');
+SELECT id, 'development.plans.edit', 'own' FROM access_profiles WHERE is_active = 1;
+
+INSERT OR IGNORE INTO profile_permissions (profile_id, permission_code, scope)
+SELECT id, 'development.debriefs.view', 'own' FROM access_profiles WHERE is_active = 1;
