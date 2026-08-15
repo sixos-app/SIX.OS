@@ -1,0 +1,17 @@
+{
+  "name": "SIX.OS",
+  "short_name": "SIX.OS",
+  "description": "Sistema operacional da agência SIX.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#111111",
+  "icons": [
+    {
+      "src": "/icon2.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

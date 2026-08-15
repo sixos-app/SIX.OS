@@ -1,11 +1,12 @@
 export type Bindings = { 
   DB: D1Database
-  ALLOW_DEV_AUTH_BYPASS?: string
   CF_ACCESS_TEAM_DOMAIN?: string
   CF_ACCESS_AUD?: string
+  INTEGRATIONS_ENCRYPTION_KEY?: string
 }
 
 import { createRemoteJWKSet, jwtVerify } from 'jose'
+import { pbkdf2Sync } from 'node:crypto'
 
 const encoder = new TextEncoder()
 
@@ -25,18 +26,17 @@ async function getUserByCondition(env: Bindings, condition: string, value: strin
       users.manager_id AS managerId,
       users.name,
       users.email,
-      COALESCE(user_role_assignments.role_code, users.role) AS role
+      users.role
     FROM users
-    LEFT JOIN user_role_assignments ON user_role_assignments.user_id = users.id
     WHERE ${condition} = ? AND users.status = 'active'
     LIMIT 1
   `).bind(value).first<AccessUser>()
 }
 
-async function verifyCloudflareJwt(jwt: string, env: Bindings): Promise<boolean> {
+async function verifyCloudflareJwt(jwt: string, env: Bindings): Promise<string | null> {
   if (!env.CF_ACCESS_TEAM_DOMAIN || !env.CF_ACCESS_AUD) {
     console.error('CF_ACCESS_TEAM_DOMAIN or CF_ACCESS_AUD missing for JWT validation')
-    return false
+    return null
   }
 
   try {
@@ -46,10 +46,10 @@ async function verifyCloudflareJwt(jwt: string, env: Bindings): Promise<boolean>
       audience: env.CF_ACCESS_AUD,
       issuer: env.CF_ACCESS_TEAM_DOMAIN
     })
-    return !!payload.email
+    return typeof payload.email === 'string' ? payload.email.trim().toLocaleLowerCase('en-US') : null
   } catch (err) {
     console.error('JWT Verification failed:', err)
-    return false
+    return null
   }
 }
 
@@ -58,15 +58,10 @@ export async function getAccessUser(request: Request, env: Bindings): Promise<Ac
   const accessJwt = request.headers.get('Cf-Access-Jwt-Assertion')
   
   if (accessEmail && accessJwt) {
-    const isValid = await verifyCloudflareJwt(accessJwt, env)
-    if (isValid) {
+    const verifiedEmail = await verifyCloudflareJwt(accessJwt, env)
+    if (verifiedEmail === accessEmail) {
       return (await getUserByCondition(env, 'users.email', accessEmail)) ?? null
     }
-  }
-
-  // Security Boundary: Only allow local bypass if explicitly enabled by ALLOW_DEV_AUTH_BYPASS
-  if (accessEmail && env.ALLOW_DEV_AUTH_BYPASS === 'true') {
-    return (await getUserByCondition(env, 'users.email', accessEmail)) ?? null
   }
 
   const sessionToken = parseCookies(request).sixos_session
@@ -84,10 +79,9 @@ export async function getAccessUser(request: Request, env: Bindings): Promise<Ac
       users.manager_id AS managerId,
       users.name,
       users.email,
-      COALESCE(user_role_assignments.role_code, users.role) AS role
+      users.role
     FROM auth_sessions
     JOIN users ON users.id = auth_sessions.user_id
-    LEFT JOIN user_role_assignments ON user_role_assignments.user_id = users.id
     WHERE auth_sessions.token_hash = ? AND users.status = 'active'
     LIMIT 1
   `).bind(tokenHash).first<AccessUser & { expiresAt: string }>()
@@ -123,10 +117,10 @@ type CredentialRow = {
 
 
 const rolePermissions: Record<string, readonly string[]> = {
-  admin: ['users.manage', 'roles.manage', 'gamification.manage', 'projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.update_own', 'clients.manage', 'library.manage', 'finance.view', 'ai.use', 'reports.view', 'agenda.team.view'],
-  management: ['projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view'],
-  coordinator: ['projects.manage', 'missions.assign', 'missions.approve', 'agenda.team.view'],
-  service: ['projects.create', 'clients.manage', 'agenda.team.view'],
+  admin: ['users.manage', 'roles.manage', 'gamification.manage', 'integrations.manage', 'projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'missions.update_own', 'clients.manage', 'library.manage', 'finance.view', 'ai.use', 'reports.view', 'agenda.team.view'],
+  management: ['projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view'],
+  coordinator: ['projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'agenda.team.view'],
+  service: ['projects.create', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'clients.manage', 'agenda.team.view'],
   specialist: ['missions.update_own'],
 }
 
@@ -140,6 +134,12 @@ function parseCookies(request: Request) {
 function fromBase64(value: string) {
   const binary = atob(value)
   return Uint8Array.from(binary, (character) => character.charCodeAt(0))
+}
+
+function toBase64(value: Uint8Array) {
+  let binary = ''
+  for (const byte of value) binary += String.fromCharCode(byte)
+  return btoa(binary)
 }
 
 function sameBytes(left: Uint8Array, right: Uint8Array) {
@@ -157,15 +157,25 @@ export async function verifyPassword(env: Bindings, username: string, password: 
     SELECT user_credentials.password_salt AS passwordSalt, user_credentials.password_hash AS passwordHash, user_credentials.iterations
     FROM user_credentials
     JOIN users ON users.id = user_credentials.user_id
-    WHERE users.username = ?
+    WHERE (users.username = ? OR lower(users.email) = ?) AND users.status = 'active'
     LIMIT 1
-  `).bind(username).first<CredentialRow>()
+  `).bind(username, username).first<CredentialRow>()
 
   if (!credential) return false
 
-  const passwordKey = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
-  const derivedBits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', iterations: credential.iterations, salt: fromBase64(credential.passwordSalt) }, passwordKey, 256)
-  return sameBytes(new Uint8Array(derivedBits), fromBase64(credential.passwordHash))
+  const derivedBits = pbkdf2Sync(password, fromBase64(credential.passwordSalt), credential.iterations, 32, 'sha256')
+  return sameBytes(derivedBits, fromBase64(credential.passwordHash))
+}
+
+export async function hashPassword(password: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const iterations = 100000
+  const derivedBits = pbkdf2Sync(password, salt, iterations, 32, 'sha256')
+  return {
+    passwordSalt: toBase64(salt),
+    passwordHash: toBase64(derivedBits),
+    iterations,
+  }
 }
 
 export async function createSession(env: Bindings, userId: string) {
@@ -263,26 +273,48 @@ export async function resolvePermission(
     return finalize({ granted: true, scope: override.scope, source: 'override' })
   }
 
-  // 3. Check Profile (If user has a V2 access profile)
-  if (user.accessProfileId) {
-    // We also ensure the profile belongs to the user's organization to prevent cross-org escalation
-    const profilePerm = await env.DB.prepare(`
-      SELECT pp.scope
-      FROM profile_permissions pp
-      JOIN access_profiles ap ON ap.id = pp.profile_id
-      WHERE pp.profile_id = ? AND pp.permission_code = ? AND ap.organization_id = ?
-      LIMIT 1
-    `).bind(user.accessProfileId, permissionCode, user.organizationId).first<{ scope: PermissionScope }>()
+  // 3. Soma as permissoes do perfil principal e de todos os cargos atribuídos.
+  // O nome do cargo continua independente do codigo interno do perfil V2.
+  const profilePerm = await env.DB.prepare(`
+    SELECT pp.scope
+    FROM profile_permissions pp
+    JOIN access_profiles ap ON ap.id = pp.profile_id
+    WHERE pp.permission_code = ?
+      AND ap.organization_id = ?
+      AND ap.is_active = 1
+      AND (
+        pp.profile_id = ?
+        OR ap.code IN (
+          SELECT CASE ura.role_code
+            WHEN 'admin' THEN 'admin_tech'
+            WHEN 'management' THEN 'operations_management'
+            ELSE ura.role_code
+          END
+          FROM user_role_assignments ura
+          WHERE ura.user_id = ?
+        )
+      )
+    ORDER BY CASE pp.scope
+      WHEN 'all' THEN 7
+      WHEN 'unit' THEN 6
+      WHEN 'department' THEN 5
+      WHEN 'team' THEN 4
+      WHEN 'assigned_clients' THEN 3
+      WHEN 'participating_projects' THEN 2
+      ELSE 1
+    END DESC
+    LIMIT 1
+  `).bind(permissionCode, user.organizationId, user.accessProfileId ?? '', user.id).first<{ scope: PermissionScope }>()
 
-    if (profilePerm) {
-      return finalize({ granted: true, scope: profilePerm.scope, source: 'profile' })
-    }
+  if (profilePerm) {
+    return finalize({ granted: true, scope: profilePerm.scope, source: 'profile' })
   }
 
-  // 4. Fallback to RBAC V1
-  const v1Granted = hasPermission(user, permissionCode)
-  if (v1Granted) {
-    return finalize({ granted: true, scope: 'all', source: 'fallback' }) // V1 implies 'all'
+  // 4. Legacy fallback is limited to users that have not been migrated to an
+  // access profile. A configured V2 profile is deny-by-default.
+  if (!user.accessProfileId) {
+    const v1Granted = hasPermission(user, permissionCode)
+    if (v1Granted) return finalize({ granted: true, scope: 'all', source: 'fallback' })
   }
 
   // 5. Deny by Default
@@ -309,27 +341,13 @@ export async function getPermissionScope(
   return result.granted ? result.scope : null
 }
 
-export async function authorize(
-  env: Bindings,
-  request: Request,
-  user: AccessUser,
-  permissionCode: string,
-  resource: any
-): Promise<boolean> {
-  const result = await resolvePermission(env, request, user, permissionCode)
-  if (!result.granted || !result.scope) return false
-  
-  // Future implementation: evaluate resource against result.scope
-  return true
-}
-
 // ----------------------------------------------------------------------------
 // Capabilities Export for Frontend (Phase 4)
 // ----------------------------------------------------------------------------
 
 export const SYSTEM_PERMISSIONS = [
-  'users.manage', 'roles.manage', 'gamification.manage', 'projects.create', 'projects.manage',
-  'missions.view', 'missions.create', 'missions.edit', 'missions.assign', 'missions.complete', 'missions.approve', 'missions.update_own',
+  'users.manage', 'roles.manage', 'gamification.manage', 'integrations.manage', 'projects.create', 'projects.manage',
+  'missions.view', 'missions.create', 'missions.edit', 'missions.assign', 'missions.complete', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'missions.update_own',
   'clients.view', 'clients.create', 'clients.edit', 'clients.manage',
   'library.view', 'library.manage',
   'finance.view', 'contracts.view', 'contracts.create',
@@ -348,15 +366,74 @@ export async function getEffectiveCapabilities(
   user: AccessUser
 ): Promise<Capabilities> {
   const capabilities: Capabilities = {}
-  
-  // Resolve all system permissions sequentially to avoid local D1 concurrency overload
+
+  const permissionPlaceholders = SYSTEM_PERMISSIONS.map(() => '?').join(', ')
+  const [overrideRows, profileRows] = await Promise.all([
+    env.DB.prepare(`
+      SELECT permission_code AS permissionCode, is_granted AS isGranted, scope
+      FROM user_permission_overrides
+      WHERE user_id = ?
+        AND permission_code IN (${permissionPlaceholders})
+        AND (starts_at IS NULL OR starts_at <= datetime('now'))
+        AND (expires_at IS NULL OR expires_at > datetime('now'))
+      ORDER BY permission_code, created_at DESC
+    `).bind(user.id, ...SYSTEM_PERMISSIONS).all<{ permissionCode: string; isGranted: number; scope: PermissionScope }>(),
+    env.DB.prepare(`
+      SELECT pp.permission_code AS permissionCode, pp.scope
+      FROM profile_permissions pp
+      JOIN access_profiles ap ON ap.id = pp.profile_id
+      WHERE pp.permission_code IN (${permissionPlaceholders})
+        AND ap.organization_id = ?
+        AND ap.is_active = 1
+        AND (
+          pp.profile_id = ?
+          OR ap.code IN (
+            SELECT CASE ura.role_code
+              WHEN 'admin' THEN 'admin_tech'
+              WHEN 'management' THEN 'operations_management'
+              ELSE ura.role_code
+            END
+            FROM user_role_assignments ura
+            WHERE ura.user_id = ?
+          )
+        )
+      ORDER BY pp.permission_code, CASE pp.scope
+        WHEN 'all' THEN 7
+        WHEN 'unit' THEN 6
+        WHEN 'department' THEN 5
+        WHEN 'team' THEN 4
+        WHEN 'assigned_clients' THEN 3
+        WHEN 'participating_projects' THEN 2
+        ELSE 1
+      END DESC
+    `).bind(...SYSTEM_PERMISSIONS, user.organizationId, user.accessProfileId ?? '', user.id).all<{ permissionCode: string; scope: PermissionScope }>(),
+  ])
+
+  const overrides = new Map<string, { isGranted: number; scope: PermissionScope }>()
+  for (const row of overrideRows.results) {
+    if (!overrides.has(row.permissionCode)) overrides.set(row.permissionCode, row)
+  }
+
+  const profilePermissions = new Map<string, PermissionScope>()
+  for (const row of profileRows.results) {
+    if (!profilePermissions.has(row.permissionCode)) profilePermissions.set(row.permissionCode, row.scope)
+  }
+
   for (const permissionCode of SYSTEM_PERMISSIONS) {
-    const result = await resolvePermission(env, request, user, permissionCode)
-    if (result.granted && result.scope) {
-      if (!capabilities[permissionCode]) {
-        capabilities[permissionCode] = []
-      }
-      capabilities[permissionCode].push(result.scope)
+    const override = overrides.get(permissionCode)
+    if (override) {
+      if (override.isGranted !== 0) capabilities[permissionCode] = [override.scope]
+      continue
+    }
+
+    const profileScope = profilePermissions.get(permissionCode)
+    if (profileScope) {
+      capabilities[permissionCode] = [profileScope]
+      continue
+    }
+
+    if (!user.accessProfileId && hasPermission(user, permissionCode)) {
+      capabilities[permissionCode] = ['all']
     }
   }
 
@@ -371,11 +448,6 @@ export async function getEffectiveCapabilities(
   if (capabilities['projects.manage']?.includes('all')) {
     if (!capabilities['library.view']) capabilities['library.view'] = ['all']
     if (!capabilities['missions.view']) capabilities['missions.view'] = ['all']
-  }
-
-  // Everyone could view missions in V1 (dashboard), so map it if not present
-  if (user.role && !capabilities['missions.view']) {
-    capabilities['missions.view'] = ['all']
   }
 
   return capabilities

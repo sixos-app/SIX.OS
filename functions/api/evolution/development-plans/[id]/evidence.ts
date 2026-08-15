@@ -8,8 +8,8 @@ export async function onRequestPost({ request, env, params }: { request: Request
   const planId = params.id as string
   const body = await request.json() as { goalId?: string; actionId?: string; title: string; textContent?: string; linkUrl?: string }
 
-  if (!body.title || (!body.goalId && !body.actionId)) {
-    return Response.json({ error: 'Title and either Goal ID or Action ID are required' }, { status: 400 })
+  if (!body.title || Boolean(body.goalId) === Boolean(body.actionId)) {
+    return Response.json({ error: 'Title and exactly one Goal ID or Action ID are required' }, { status: 400 })
   }
 
   const plan = await env.DB.prepare(`
@@ -23,6 +23,21 @@ export async function onRequestPost({ request, env, params }: { request: Request
 
   const hasAccess = await validateDevelopmentScope(env, request, user, plan.subjectUserId, 'development.plans.edit')
   if (!hasAccess) return permissionRequiredResponse()
+
+  if (body.goalId) {
+    const goal = await env.DB.prepare('SELECT id FROM development_goals WHERE id = ? AND plan_id = ? AND organization_id = ? AND deleted_at IS NULL')
+      .bind(body.goalId, planId, user.organizationId).first()
+    if (!goal) return Response.json({ error: 'Goal does not belong to this plan' }, { status: 404 })
+  }
+  if (body.actionId) {
+    const action = await env.DB.prepare(`
+      SELECT a.id FROM development_actions a
+      JOIN development_goals g ON g.id = a.goal_id
+      WHERE a.id = ? AND g.plan_id = ? AND a.organization_id = ?
+        AND a.deleted_at IS NULL AND g.deleted_at IS NULL
+    `).bind(body.actionId, planId, user.organizationId).first()
+    if (!action) return Response.json({ error: 'Action does not belong to this plan' }, { status: 404 })
+  }
 
   const id = crypto.randomUUID()
   await env.DB.prepare(`

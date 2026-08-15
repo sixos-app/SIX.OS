@@ -64,14 +64,14 @@ export async function onRequestPost({ request, env }: { request: Request; env: B
 
   // Determine subject. If not provided, it's the creator.
   const targetSubjectId = body.subjectUserId || user.id
+  const subject = await env.DB.prepare(`SELECT id, department_id, manager_id FROM users WHERE id = ? AND organization_id = ? AND status = 'active'`)
+    .bind(targetSubjectId, user.organizationId).first<{ id: string; department_id: string | null; manager_id: string | null }>()
+  if (!subject) return Response.json({ error: 'Subject not found in this organization' }, { status: 404 })
 
   // If creating for someone else, check if they have team/department/all scope
   if (targetSubjectId !== user.id) {
     const scope = await getPermissionScope(env, request, user, 'development.plans.create')
     if (scope !== 'all') {
-      const subject = await env.DB.prepare(`SELECT department_id, manager_id FROM users WHERE id = ?`).bind(targetSubjectId).first<{ department_id: string, manager_id: string }>()
-      if (!subject) return Response.json({ error: 'Subject not found' }, { status: 404 })
-
       if (scope === 'department' && subject.department_id !== user.departmentId) {
         return permissionRequiredResponse()
       } else if (scope === 'team' && subject.manager_id !== user.id) {
@@ -85,20 +85,19 @@ export async function onRequestPost({ request, env }: { request: Request; env: B
   // Confidentiality Check (Obscured)
   if (body.sourceCycleId) {
     const cycle = await env.DB.prepare(`SELECT results_available_at FROM evaluation_cycles WHERE id = ? AND organization_id = ?`).bind(body.sourceCycleId, user.organizationId).first<{ results_available_at: string | null }>()
-    if (cycle && cycle.results_available_at) {
-      if (new Date(cycle.results_available_at).getTime() > Date.now()) {
-        return Response.json({ error: 'Cycle results are obscured and not available yet' }, { status: 403 })
-      }
+    if (!cycle) return Response.json({ error: 'Cycle not found in this organization' }, { status: 404 })
+    if (!cycle.results_available_at || new Date(cycle.results_available_at).getTime() > Date.now()) {
+      return Response.json({ error: 'Cycle results are obscured and not available yet' }, { status: 403 })
     }
   }
   if (body.sourceDebriefId) {
-    const debrief = await env.DB.prepare(`SELECT cycle_id FROM evaluation_debriefs WHERE id = ? AND organization_id = ?`).bind(body.sourceDebriefId, user.organizationId).first<{ cycle_id: string | null }>()
+    const debrief = await env.DB.prepare(`SELECT cycle_id, subject_user_id FROM evaluation_debriefs WHERE id = ? AND organization_id = ?`).bind(body.sourceDebriefId, user.organizationId).first<{ cycle_id: string | null; subject_user_id: string }>()
+    if (!debrief || debrief.subject_user_id !== targetSubjectId) return Response.json({ error: 'Debrief does not belong to this subject' }, { status: 404 })
+    if (body.sourceCycleId && debrief.cycle_id !== body.sourceCycleId) return Response.json({ error: 'Debrief and cycle do not match' }, { status: 400 })
     if (debrief && debrief.cycle_id) {
       const cycle = await env.DB.prepare(`SELECT results_available_at FROM evaluation_cycles WHERE id = ? AND organization_id = ?`).bind(debrief.cycle_id, user.organizationId).first<{ results_available_at: string | null }>()
-      if (cycle && cycle.results_available_at) {
-        if (new Date(cycle.results_available_at).getTime() > Date.now()) {
-          return Response.json({ error: 'Debrief results are obscured and not available yet' }, { status: 403 })
-        }
+      if (!cycle?.results_available_at || new Date(cycle.results_available_at).getTime() > Date.now()) {
+        return Response.json({ error: 'Debrief results are obscured and not available yet' }, { status: 403 })
       }
     }
   }

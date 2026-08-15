@@ -9,7 +9,7 @@ O **SIX.OS** é o sistema operacional da Agência SIX. Este documento fornece as
 O SIX.OS foi planejado para rodar com o ecossistema local do Cloudflare Workers & Pages. Para compilar e executar o ambiente de testes completo local (frontend + backend APIs + banco D1 local):
 
 ```bash
-pnpm preview:local
+pnpm dev
 ```
 
 Este comando executa a compilação do TypeScript/Vite e inicia o servidor local em:
@@ -17,12 +17,15 @@ Este comando executa a compilação do TypeScript/Vite e inicia o servidor local
 
 ---
 
-## 2. Autenticação e Credenciais de Teste
+## 2. Autenticação e Credenciais
 
-A autenticação é obrigatória para acessar as telas do sistema. No modo local, utilize as credenciais a seguir pré-configuradas no D1:
+A autenticação é obrigatória. Não existe senha padrão funcional: a migration de endurecimento remove a credencial histórica. Configure ou rotacione a senha local do administrador:
 
-- **Usuário Admin padrão:** `agsix`
-- **Senha provisória:** `sixos123`
+```bash
+SIXOS_PASSWORD_USERNAME=agsix SIXOS_NEW_PASSWORD='uma-senha-forte-com-12-ou-mais' pnpm security:rotate-password
+```
+
+A rotação também revoga todas as sessões desse usuário.
 
 ---
 
@@ -42,7 +45,9 @@ O sistema possui controle de acesso baseado em cargos (RBAC). Os principais esco
 
 ## 4. Integrações de Backend
 
-As integrações de terceiros estão prontas para configuração no painel administrativo:
+Antes de salvar integrações, configure `INTEGRATIONS_ENCRYPTION_KEY` como secret de 32 bytes em base64. O backend nunca retorna tokens ou webhooks ao frontend; o painel informa apenas se o provedor está configurado.
+
+Integrações disponíveis no painel:
 
 1. **Slack Integration**: Insira um Webhook URL no painel admin para que o backend envie notificações automáticas a canais do Slack quando kudos ou missões forem completadas no Feed.
-2. **Runrun.it Integration**: Permite o mapeamento e importação de tarefas para alimentar o fluxo de gamificação de forma automática.
+2. **Runrun.it Integration**: Armazena o token de forma criptografada. A sincronização automática ainda precisa de certificação funcional antes do beta.

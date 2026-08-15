@@ -1,5 +1,18 @@
 import { getAccessUser, hasPermissionV2, getPermissionScope, accessRequiredResponse, permissionRequiredResponse, type Bindings } from '../../_access'
 
+type AvailableCycle = { id: string; name: string; results_available_at: string }
+type EvaluationAnswer = {
+  relationshipType: string
+  isConfidential: number
+  reviewerId: string
+  questionId: string
+  ratingValue: number | null
+  textValue: string | null
+  questionType: string
+  questionText: string
+  competencyName: string | null
+}
+
 export async function onRequestGet({ request, env, params }: { request: Request; env: Bindings; params: { userId: string } }) {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
@@ -27,7 +40,7 @@ export async function onRequestGet({ request, env, params }: { request: Request;
   const cycleId = url.searchParams.get('cycleId')
 
   let cycleCondition = ''
-  let bindings: any[] = [params.userId]
+  const bindings: unknown[] = [params.userId, user.organizationId]
   if (cycleId) {
     cycleCondition = 'AND ec.id = ?'
     bindings.push(cycleId)
@@ -38,10 +51,10 @@ export async function onRequestGet({ request, env, params }: { request: Request;
     SELECT DISTINCT ec.id, ec.name, ec.results_available_at
     FROM evaluation_assignments ea
     JOIN evaluation_cycles ec ON ec.id = ea.cycle_id
-    WHERE ea.subject_user_id = ? ${cycleCondition}
+    WHERE ea.subject_user_id = ? AND ec.organization_id = ? ${cycleCondition}
       AND ec.results_available_at IS NOT NULL 
       AND datetime(ec.results_available_at) <= datetime('now')
-  `).bind(...bindings).all()
+  `).bind(...bindings).all<AvailableCycle>()
 
   if (cyclesAvailable.results.length === 0) {
     return Response.json({ error: 'Nenhum resultado disponível para este usuário no momento.' }, { status: 404 })
@@ -70,7 +83,7 @@ export async function onRequestGet({ request, env, params }: { request: Request;
     JOIN evaluation_questions eq ON eq.id = ans.question_id
     LEFT JOIN competencies c ON c.id = eq.competency_id
     WHERE ea.subject_user_id = ? AND ea.cycle_id = ? AND er.status = 'submitted'
-  `).bind(params.userId, activeCycleId).all()
+  `).bind(params.userId, activeCycleId).all<EvaluationAnswer>()
 
   const minConfidentialResponses = 3
 

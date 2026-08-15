@@ -26,31 +26,28 @@ export const onRequest: PagesFunction<Bindings> = async ({ request, env, next })
   
   if (isStateChanging && request.url.includes('/api/')) {
     // CSRF Protection: Require valid Origin for state-changing API requests
-    const host = request.headers.get('Host')
     const referer = request.headers.get('Referer')
+    const requestOrigin = new URL(request.url).origin
     
     let originValid = false
     
     if (origin) {
-      if (allowedOrigins.includes(origin) || (host && origin.includes(host))) {
+      if (allowedOrigins.includes(origin) || origin === requestOrigin) {
         originValid = true
       }
     } else if (referer) {
-      if (host && referer.includes(host)) {
-        originValid = true
+      try {
+        if (new URL(referer).origin === requestOrigin || allowedOrigins.includes(new URL(referer).origin)) {
+          originValid = true
+        }
+      } catch {
+        originValid = false
       }
     } else {
-      // Missing both Origin and Referer on a state-changing API request
-      // We fail conservative for security (CSRF defense)
-      if ((env as any).ALLOW_DEV_AUTH_BYPASS !== 'true') {
-        return new Response('CSRF Protection: Missing Origin', { status: 403 })
-      } else {
-        // Only allow bypass locally
-        originValid = true
-      }
+      return new Response('CSRF Protection: Missing Origin', { status: 403 })
     }
 
-    if (!originValid && (env as any).ALLOW_DEV_AUTH_BYPASS !== 'true') {
+    if (!originValid) {
       return new Response('CSRF Protection: Untrusted Origin', { status: 403 })
     }
   }
@@ -80,6 +77,7 @@ export const onRequest: PagesFunction<Bindings> = async ({ request, env, next })
   // CORS Response Header
   if (origin && allowedOrigins.includes(origin)) {
     secureHeaders.set('Access-Control-Allow-Origin', origin)
+    secureHeaders.append('Vary', 'Origin')
   }
 
   secureHeaders.set('X-Content-Type-Options', 'nosniff')
@@ -88,7 +86,7 @@ export const onRequest: PagesFunction<Bindings> = async ({ request, env, next })
   secureHeaders.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
   
   // CSP with frame-ancestors none
-  secureHeaders.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.cloudflareaccess.com; frame-ancestors 'none';")
+  secureHeaders.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.cloudflareaccess.com; frame-ancestors 'none';")
 
   return new Response(response.body, {
     status: response.status,

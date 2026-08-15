@@ -1,6 +1,6 @@
 import { accessRequiredResponse, getAccessUser, type Bindings } from '../../_access'
 
-export const onRequestGet: PagesFunction<Bindings, { id: string }> = async ({ env, params, request }) => {
+export const onRequestGet: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
   const client = await env.DB.prepare('SELECT id FROM clients WHERE id = ? AND organization_id = ?').bind(params.id, user.organizationId).first<{ id: string }>()

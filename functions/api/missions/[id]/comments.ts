@@ -1,10 +1,10 @@
 import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, type Bindings } from '../../_access'
 import { canAccessMission, getMissionAccess } from '../_missionAccess'
 
-export const onRequestPost: PagesFunction<Bindings, { id: string }> = async ({ env, params, request }) => {
+export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  const mission = await getMissionAccess(env, user, params.id)
+  const mission = await getMissionAccess(env, user, params.id as string)
   if (!mission) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
   if (!(await canAccessMission(env, request, user, mission))) return permissionRequiredResponse()
   const body = await request.json().catch(() => null) as { body?: unknown } | null

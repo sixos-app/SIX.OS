@@ -1,4 +1,4 @@
-import { resolvePermission, type AccessUser, type Bindings, type PermissionScope } from '../functions/api/_access.js'
+import { getEffectiveCapabilities, resolvePermission, type AccessUser, type Bindings, type PermissionScope } from '../functions/api/_access.js'
 import assert from 'node:assert'
 
 // Mocking Request
@@ -176,6 +176,42 @@ async function runTests() {
     assert.strictEqual(firstCount > 0, true)
     assert.strictEqual(firstCount, secondCount) 
     console.log('TESTE CACHE: OK')
+  }
+
+  // TESTE EXTRA: Exportação de capabilities usa duas consultas agrupadas
+  {
+    let queryCount = 0
+    const env = {
+      DB: {
+        prepare: (query: string) => ({
+          bind: (..._args: any[]) => ({
+            all: async () => {
+              queryCount++
+              if (query.includes('user_permission_overrides')) {
+                return { results: [
+                  { permissionCode: 'missions.view', isGranted: 0, scope: 'all' },
+                  { permissionCode: 'ai.use', isGranted: 1, scope: 'own' },
+                ] }
+              }
+              if (query.includes('profile_permissions')) {
+                return { results: [
+                  { permissionCode: 'missions.view', scope: 'team' },
+                  { permissionCode: 'projects.manage', scope: 'department' },
+                ] }
+              }
+              return { results: [] }
+            },
+          }),
+        }),
+      } as any,
+    }
+
+    const capabilities = await getEffectiveCapabilities(env, createMockRequest(), createMockUser())
+    assert.strictEqual(queryCount, 2)
+    assert.deepStrictEqual(capabilities['ai.use'], ['own'])
+    assert.strictEqual(capabilities['missions.view'], undefined)
+    assert.deepStrictEqual(capabilities['projects.manage'], ['department'])
+    console.log('TESTE CAPABILITIES EM LOTE: OK')
   }
 
   console.log('--- ALL TESTS PASSED ---')

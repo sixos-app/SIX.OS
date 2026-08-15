@@ -1,5 +1,5 @@
 export type AgendaScope = 'mine' | 'team'
-export type CalendarEventType = 'meeting' | 'deadline' | 'appointment' | 'vacation'
+export type CalendarEventType = 'meeting' | 'deadline' | 'appointment' | 'vacation' | 'birthday'
 export type CalendarVisibility = 'personal' | 'team'
 
 export type CalendarEventRecord = {
@@ -32,6 +32,7 @@ export type CreateCalendarEventInput = {
   description?: string
   location?: string
   projectId?: string
+  ownerUserId?: string
 }
 
 export type UpdateCalendarEventInput = CreateCalendarEventInput
@@ -42,16 +43,11 @@ async function readJson<T>(response: Response) {
   return payload as T
 }
 
-export async function getAgenda(scope: AgendaScope): Promise<AgendaData> {
-  try {
-    const response = await fetch(`/api/agenda?scope=${scope}`, { headers: { Accept: 'application/json' } })
-    if (!response.ok) {
-      return { events: [], permissions: { canViewTeam: true, canCreateTeam: true } }
-    }
-    return await readJson<AgendaData>(response)
-  } catch {
-    return { events: [], permissions: { canViewTeam: true, canCreateTeam: true } }
-  }
+export async function getAgenda(scope: AgendaScope, ownerUserId?: string): Promise<AgendaData> {
+  const params = new URLSearchParams({ scope })
+  if (ownerUserId) params.set('ownerUserId', ownerUserId)
+  const response = await fetch(`/api/agenda?${params}`, { headers: { Accept: 'application/json' } })
+  return await readJson<AgendaData>(response)
 }
 
 export async function createCalendarEvent(input: CreateCalendarEventInput) {

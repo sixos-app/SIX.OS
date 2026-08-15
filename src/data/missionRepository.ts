@@ -48,12 +48,18 @@ export type MissionDetails = {
     createdAt: string
     completedAt: string | null
     approvedAt: string | null
+    startedAt: string | null
+    boardId: string | null
+    stageId: string | null
+    stageName: string | null
+    stageType: 'backlog' | 'ready' | 'doing' | 'review' | 'approval' | 'done' | null
   }
   checklist: MissionChecklistItem[]
   comments: MissionComment[]
   attachments: MissionAttachment[]
   history: MissionHistoryItem[]
-  permissions: { canInteract: boolean; canManage: boolean; canApprove: boolean }
+  activeTimer: { id: string; startedAt: string } | null
+  permissions: { canInteract: boolean; canManage: boolean; canApprove: boolean; canTrackTime: boolean }
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -84,7 +90,27 @@ export function attachProjectLibraryFile(missionId: string, libraryFileId: strin
 }
 
 export function requestMissionCompletion(missionId: string) {
-  return requestJson<{ missionId: string; status?: string }>(`/api/missions/${encodeURIComponent(missionId)}/complete`, { method: 'POST' })
+  return requestJson<{ missionId: string; status?: string; currentDepartment?: string | null; nextDepartment?: string | null; awards?: Array<{ userId: string; userName: string; xp: number }> }>(`/api/missions/${encodeURIComponent(missionId)}/complete`, { method: 'POST' })
+}
+
+export async function deleteMission(missionId: string) {
+  const response = await fetch(`/api/missions/${encodeURIComponent(missionId)}`, { method: 'DELETE', headers: { Accept: 'application/json' } })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { error?: string }
+    throw new Error(payload.error ?? 'Não foi possível excluir a missão')
+  }
+}
+
+export function returnMissionWorkflow(missionId: string, targetPosition: number) {
+  return requestJson<{ missionId: string; status: string; currentDepartment: string; nextDepartment: string | null }>(`/api/missions/${encodeURIComponent(missionId)}/workflow`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetPosition }) })
+}
+
+export function startMissionTimer(missionId: string) {
+  return requestJson<{ active: true; id: string; missionId: string; missionTitle: string; startedAt: string; elapsedSeconds: number }>(`/api/missions/${encodeURIComponent(missionId)}/timer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start' }) })
+}
+
+export function stopMissionTimer(missionId: string) {
+  return requestJson<{ active: false; missionId: string; elapsedSeconds?: number }>(`/api/missions/${encodeURIComponent(missionId)}/timer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'stop' }) })
 }
 
 export type SaveMissionInput = {
@@ -95,6 +121,9 @@ export type SaveMissionInput = {
   priority: 'normal' | 'urgent'
   description?: string
   xpReward?: number
+  xpRuleId?: string | null
+  workflowDepartments?: string[]
+  workflowSteps?: Array<{ departmentName: string; responsibleUserId: string }>
 }
 
 export type SavedMission = {
@@ -107,6 +136,16 @@ export type SavedMission = {
   description: string
   xpReward: number
   rewardLabel: string | null
+  xpRuleId?: string | null
+  xpRecipientUserId?: string | null
+  currentDepartment?: string | null
+  nextDepartment?: string | null
+  currentResponsibleUserId?: string | null
+  nextResponsibleUserId?: string | null
+  boardId?: string | null
+  stageId?: string | null
+  stageName?: string | null
+  stageType?: 'backlog' | 'ready' | 'doing' | 'review' | 'approval' | 'done' | null
 }
 
 export function createMission(input: SaveMissionInput) {

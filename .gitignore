@@ -3,3 +3,10 @@ dist/
 .wrangler/
 *.tsbuildinfo
 .DS_Store
+.dev.vars
+.env
+.env.*
+!.env.example
+*.mjs
+test*.sql
+backup-*.sql

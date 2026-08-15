@@ -34,7 +34,11 @@ export const onRequestPut: PagesFunction<Bindings> = async ({ env, request, para
   const { results: validPermissions } = await env.DB.prepare('SELECT code FROM permissions').all()
   const validCodes = new Set(validPermissions.map((p: any) => p.code))
 
-  const cleanPermissions = payload.permissions.filter(p => validCodes.has(p.permission_code) && validScopes.includes(p.scope))
+  const invalidPermissions = payload.permissions.filter(p => !p || !validCodes.has(p.permission_code) || !validScopes.includes(p.scope))
+  if (invalidPermissions.length > 0) {
+    return Response.json({ error: 'A matriz contém códigos ou escopos de permissão inválidos', invalidPermissions }, { status: 400 })
+  }
+  const cleanPermissions = payload.permissions
 
   const batch = []
   

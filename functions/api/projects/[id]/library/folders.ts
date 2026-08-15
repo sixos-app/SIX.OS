@@ -7,7 +7,7 @@ function slugPart(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'pasta'
 }
 
-export const onRequestPost: PagesFunction<Bindings, { id: string }> = async ({ env, params, request }) => {
+export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
   if (!(await hasPermissionV2(env, request, user, 'library.manage'))) return permissionRequiredResponse()

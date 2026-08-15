@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.40.0`
+**Versão atual:** `0.43.0`
 
 ## O que já está implementado
 
@@ -10,7 +10,9 @@ MVP inicial do sistema operacional gamificado da Agência SIX.
 - Navegação entre os módulos previstos do produto.
 - Missões com filtros e conclusão que atualiza o XP.
 - Agenda nativa com eventos pessoais ou compartilhados por cargo, além de projetos e feed interno.
-- Painel inicial da SIX AI.
+- SIXIA, assistente operacional determinístico sobre dados atuais, sem alegação de IA generativa.
+- Dashboard, equipe, projetos, missões e métricas carregados exclusivamente do D1.
+- Busca textual de arquivos reais, limitada à organização e à permissão de biblioteca.
 - Camada de dados tipada, preparada para consumir a API do produto.
 - Migração inicial e rotas de API para Cloudflare D1.
 - Painel administrativo com cadastros protegidos de colaboradores e clientes.
@@ -32,13 +34,24 @@ Para gerar a versão de produção:
 pnpm build
 ```
 
-### Prévia da tela de login
-
-Com o servidor local em execução, abra `http://127.0.0.1:5173/?preview=login`. A interface usa os endpoints de sessão do Pages quando o app é servido por `wrangler pages dev` ou Cloudflare Pages.
-
 ### Administrador inicial
 
-A migration `0004_admin_credentials.sql` cria o perfil administrativo `agsix`, as tabelas de credenciais e sessões, e o associa ao cargo Administrador. A senha fornecida para a configuração inicial é armazenada apenas como derivação PBKDF2 com salt individual. Troque-a antes de aplicar a migration no ambiente remoto.
+A cadeia de migrations cria o perfil `agsix`, mas remove a credencial histórica conhecida e revoga as sessões existentes. Defina uma senha individual antes do primeiro acesso:
+
+```bash
+SIXOS_PASSWORD_USERNAME=agsix SIXOS_NEW_PASSWORD='uma-senha-forte-com-12-ou-mais' pnpm security:rotate-password
+```
+
+Para alterar a senha no D1 remoto é necessário acrescentar `--remote` e confirmar com `ALLOW_REMOTE_PASSWORD_ROTATION=YES`. A senha é persistida somente como PBKDF2 com salt individual.
+
+### Validação
+
+```bash
+pnpm test
+pnpm build
+```
+
+`pnpm test` verifica o typecheck das Functions, RBAC, autenticação/CSRF, criptografia de integrações e o upgrade populado da migration 0021.
 
 ### Imagem de cliente
 
@@ -58,7 +71,7 @@ A Agenda reúne reuniões, prazos, compromissos, férias e missões. Usuários a
 
 ### Missões completas
 
-No painel de Missões, clicar no card ou em `DETALHES COMPLETOS` abre a área operacional persistida da missão. Ela reúne descrição, cliente, projeto, responsável, prazo, prioridade, XP, checklist editável, comentários, anexos e histórico. Sem sessão, o modal apresenta um resumo local em vez de permanecer carregando. Arquivos podem ser escolhidos da Biblioteca do Projeto ou arrastados para a missão: nesse caso, o SIX.OS envia o arquivo para a pasta escolhida da Biblioteca do Projeto e o anexa automaticamente. Na criação, a pessoa responsável pode registrar descrição, links e contexto, selecionar imagens e vídeos, e escolher prazo no calendário com horário. Criação, edição e redistribuição passam pela API protegida quando há sessão ativa; o modo local permanece apenas como fallback de demonstração. A interface acompanha o RBAC: criação, edição e redistribuição aparecem apenas para Administração, Gestão e Coordenação; especialistas veem e concluem somente as próprias missões. Especialistas enviam a entrega para aprovação; Coordenador, Gestão e Administrador aprovam e liberam o XP para o responsável. A Central de Missões, filtros, contadores e progresso dos projetos refletem os estados persistidos `em aprovação` e `concluída`.
+No painel de Missões, clicar no card ou em `DETALHES COMPLETOS` abre a área operacional persistida da missão. Ela reúne descrição, cliente, projeto, responsável, prazo, prioridade, XP, checklist, comentários, anexos e histórico. Toda leitura ou alteração persistente exige sessão válida e autorização no servidor. Especialistas acessam e atualizam apenas os recursos permitidos pelo próprio escopo; coordenação, gestão e administração dependem da matriz RBAC V2 configurada.
 
 ## Publicação no Cloudflare Pages
 
@@ -70,21 +83,29 @@ Depois de enviar este repositório ao GitHub, no Cloudflare Pages selecione **Cr
 - **Node.js:** a versão `22.16.0` já está fixada em `.node-version`.
 - **pnpm:** defina `PNPM_VERSION` como `11.9.0` nas variáveis de ambiente do Pages.
 
-O projeto de produção já está vinculado ao banco D1 `six-os` pela variável `DB`. A configuração reproduzível fica em `wrangler.toml`; as migrations incluem a estrutura e os dados iniciais do SIX.OS.
+O projeto de produção já está vinculado ao banco D1 `six-os` pela variável `DB`. A configuração reproduzível fica em `wrangler.toml`; as migrations incluem a estrutura, catálogos de sistema e a limpeza compensatória dos antigos registros de demonstração.
 
 ### Acesso compartilhado com Cloudflare Access
 
 O ambiente de produção tem a aplicação **SIX.OS** do tipo **Self-hosted** para `six-os.pages.dev`. A política **SIX.OS — Guilherme** permite apenas `six.guimell@gmail.com` e está preservada para reativação.
 
-Durante os testes compartilhados, a política **SIX.OS — Teste público temporário** usa bypass para liberar o acesso direto ao app. Não envie dados reais ou confidenciais enquanto essa política estiver ativa.
-
 Para adicionar alguém ao time:
 
 1. Inclua o e-mail em uma política do Cloudflare Access.
 2. Insira no D1 o usuário com o mesmo e-mail e crie o respectivo perfil em `gamification_profiles`.
-3. As Functions usam o cabeçalho verificado `Cf-Access-Authenticated-User-Email` para identificar a pessoa e limitar os dados à sua organização.
+3. As Functions aceitam `Cf-Access-Authenticated-User-Email` somente quando o JWT `Cf-Access-Jwt-Assertion` é válido e contém o mesmo e-mail.
 
-Sem uma sessão Cloudflare Access ou SIX válida, o frontend continua no modo local e as APIs recusam acesso ao banco. Enquanto a política pública temporária estiver ativa, não cadastre dados reais ou confidenciais.
+Sem uma sessão Cloudflare Access ou SIX válida, o frontend exibe a tela de login e as APIs recusam acesso ao banco.
+
+### Segredos das integrações
+
+Webhooks e tokens são criptografados com AES-GCM antes de serem gravados no D1. Gere uma chave aleatória de 32 bytes em base64:
+
+```bash
+openssl rand -base64 32
+```
+
+Cadastre o resultado como secret criptografado `INTEGRATIONS_ENCRYPTION_KEY` nas configurações do Cloudflare Pages. No ambiente local, use `.dev.vars`, que está ignorado pelo Git. Não coloque a chave no `wrangler.toml`.
 
 ## Versões
 

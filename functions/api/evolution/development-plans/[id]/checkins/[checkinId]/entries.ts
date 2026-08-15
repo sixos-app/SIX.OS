@@ -21,6 +21,10 @@ export async function onRequestGet({ request, env, params }: { request: Request;
 
   if (!hasAccess && !hasMonitor) return permissionRequiredResponse()
 
+  const checkin = await env.DB.prepare('SELECT id FROM development_checkins WHERE id = ? AND plan_id = ? AND organization_id = ? AND deleted_at IS NULL')
+    .bind(checkinId, planId, user.organizationId).first()
+  if (!checkin) return Response.json({ error: 'Check-in not found in this plan' }, { status: 404 })
+
   const entries = await env.DB.prepare(`
     SELECT e.id, e.entry_text AS entryText, e.author_user_id AS authorUserId, u.name AS authorName, e.created_at AS createdAt
     FROM development_checkin_entries e

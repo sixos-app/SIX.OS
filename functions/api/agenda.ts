@@ -1,7 +1,7 @@
-import { accessRequiredResponse, getAccessUser, hasPermission, permissionRequiredResponse, type Bindings } from './_access'
+import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from './_access'
 
 type AgendaScope = 'mine' | 'team'
-type EventType = 'meeting' | 'deadline' | 'appointment' | 'vacation'
+type EventType = 'meeting' | 'deadline' | 'appointment' | 'vacation' | 'birthday'
 type Visibility = 'personal' | 'team'
 
 type CalendarRow = {
@@ -30,9 +30,10 @@ type CreateAgendaInput = {
   description?: unknown
   location?: unknown
   projectId?: unknown
+  ownerUserId?: unknown
 }
 
-const eventTypes = new Set<EventType>(['meeting', 'deadline', 'appointment', 'vacation'])
+const eventTypes = new Set<EventType>(['meeting', 'deadline', 'appointment', 'vacation', 'birthday'])
 
 function text(value: unknown, limit: number) {
   return typeof value === 'string' ? value.trim().slice(0, limit) : ''
@@ -47,13 +48,15 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
 
-  const scope = new URL(request.url).searchParams.get('scope') === 'team' ? 'team' : 'mine' as AgendaScope
-  const canViewTeam = hasPermission(user, 'agenda.team.view')
+  const search = new URL(request.url).searchParams
+  const scope = search.get('scope') === 'team' ? 'team' : 'mine' as AgendaScope
+  const ownerUserId = search.get('ownerUserId')
+  const canViewTeam = await hasPermissionV2(env, request, user, 'agenda.team.view')
   if (scope === 'team' && !canViewTeam) return permissionRequiredResponse()
 
   const filter = scope === 'team'
-    ? 'calendar_events.visibility = \'team\''
-    : '(calendar_events.owner_user_id = ? OR calendar_events.visibility = \'team\')'
+    ? ownerUserId ? 'calendar_events.owner_user_id = ?' : '1 = 1'
+    : 'calendar_events.owner_user_id = ?'
   const statement = env.DB.prepare(`
     SELECT
       calendar_events.id,
@@ -78,9 +81,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     ORDER BY calendar_events.starts_at ASC
     LIMIT 100
   `)
-  const { results } = scope === 'team'
+  const { results } = scope === 'team' && !ownerUserId
     ? await statement.bind(user.organizationId).all<CalendarRow>()
-    : await statement.bind(user.organizationId, user.id).all<CalendarRow>()
+    : await statement.bind(user.organizationId, scope === 'team' ? ownerUserId : user.id).all<CalendarRow>()
 
   return Response.json({ events: results, permissions: { canViewTeam, canCreateTeam: canViewTeam } })
 }
@@ -95,15 +98,20 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const endsAt = input?.endsAt === undefined || input?.endsAt === '' ? null : date(input?.endsAt)
   const eventType = typeof input?.eventType === 'string' && eventTypes.has(input.eventType as EventType) ? input.eventType as EventType : 'appointment'
   const requestedVisibility = input?.visibility === 'team' ? 'team' : 'personal'
-  const visibility = requestedVisibility === 'team' && hasPermission(user, 'agenda.team.view') ? 'team' : 'personal'
+  const canCreateTeam = await hasPermissionV2(env, request, user, 'agenda.team.view')
+  const visibility = requestedVisibility === 'team' && canCreateTeam ? 'team' : 'personal'
   const description = text(input?.description, 2000)
   const location = text(input?.location, 160) || null
   const projectId = typeof input?.projectId === 'string' && input.projectId ? input.projectId : null
+  const requestedOwnerId = typeof input?.ownerUserId === 'string' && input.ownerUserId ? input.ownerUserId : user.id
+  const ownerUserId = requestedOwnerId !== user.id && canCreateTeam ? requestedOwnerId : user.id
 
   if (!title || !startsAt || (input?.endsAt && !endsAt) || (endsAt && Date.parse(endsAt) < Date.parse(startsAt))) {
     return Response.json({ error: 'Título, início e período do evento são inválidos' }, { status: 400 })
   }
   if (requestedVisibility === 'team' && visibility !== 'team') return permissionRequiredResponse()
+  const owner = await env.DB.prepare('SELECT id, name FROM users WHERE id = ? AND organization_id = ? AND status = \'active\' LIMIT 1').bind(ownerUserId, user.organizationId).first<{ id: string; name: string }>()
+  if (!owner) return Response.json({ error: 'Colaborador da agenda não encontrado' }, { status: 404 })
 
   const project = projectId ? await env.DB.prepare('SELECT id, client_id AS clientId FROM projects WHERE id = ? AND organization_id = ? LIMIT 1').bind(projectId, user.organizationId).first<{ id: string; clientId: string }>() : null
   if (projectId && !project) return Response.json({ error: 'Projeto não encontrado' }, { status: 404 })
@@ -114,7 +122,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
       id, organization_id, project_id, client_id, owner_user_id, title, starts_at, ends_at,
       event_type, description, location, visibility, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(id, user.organizationId, project?.id ?? null, project?.clientId ?? null, user.id, title, startsAt, endsAt, eventType, description, location, visibility, now, now).run()
+  `).bind(id, user.organizationId, project?.id ?? null, project?.clientId ?? null, owner.id, title, startsAt, endsAt, eventType, description, location, visibility, now, now).run()
 
-  return Response.json({ event: { id, title, startsAt, endsAt, eventType, visibility, description, location, projectId: project?.id ?? null, clientId: project?.clientId ?? null, ownerUserId: user.id, ownerName: user.name } }, { status: 201 })
+  return Response.json({ event: { id, title, startsAt, endsAt, eventType, visibility, description, location, projectId: project?.id ?? null, clientId: project?.clientId ?? null, ownerUserId: owner.id, ownerName: owner.name } }, { status: 201 })
 }

@@ -7,9 +7,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
 
   const [team, roles, clients] = await Promise.all([
     env.DB.prepare(`
-      SELECT users.id, users.name, users.email, users.username, COALESCE(user_role_assignments.role_code, users.role) AS role
+      SELECT users.id, users.name, users.email, users.username, users.role,
+        COALESCE((SELECT GROUP_CONCAT(ura.role_code) FROM user_role_assignments ura WHERE ura.user_id = users.id), users.role) AS roles_csv
       FROM users
-      LEFT JOIN user_role_assignments ON user_role_assignments.user_id = users.id
       WHERE users.organization_id = ?
       ORDER BY users.name
     `).bind(user.organizationId).all(),
@@ -23,5 +23,12 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     env.DB.prepare('SELECT COUNT(*) AS count FROM clients WHERE organization_id = ?').bind(user.organizationId).first<{ count: number }>(),
   ])
 
-  return Response.json({ team: team.results, roles: roles.results, clientCount: clients?.count ?? 0 })
+  return Response.json({
+    team: team.results.map((row: any) => {
+      const { roles_csv, ...member } = row
+      return { ...member, roles: String(roles_csv || '').split(',').filter(Boolean) }
+    }),
+    roles: roles.results,
+    clientCount: clients?.count ?? 0,
+  })
 }

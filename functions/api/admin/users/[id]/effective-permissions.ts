@@ -21,10 +21,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request, para
       users.manager_id AS managerId,
       users.name,
       users.email,
-      COALESCE(user_role_assignments.role_code, users.role) AS role,
+      users.role,
       users.status
     FROM users
-    LEFT JOIN user_role_assignments ON user_role_assignments.user_id = users.id
     WHERE users.id = ? AND users.organization_id = ?
     LIMIT 1
   `).bind(id, administrator.organizationId).first<AccessUser & { status: string }>()

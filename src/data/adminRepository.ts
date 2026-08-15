@@ -6,6 +6,7 @@ export type AdminTeamMember = {
   email: string
   username: string | null
   role: string
+  roles: string[]
 }
 
 export type AdminRole = {
@@ -24,8 +25,11 @@ export type AdminOverview = {
 export type CreateAdminUserInput = {
   name: string
   email: string
-  role: string
+  roles: string[]
   username: string
+  initialPassword: string
+  department: string
+  status: 'active' | 'blocked' | 'inactive'
 }
 
 export type CreateAdminClientInput = {
@@ -34,32 +38,12 @@ export type CreateAdminClientInput = {
   imageDataUrl: string | null
 }
 
-export const adminOverviewPreview: AdminOverview = {
-  clientCount: 3,
-  team: [
-    { id: 'user-agsix-admin', name: 'Administração SIX', email: 'agsix@sixos.app', username: 'agsix', role: 'admin' },
-    { id: 'team-guilherme', name: 'Guilherme', email: 'six.guimell@gmail.com', username: null, role: 'admin' },
-    { id: 'team-lorraine', name: 'Lorraine', email: 'lorraine@sixos.app', username: null, role: 'specialist' },
-  ],
-  roles: [
-    { code: 'admin', name: 'Administrador', description: 'Controle completo da organização e das configurações.', permissionCount: 14 },
-    { code: 'management', name: 'Gestão', description: 'Visão geral, projetos e aprovações.', permissionCount: 8 },
-    { code: 'coordinator', name: 'Coordenador', description: 'Distribuição de missões e coordenação da equipe.', permissionCount: 4 },
-    { code: 'service', name: 'Atendimento', description: 'Clientes, projetos, briefings e acompanhamento.', permissionCount: 3 },
-    { code: 'specialist', name: 'Especialista', description: 'Execução das próprias missões e envio de arquivos.', permissionCount: 1 },
-  ],
-}
-
 export async function getAdminOverview(): Promise<AdminOverview> {
-  try {
-    const response = await fetch('/api/admin/overview', { headers: { Accept: 'application/json' } })
-    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) {
-      return adminOverviewPreview
-    }
-    return await response.json() as AdminOverview
-  } catch {
-    return adminOverviewPreview
+  const response = await fetch('/api/admin/overview', { headers: { Accept: 'application/json' } })
+  if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) {
+    throw new Error(response.status === 403 ? 'Você não tem permissão para acessar a administração.' : 'Administração indisponível.')
   }
+  return await response.json() as AdminOverview
 }
 
 async function requestAdmin<T>(path: string, body: unknown): Promise<T> {
@@ -74,30 +58,11 @@ async function requestAdmin<T>(path: string, body: unknown): Promise<T> {
 }
 
 export async function createAdminUser(input: CreateAdminUserInput): Promise<AdminTeamMember> {
-  try {
-    const payload = await requestAdmin<{ member: AdminTeamMember }>('/api/admin/users', input)
-    return payload.member
-  } catch {
-    return {
-      id: `user-${Date.now()}`,
-      name: input.name,
-      email: input.email,
-      username: input.username || null,
-      role: input.role
-    }
-  }
+  const payload = await requestAdmin<{ member: AdminTeamMember }>('/api/admin/users', input)
+  return payload.member
 }
 
 export async function createAdminClient(input: CreateAdminClientInput): Promise<ClientIdentity> {
-  try {
-    const payload = await requestAdmin<{ client: ClientIdentity }>('/api/admin/clients', input)
-    return payload.client
-  } catch {
-    return {
-      id: `client-${Date.now()}`,
-      name: input.name,
-      shortCode: input.shortCode,
-      imageUrl: input.imageDataUrl
-    }
-  }
+  const payload = await requestAdmin<{ client: ClientIdentity }>('/api/admin/clients', input)
+  return payload.client
 }

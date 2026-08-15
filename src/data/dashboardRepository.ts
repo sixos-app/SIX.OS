@@ -1,26 +1,25 @@
-import { dashboardSeed, type DashboardData } from './dashboard'
+import type { DashboardData } from './dashboard'
 
 const apiBase = '/api'
 
 export async function getDashboard(): Promise<DashboardData> {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 12000)
+  let response: Response
   try {
-    const response = await fetch(`${apiBase}/dashboard`, { headers: { Accept: 'application/json' } })
-    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error('Dashboard indisponível')
-
-    const remoteDashboard = await response.json() as Omit<DashboardData, 'projects' | 'agenda' | 'team' | 'analytics' | 'library' | 'notifications'>
-    return { ...dashboardSeed, ...remoteDashboard, projects: dashboardSeed.projects, agenda: dashboardSeed.agenda, team: dashboardSeed.team, analytics: dashboardSeed.analytics, library: dashboardSeed.library, notifications: dashboardSeed.notifications }
-  } catch {
-    return dashboardSeed
+    response = await fetch(`${apiBase}/dashboard`, { headers: { Accept: 'application/json' }, signal: controller.signal, cache: 'no-store' })
+  } finally {
+    window.clearTimeout(timeout)
   }
+  const payload = await response.json().catch(() => null) as (DashboardData & { error?: string }) | null
+  if (!response.ok || !payload) throw new Error(payload?.error ?? 'Dashboard indisponível')
+  return payload
 }
 
 export async function completeMission(missionId: string): Promise<void> {
-  try {
-    const response = await fetch(`${apiBase}/missions/${missionId}/complete`, {
-      method: 'POST',
-      headers: { Accept: 'application/json' },
-    })
-
-    if (!response.ok) throw new Error('Não foi possível concluir a missão')
-  } catch {}
+  const response = await fetch(`${apiBase}/missions/${missionId}/complete`, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw new Error('Não foi possível concluir a missão')
 }

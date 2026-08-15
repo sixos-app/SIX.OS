@@ -22,7 +22,7 @@ type FileRow = {
   historyCount: number
 }
 
-export const onRequestGet: PagesFunction<Bindings, { id: string }> = async ({ env, params, request }) => {
+export const onRequestGet: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
 

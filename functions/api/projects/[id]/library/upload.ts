@@ -17,7 +17,7 @@ function storageFileName(name: string) {
   return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'arquivo'
 }
 
-export const onRequestPost: PagesFunction<LibraryBindings, { id: string }> = async ({ env, params, request }) => {
+export const onRequestPost: PagesFunction<LibraryBindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
 
@@ -26,7 +26,7 @@ export const onRequestPost: PagesFunction<LibraryBindings, { id: string }> = asy
     .first<ProjectRow>()
   if (!project) return Response.json({ error: 'Projeto não encontrado' }, { status: 404 })
 
-  if (!await canAccessProjectLibrary(env, user, project.id)) return permissionRequiredResponse()
+  if (!await canAccessProjectLibrary(env, request, user, project.id)) return permissionRequiredResponse()
 
   const form = await request.formData()
   const folderId = form.get('folderId')

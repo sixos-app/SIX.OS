@@ -25,8 +25,8 @@ Logo em seguida, o sistema invoca automaticamente o `scripts/bootstrap_clean_ten
 - Dados de Sistema e Catálogo Padrão (`competency_categories`, `competencies`, `evaluation_scales`, `evaluation_scale_options`, `evaluation_templates`, `evaluation_questions`)
 - O usuário Mestre (Admin Tech) validado via variável de ambiente.
 
-**Controle de Segurança (Master Account):**
-A senha hardcoded foi *extinta*. Agora, a credencial `agsix@sixos.app` recebe sua senha via injetor `SIXOS_MASTER_PASSWORD` lida no momento da execução e computada diretamente para o hash PBKDF2, inviabilizando qualquer vasa de credencial em código ou migration. Fallbacks (ex: `admin123`) foram integralmente erradicados.
+**Controle de Segurança (Master Account) — corrigido em 09/08/2026:**
+A versão anterior deste relatório estava incorreta: a migration histórica ainda continha uma credencial conhecida e o frontend ainda aceitava fallbacks administrativos. A migration 0022 agora remove a credencial histórica quando ela não foi rotacionada, revoga sessões existentes e exige configuração explícita de uma nova senha. Os fallbacks do frontend foram removidos. A validação remota continua pendente.
 
 ### 2.1. Matriz de Dados & Counts (Before/After)
 | TABLE | EXPECTED AFTER | POLICY | RATIONALE |
@@ -61,6 +61,6 @@ Foi criado `scripts/test-clean-baseline.ts` contendo assertions ativas para veri
 
 **EVOLUTION UI STATUS:** GO  
 **CLEAN AGENCY BASELINE LOCAL STATUS:** GO  
-**PRE-BR-2 STATUS:** READY  
+**PRE-BR-2 STATUS:** REVALIDATION REQUIRED
 
 *NOTA:* A execução no Beta/Remote continua contida. Este relatório certifica apenas as credenciais e validações em nível de sandbox local.

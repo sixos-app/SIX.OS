@@ -28,5 +28,26 @@ export async function canManageMission(env: Bindings, request: Request, user: Ac
 }
 
 export async function canAccessMission(env: Bindings, request: Request, user: AccessUser, mission: MissionAccess) {
-  return (await canManageMission(env, request, user)) || (mission.assigneeId === user.id && (await hasPermissionV2(env, request, user, 'missions.update_own')))
+  if (await canManageMission(env, request, user)) return true
+  if (!(await hasPermissionV2(env, request, user, 'missions.update_own'))) return false
+  if (mission.assigneeId === user.id) return true
+
+  const participant = await env.DB.prepare(`
+    SELECT 1 AS allowed
+    FROM missions
+    WHERE missions.id = ?
+      AND (
+        EXISTS (
+          SELECT 1 FROM mission_assignees
+          WHERE mission_assignees.mission_id = missions.id AND mission_assignees.user_id = ?
+        )
+        OR EXISTS (
+          SELECT 1 FROM mission_workflow_steps
+          WHERE mission_workflow_steps.mission_id = missions.id
+            AND mission_workflow_steps.responsible_user_id = ?
+        )
+      )
+    LIMIT 1
+  `).bind(mission.id, user.id, user.id).first<{ allowed: number }>()
+  return Boolean(participant)
 }

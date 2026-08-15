@@ -29,5 +29,5 @@ INSERT OR IGNORE INTO gamification_profiles (user_id, xp, ideas, level, streak_d
 INSERT OR IGNORE INTO user_role_assignments (user_id, role_code) VALUES
   ('user-agsix-admin', 'admin');
 
-INSERT OR IGNORE INTO user_credentials (user_id, password_salt, password_hash, iterations) VALUES
-  ('user-agsix-admin', 'MKfeKYaVzqLsgqUtFa5g+g==', 'rE/3XV2yHGDxylW0NXbz5cJN5bCD+ebD2q18nj1wqY0=', 310000);
+-- No default password is seeded. Configure the initial credential explicitly
+-- with scripts/rotate-user-password.ts after applying all migrations.

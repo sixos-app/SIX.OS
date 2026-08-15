@@ -24,3 +24,9 @@ export async function uploadClientLibraryFile(clientId: string, folderId: string
   if (!response.ok || !payload.file) throw new Error(payload.error ?? 'Não foi possível enviar o arquivo')
   return payload.file
 }
+
+export async function deleteClientLibraryFile(clientId: string, fileId: string): Promise<void> {
+  const response = await fetch(`/api/clients/${encodeURIComponent(clientId)}/library/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
+  const payload = await response.json().catch(() => ({})) as { error?: string }
+  if (!response.ok) throw new Error(payload.error ?? 'Não foi possível excluir o arquivo')
+}

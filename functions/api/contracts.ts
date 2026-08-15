@@ -24,7 +24,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       ctr.contract_value AS contractValue, ctr.start_date AS startDate, ctr.end_date AS endDate,
       ctr.status, c.name AS clientName
     FROM contracts ctr
-    JOIN clients c ON ctr.client_id = c.id
+    JOIN clients c ON ctr.client_id = c.id AND c.organization_id = ctr.organization_id
     WHERE ctr.organization_id = ?${scopeFilter}
     ORDER BY ctr.created_at DESC
   `
@@ -52,6 +52,10 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     return Response.json({ error: 'Cliente é obrigatório' }, { status: 400 })
   }
 
+  const client = await env.DB.prepare('SELECT id FROM clients WHERE id = ? AND organization_id = ? LIMIT 1')
+    .bind(body.clientId, user.organizationId).first<{ id: string }>()
+  if (!client) return Response.json({ error: 'Cliente não encontrado nesta organização' }, { status: 404 })
+
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
 
@@ -64,7 +68,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   `).bind(
     id,
     user.organizationId,
-    body.clientId,
+    client.id,
     body.monthlyDeliverables || 0,
     body.hourLimit || 0,
     body.agreedDeadlineDays || 3,

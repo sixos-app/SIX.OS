@@ -33,8 +33,8 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       d.piece_count AS pieceCount, d.piece_formats AS pieceFormats, d.tags, d.created_at AS createdAt,
       c.name AS clientName, p.name AS projectName
     FROM demands d
-    JOIN clients c ON d.client_id = c.id
-    LEFT JOIN projects p ON d.project_id = p.id
+    JOIN clients c ON d.client_id = c.id AND c.organization_id = d.organization_id
+    LEFT JOIN projects p ON d.project_id = p.id AND p.organization_id = d.organization_id
     WHERE d.organization_id = ?${scopeFilter}
     ORDER BY d.created_at DESC
   `).bind(...binds).all()
@@ -54,6 +54,16 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     return Response.json({ error: 'Título e cliente são obrigatórios' }, { status: 400 })
   }
 
+  const client = await env.DB.prepare('SELECT id FROM clients WHERE id = ? AND organization_id = ? LIMIT 1')
+    .bind(body.clientId, user.organizationId).first<{ id: string }>()
+  if (!client) return Response.json({ error: 'Cliente não encontrado nesta organização' }, { status: 404 })
+
+  const project = body.projectId
+    ? await env.DB.prepare('SELECT id FROM projects WHERE id = ? AND client_id = ? AND organization_id = ? LIMIT 1')
+      .bind(body.projectId, client.id, user.organizationId).first<{ id: string }>()
+    : null
+  if (body.projectId && !project) return Response.json({ error: 'Projeto não pertence ao cliente informado' }, { status: 400 })
+
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
 
@@ -67,8 +77,8 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   `).bind(
     id,
     user.organizationId,
-    body.projectId || null,
-    body.clientId,
+    project?.id || null,
+    client.id,
     body.title.trim(),
     body.description || null,
     body.demandType || 'social_media',

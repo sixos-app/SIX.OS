@@ -30,8 +30,8 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       t.entry_type AS entryType, t.created_at AS createdAt,
       u.name AS userName, c.name AS clientName
     FROM time_entries t
-    JOIN users u ON t.user_id = u.id
-    JOIN clients c ON t.client_id = c.id
+    JOIN users u ON t.user_id = u.id AND u.organization_id = t.organization_id
+    JOIN clients c ON t.client_id = c.id AND c.organization_id = t.organization_id
     WHERE t.organization_id = ?${scopeFilter}
     ORDER BY t.created_at DESC
   `).bind(...binds).all()
@@ -58,6 +58,41 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     targetUserId = body.userId
   }
 
+  const targetUser = await env.DB.prepare('SELECT id FROM users WHERE id = ? AND organization_id = ? AND status = ? LIMIT 1')
+    .bind(targetUserId, user.organizationId, 'active').first<{ id: string }>()
+  if (!targetUser) return Response.json({ error: 'Colaborador não encontrado nesta organização' }, { status: 404 })
+
+  const client = await env.DB.prepare('SELECT id FROM clients WHERE id = ? AND organization_id = ? LIMIT 1')
+    .bind(body.clientId, user.organizationId).first<{ id: string }>()
+  if (!client) return Response.json({ error: 'Cliente não encontrado nesta organização' }, { status: 404 })
+
+  const hours = Number(body.hours || 0)
+  const minutes = Number(body.minutes || 0)
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 24 || minutes < 0 || minutes > 59 || hours + minutes === 0) {
+    return Response.json({ error: 'Informe horas e minutos válidos' }, { status: 400 })
+  }
+
+  const demand = body.demandId
+    ? await env.DB.prepare('SELECT id, client_id AS clientId FROM demands WHERE id = ? AND organization_id = ? LIMIT 1')
+      .bind(body.demandId, user.organizationId).first<{ id: string; clientId: string }>()
+    : null
+  if (body.demandId && (!demand || demand.clientId !== client.id)) {
+    return Response.json({ error: 'Demanda não pertence ao cliente informado' }, { status: 400 })
+  }
+
+  const task = body.taskId
+    ? await env.DB.prepare(`
+        SELECT t.id, t.demand_id AS demandId, d.client_id AS clientId
+        FROM tasks t
+        JOIN demands d ON d.id = t.demand_id
+        WHERE t.id = ? AND d.organization_id = ?
+        LIMIT 1
+      `).bind(body.taskId, user.organizationId).first<{ id: string; demandId: string; clientId: string }>()
+    : null
+  if (body.taskId && (!task || task.clientId !== client.id || (demand && task.demandId !== demand.id))) {
+    return Response.json({ error: 'Tarefa não pertence à demanda ou ao cliente informado' }, { status: 400 })
+  }
+
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
   const dateStr = body.date || now.slice(0, 10)
@@ -70,12 +105,12 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   `).bind(
     id,
     user.organizationId,
-    body.demandId || null,
-    body.taskId || null,
-    body.clientId,
-    targetUserId,
-    body.hours || 0,
-    body.minutes || 0,
+    demand?.id || task?.demandId || null,
+    task?.id || null,
+    client.id,
+    targetUser.id,
+    hours,
+    minutes,
     dateStr,
     body.description || null,
     body.entryType || 'manual',

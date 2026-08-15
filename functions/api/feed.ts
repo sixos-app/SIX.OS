@@ -1,4 +1,5 @@
 import { getAccessUser, type Bindings } from './_access'
+import { decryptIntegrationConfig, isAllowedSlackWebhook } from './_integrationSecrets'
 
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
@@ -28,13 +29,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const user = await getAccessUser(request, env)
   if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 })
 
-  let payload: {
-    type?: string
-    title?: string
-    targetName: string
-    xpAmount?: number
-    link?: string
-  }
+  let payload: { targetName?: unknown; reason?: unknown }
 
   try {
     payload = await request.json() as typeof payload
@@ -42,17 +37,16 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     return Response.json({ error: 'Payload inválido.' }, { status: 400 })
   }
 
-  const type = payload.type || 'kudo_received'
-  const targetName = payload.targetName
-  const title = payload.title || (type === 'project_created' ? 'iniciou o projeto' : 'enviou kudos por')
-  const xpAmount = typeof payload.xpAmount === 'number' ? payload.xpAmount : (type === 'kudo_received' ? 100 : null)
-  const link = payload.link || null
+  const targetName = typeof payload.targetName === 'string' ? payload.targetName.trim().slice(0, 120) : ''
+  const reason = typeof payload.reason === 'string' ? payload.reason.trim().slice(0, 500) : ''
 
-  if (!targetName.trim()) {
-    return Response.json({ error: 'Alvo é obrigatório.' }, { status: 400 })
-  }
+  if (!targetName || !reason) return Response.json({ error: 'Pessoa e motivo são obrigatórios.' }, { status: 400 })
 
-  const id = `feed-local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const target = await env.DB.prepare('SELECT id, name FROM users WHERE name = ? AND organization_id = ? AND status = ? LIMIT 1')
+    .bind(targetName, user.organizationId, 'active').first<{ id: string; name: string }>()
+  if (!target) return Response.json({ error: 'Pessoa não encontrada nesta organização.' }, { status: 404 })
+
+  const id = crypto.randomUUID()
   try {
     await env.DB.prepare(`
       INSERT INTO agency_feed (id, user_id, type, title, target_name, xp_amount, link, organization_id)
@@ -60,11 +54,11 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     `).bind(
       id,
       user.id,
-      type,
-      title,
-      targetName,
-      xpAmount,
-      link,
+      'kudo_received',
+      'enviou kudos por',
+      `${target.name}: ${reason}`,
+      null,
+      null,
       user.organizationId
     ).run()
 
@@ -76,13 +70,13 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
       `).bind(user.organizationId).first<{ config_json: string; is_active: number }>()
 
       if (slackIntegration && slackIntegration.is_active === 1) {
-        const config = JSON.parse(slackIntegration.config_json)
-        if (config.webhookUrl) {
+        const config = await decryptIntegrationConfig<{ webhookUrl?: unknown }>(env, slackIntegration.config_json)
+        if (isAllowedSlackWebhook(config.webhookUrl)) {
           void fetch(config.webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              text: `🔔 *SIX.OS Feed Alert*:\n*${user.name}* ${title} *${targetName}*`
+              text: `🔔 *SIX.OS Kudos*:\n*${user.name}* reconheceu *${target.name}*: ${reason}`
             })
           }).catch(() => undefined)
         }

@@ -21,7 +21,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   }
 
   const clients = await env.DB.prepare(`
-    SELECT id, name, short_code AS shortCode, image_url AS imageUrl
+    SELECT id, name, short_code AS shortCode, image_url AS imageUrl, description
     FROM clients
     WHERE organization_id = ?${scopeFilter}
     ORDER BY name

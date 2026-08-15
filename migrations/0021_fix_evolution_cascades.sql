@@ -1,9 +1,26 @@
+-- Rebuild the Evolution/Development hierarchy without triggering ON DELETE
+-- cascades. Backup tables intentionally have no foreign keys, so dropping the
+-- old parent tables cannot remove the copied child rows. D1 executes each
+-- migration atomically and rejects explicit BEGIN/COMMIT statements.
 
+CREATE TABLE evaluation_debriefs_backup AS SELECT * FROM evaluation_debriefs;
+CREATE TABLE development_plans_backup AS SELECT * FROM development_plans;
+CREATE TABLE development_goals_backup AS SELECT * FROM development_goals;
+CREATE TABLE development_actions_backup AS SELECT * FROM development_actions;
+CREATE TABLE development_evidence_backup AS SELECT * FROM development_evidence;
+CREATE TABLE development_checkins_backup AS SELECT * FROM development_checkins;
+CREATE TABLE development_checkin_entries_backup AS SELECT * FROM development_checkin_entries;
 
-BEGIN TRANSACTION;
+-- Children must be removed before their parents while foreign keys are active.
+DROP TABLE development_checkin_entries;
+DROP TABLE development_evidence;
+DROP TABLE development_actions;
+DROP TABLE development_goals;
+DROP TABLE development_checkins;
+DROP TABLE development_plans;
+DROP TABLE evaluation_debriefs;
 
--- 1. evaluation_debriefs
-CREATE TABLE IF NOT EXISTS evaluation_debriefs_new (
+CREATE TABLE evaluation_debriefs (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   cycle_id TEXT REFERENCES evaluation_cycles(id) ON DELETE SET NULL,
@@ -15,15 +32,8 @@ CREATE TABLE IF NOT EXISTS evaluation_debriefs_new (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-INSERT INTO evaluation_debriefs_new SELECT * FROM evaluation_debriefs;
-DROP TABLE evaluation_debriefs;
-ALTER TABLE evaluation_debriefs_new RENAME TO evaluation_debriefs;
-CREATE INDEX IF NOT EXISTS idx_eval_debriefs_org ON evaluation_debriefs(organization_id, status);
-CREATE INDEX IF NOT EXISTS idx_eval_debriefs_subject ON evaluation_debriefs(subject_user_id);
 
-
--- 2. development_plans
-CREATE TABLE IF NOT EXISTS development_plans_new (
+CREATE TABLE development_plans (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   subject_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE NO ACTION,
@@ -39,15 +49,8 @@ CREATE TABLE IF NOT EXISTS development_plans_new (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TEXT
 );
-INSERT INTO development_plans_new SELECT * FROM development_plans;
-DROP TABLE development_plans;
-ALTER TABLE development_plans_new RENAME TO development_plans;
-CREATE INDEX IF NOT EXISTS idx_dev_plans_org ON development_plans(organization_id, status);
-CREATE INDEX IF NOT EXISTS idx_dev_plans_subject ON development_plans(subject_user_id);
 
-
--- 3. development_goals
-CREATE TABLE IF NOT EXISTS development_goals_new (
+CREATE TABLE development_goals (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   plan_id TEXT NOT NULL REFERENCES development_plans(id) ON DELETE CASCADE,
@@ -64,14 +67,8 @@ CREATE TABLE IF NOT EXISTS development_goals_new (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TEXT
 );
-INSERT INTO development_goals_new SELECT * FROM development_goals;
-DROP TABLE development_goals;
-ALTER TABLE development_goals_new RENAME TO development_goals;
-CREATE INDEX IF NOT EXISTS idx_dev_goals_plan ON development_goals(plan_id);
 
-
--- 4. development_actions
-CREATE TABLE IF NOT EXISTS development_actions_new (
+CREATE TABLE development_actions (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   goal_id TEXT NOT NULL REFERENCES development_goals(id) ON DELETE CASCADE,
@@ -85,14 +82,8 @@ CREATE TABLE IF NOT EXISTS development_actions_new (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TEXT
 );
-INSERT INTO development_actions_new SELECT * FROM development_actions;
-DROP TABLE development_actions;
-ALTER TABLE development_actions_new RENAME TO development_actions;
-CREATE INDEX IF NOT EXISTS idx_dev_actions_goal ON development_actions(goal_id);
 
-
--- 5. development_evidence
-CREATE TABLE IF NOT EXISTS development_evidence_new (
+CREATE TABLE development_evidence (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   goal_id TEXT REFERENCES development_goals(id) ON DELETE CASCADE,
@@ -106,13 +97,8 @@ CREATE TABLE IF NOT EXISTS development_evidence_new (
   deleted_at TEXT,
   CHECK (goal_id IS NOT NULL OR action_id IS NOT NULL)
 );
-INSERT INTO development_evidence_new SELECT * FROM development_evidence;
-DROP TABLE development_evidence;
-ALTER TABLE development_evidence_new RENAME TO development_evidence;
 
-
--- 6. development_checkins
-CREATE TABLE IF NOT EXISTS development_checkins_new (
+CREATE TABLE development_checkins (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   plan_id TEXT NOT NULL REFERENCES development_plans(id) ON DELETE CASCADE,
@@ -123,14 +109,8 @@ CREATE TABLE IF NOT EXISTS development_checkins_new (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TEXT
 );
-INSERT INTO development_checkins_new SELECT * FROM development_checkins;
-DROP TABLE development_checkins;
-ALTER TABLE development_checkins_new RENAME TO development_checkins;
-CREATE INDEX IF NOT EXISTS idx_dev_checkins_plan ON development_checkins(plan_id);
 
-
--- 7. development_checkin_entries
-CREATE TABLE IF NOT EXISTS development_checkin_entries_new (
+CREATE TABLE development_checkin_entries (
   id TEXT PRIMARY KEY,
   organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   checkin_id TEXT NOT NULL REFERENCES development_checkins(id) ON DELETE CASCADE,
@@ -139,11 +119,29 @@ CREATE TABLE IF NOT EXISTS development_checkin_entries_new (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-INSERT INTO development_checkin_entries_new SELECT * FROM development_checkin_entries;
-DROP TABLE development_checkin_entries;
-ALTER TABLE development_checkin_entries_new RENAME TO development_checkin_entries;
-CREATE INDEX IF NOT EXISTS idx_dev_checkin_entries_checkin ON development_checkin_entries(checkin_id);
 
-COMMIT;
+-- Restore parents before children so every foreign key is valid at insert time.
+INSERT INTO evaluation_debriefs SELECT * FROM evaluation_debriefs_backup;
+INSERT INTO development_plans SELECT * FROM development_plans_backup;
+INSERT INTO development_goals SELECT * FROM development_goals_backup;
+INSERT INTO development_actions SELECT * FROM development_actions_backup;
+INSERT INTO development_evidence SELECT * FROM development_evidence_backup;
+INSERT INTO development_checkins SELECT * FROM development_checkins_backup;
+INSERT INTO development_checkin_entries SELECT * FROM development_checkin_entries_backup;
 
+DROP TABLE evaluation_debriefs_backup;
+DROP TABLE development_plans_backup;
+DROP TABLE development_goals_backup;
+DROP TABLE development_actions_backup;
+DROP TABLE development_evidence_backup;
+DROP TABLE development_checkins_backup;
+DROP TABLE development_checkin_entries_backup;
 
+CREATE INDEX idx_eval_debriefs_org ON evaluation_debriefs(organization_id, status);
+CREATE INDEX idx_eval_debriefs_subject ON evaluation_debriefs(subject_user_id);
+CREATE INDEX idx_dev_plans_org ON development_plans(organization_id, status);
+CREATE INDEX idx_dev_plans_subject ON development_plans(subject_user_id);
+CREATE INDEX idx_dev_goals_plan ON development_goals(plan_id);
+CREATE INDEX idx_dev_actions_goal ON development_actions(goal_id);
+CREATE INDEX idx_dev_checkins_plan ON development_checkins(plan_id);
+CREATE INDEX idx_dev_checkin_entries_checkin ON development_checkin_entries(checkin_id);

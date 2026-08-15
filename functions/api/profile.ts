@@ -1,4 +1,4 @@
-import { getAccessUser, type Bindings, type AccessUser } from './_access'
+import { accessRequiredResponse, getAccessUser, type Bindings } from './_access'
 
 type ProfileRow = {
   id: string
@@ -44,31 +44,11 @@ const DEFAULT_LEVELS = [
   { name: 'Catalisador', target: 12000, detail: 'Move pessoas e ideias para a frente.' }
 ]
 
-const DEFAULT_RANKING: RankingRow[] = [
-  { id: 'user-agsix-admin', name: 'Administração SIX', socialName: 'Guilherme', xp: 12450, level: 'Visionário', avatarUrl: null },
-  { id: 'team-guilherme', name: 'Guilherme Silva', socialName: 'Gui', xp: 9800, level: 'Visionário', avatarUrl: null },
-  { id: 'team-lorraine', name: 'Lorraine Souza', socialName: 'Lori', xp: 7500, level: 'Criador', avatarUrl: null },
-  { id: 'team-marcos', name: 'Marcos Oliveira', socialName: 'Marcos', xp: 6200, level: 'Criador', avatarUrl: null },
-]
-
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
-  let user: AccessUser | null = null
-  try {
-    user = await getAccessUser(request, env)
-  } catch {}
+  const user = await getAccessUser(request, env)
+  if (!user) return accessRequiredResponse()
 
-  const activeUser: AccessUser = user ?? {
-    id: 'user-agsix-admin',
-    organizationId: 'org-six',
-    teamId: 'team-six',
-    name: 'Administração SIX',
-    email: 'agsix@sixos.app',
-    role: 'admin'
-  }
-
-  let profile: ProfileRow | null = null
-  try {
-    profile = await env.DB?.prepare(`
+  const profile = await env.DB.prepare(`
       SELECT 
         users.id,
         users.name,
@@ -82,41 +62,38 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
         p.banner_url AS bannerUrl,
         p.internal_networks AS internalNetworks,
         p.signature,
-        COALESCE(p.xp, 12450) AS xp,
-        COALESCE(p.ideas, 18) AS ideas,
-        COALESCE(p.level, 'Visionário') AS level,
-        COALESCE(p.streak_days, 5) AS streakDays,
+        COALESCE(p.xp, 0) AS xp,
+        COALESCE(p.ideas, 0) AS ideas,
+        COALESCE(p.level, 'Criador') AS level,
+        COALESCE(p.streak_days, 0) AS streakDays,
         p.stickers
       FROM users
       LEFT JOIN gamification_profiles p ON p.user_id = users.id
-      WHERE users.id = ?
+      WHERE users.id = ? AND users.organization_id = ?
       LIMIT 1
-    `).bind(activeUser.id).first<ProfileRow>() ?? null
-  } catch {}
+    `).bind(user.id, user.organizationId).first<ProfileRow>()
 
   const resolvedProfile: ProfileRow = profile ?? {
-    id: activeUser.id,
-    name: activeUser.name,
-    email: activeUser.email,
-    role: activeUser.role,
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
     avatarUrl: null,
-    socialName: activeUser.name.split(' ')[0] ?? activeUser.name,
-    customRole: activeUser.role === 'admin' ? 'Administrador da Agência' : 'Especialista',
-    bio: 'Coordenando operações e transformando estratégia em entregas extraordinárias no SIX.OS.',
+    socialName: user.name.split(' ')[0] ?? user.name,
+    customRole: null,
+    bio: null,
     highlightColor: '#c6ff38',
     bannerUrl: null,
-    internalNetworks: JSON.stringify({ slack: `@${activeUser.name.toLowerCase().replace(/\s+/g, '')}`, linkedin: 'agenciasix' }),
-    signature: `${activeUser.name} · SIX.OS`,
-    xp: 12450,
-    ideas: 18,
-    level: 'Visionário',
-    streakDays: 5,
-    stickers: JSON.stringify(['speed', 'perfect-score', 'streak-3']),
+    internalNetworks: '{}',
+    signature: null,
+    xp: 0,
+    ideas: 0,
+    level: 'Criador',
+    streakDays: 0,
+    stickers: '[]',
   }
 
-  let rankingList: RankingRow[] = []
-  try {
-    const rankingQuery = await env.DB?.prepare(`
+  const rankingQuery = await env.DB.prepare(`
       SELECT 
         users.id,
         users.name,
@@ -126,45 +103,41 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
         users.avatar_url AS avatarUrl
       FROM users
       LEFT JOIN gamification_profiles p ON p.user_id = users.id
+      WHERE users.organization_id = ? AND users.status = 'active'
       ORDER BY p.xp DESC
       LIMIT 20
-    `).all<RankingRow>()
-    rankingList = rankingQuery?.results ?? []
-  } catch {}
+    `).bind(user.organizationId).all<RankingRow>()
+  const rankingList = rankingQuery.results ?? []
 
-  if (rankingList.length === 0) {
-    rankingList = DEFAULT_RANKING
-  }
+  let projectsDeliveredCount = 0
+  let avgApprovalRate = 0
 
-  let projectsDeliveredCount = 4
-  let avgApprovalRate = 98
-
-  try {
-    const projectsDelivered = await env.DB?.prepare(`
+  const projectsDelivered = await env.DB.prepare(`
       SELECT COUNT(DISTINCT missions.project_id) AS count
       FROM missions
       JOIN mission_assignees ON mission_assignees.mission_id = missions.id
-      WHERE mission_assignees.user_id = ? AND missions.status = 'completed'
-    `).bind(activeUser.id).first<{ count: number }>()
+      JOIN projects ON projects.id = missions.project_id
+      WHERE mission_assignees.user_id = ? AND projects.organization_id = ? AND missions.status = 'completed'
+    `).bind(user.id, user.organizationId).first<{ count: number }>()
 
-    const approvals = await env.DB?.prepare(`
+  const approvals = await env.DB.prepare(`
       SELECT 
         COUNT(CASE WHEN approval_status = 'approved' THEN 1 END) AS approved,
         COUNT(*) AS total
       FROM missions
       JOIN mission_assignees ON mission_assignees.mission_id = missions.id
-      WHERE mission_assignees.user_id = ? AND missions.status = 'completed'
-    `).bind(activeUser.id).first<{ approved: number; total: number }>()
+      JOIN projects ON projects.id = missions.project_id
+      WHERE mission_assignees.user_id = ? AND projects.organization_id = ? AND missions.status = 'completed'
+    `).bind(user.id, user.organizationId).first<{ approved: number; total: number }>()
 
-    if (projectsDelivered && projectsDelivered.count > 0) {
-      projectsDeliveredCount = projectsDelivered.count
-    }
-    if (approvals && approvals.total > 0) {
-      avgApprovalRate = Math.round((approvals.approved / approvals.total) * 100)
-    }
-  } catch {}
+  if (projectsDelivered && projectsDelivered.count > 0) {
+    projectsDeliveredCount = projectsDelivered.count
+  }
+  if (approvals && approvals.total > 0) {
+    avgApprovalRate = Math.round((approvals.approved / approvals.total) * 100)
+  }
 
-  const unlockedStickers = JSON.parse(resolvedProfile.stickers ?? '["speed", "perfect-score", "streak-3"]') as string[]
+  const unlockedStickers = JSON.parse(resolvedProfile.stickers ?? '[]') as string[]
   const stickers = ALL_STICKERS.map(sticker => ({
     ...sticker,
     unlocked: unlockedStickers.includes(sticker.code),
@@ -176,8 +149,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     const orgSettings = await env.DB?.prepare(`
       SELECT level_config AS levelConfig
       FROM organization_settings
+      WHERE organization_id = ?
       LIMIT 1
-    `).first<{ levelConfig: string }>()
+    `).bind(user.organizationId).first<{ levelConfig: string }>()
 
     if (orgSettings?.levelConfig) {
       levelConfig = JSON.parse(orgSettings.levelConfig)
@@ -188,7 +162,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     profile: {
       ...resolvedProfile,
       highlightColor: resolvedProfile.highlightColor ?? '#c6ff38',
-      internalNetworks: resolvedProfile.internalNetworks ? JSON.parse(resolvedProfile.internalNetworks) : { slack: '@agsix' },
+      internalNetworks: resolvedProfile.internalNetworks ? JSON.parse(resolvedProfile.internalNetworks) : {},
       stickers: unlockedStickers,
     },
     ranking: rankingList,
@@ -214,27 +188,23 @@ type UpdateProfileInput = {
 }
 
 export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) => {
-  let user: AccessUser | null = null
-  try {
-    user = await getAccessUser(request, env)
-  } catch {}
-
-  const userId = user?.id ?? 'user-agsix-admin'
+  const user = await getAccessUser(request, env)
+  if (!user) return accessRequiredResponse()
 
   const input = await request.json().catch(() => null) as UpdateProfileInput | null
   if (!input) return Response.json({ error: 'Dados inválidos' }, { status: 400 })
 
   const name = typeof input.name === 'string' ? input.name.trim().slice(0, 100) : undefined
   const avatarUrl = typeof input.avatarUrl === 'string' ? input.avatarUrl : undefined
-  const socialName = typeof input.socialName === 'string' ? input.socialName.trim().slice(0, 100) : null
-  const customRole = typeof input.customRole === 'string' ? input.customRole.trim().slice(0, 100) : null
-  const bio = typeof input.bio === 'string' ? input.bio.trim().slice(0, 1000) : null
-  const highlightColor = typeof input.highlightColor === 'string' ? input.highlightColor.trim().slice(0, 20) : '#c6ff38'
-  const bannerUrl = typeof input.bannerUrl === 'string' ? input.bannerUrl : null
+  const socialName = typeof input.socialName === 'string' ? input.socialName.trim().slice(0, 100) : undefined
+  const customRole = typeof input.customRole === 'string' ? input.customRole.trim().slice(0, 100) : undefined
+  const bio = typeof input.bio === 'string' ? input.bio.trim().slice(0, 1000) : undefined
+  const highlightColor = typeof input.highlightColor === 'string' ? input.highlightColor.trim().slice(0, 20) : undefined
+  const bannerUrl = typeof input.bannerUrl === 'string' ? input.bannerUrl : undefined
   const internalNetworks = input.internalNetworks && typeof input.internalNetworks === 'object'
     ? JSON.stringify(input.internalNetworks)
-    : '{}'
-  const signature = typeof input.signature === 'string' ? input.signature.trim().slice(0, 2000) : null
+    : undefined
+  const signature = typeof input.signature === 'string' ? input.signature.trim().slice(0, 2000) : undefined
 
   const now = new Date().toISOString()
 
@@ -253,26 +223,36 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
         params.push(avatarUrl)
       }
       updateUsersQuery = updateUsersQuery.slice(0, -2) + ' WHERE id = ?'
-      params.push(userId)
+      params.push(user.id, user.organizationId)
+      updateUsersQuery += ' AND organization_id = ?'
       statements.push(env.DB.prepare(updateUsersQuery).bind(...params))
     }
 
-    statements.push(env.DB.prepare(`
-      INSERT INTO gamification_profiles (user_id, social_name, custom_role, bio, highlight_color, banner_url, internal_networks, signature, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET 
-        social_name = excluded.social_name,
-        custom_role = excluded.custom_role,
-        bio = excluded.bio,
-        highlight_color = excluded.highlight_color,
-        banner_url = excluded.banner_url,
-        internal_networks = excluded.internal_networks,
-        signature = excluded.signature,
-        updated_at = excluded.updated_at
-    `).bind(userId, socialName, customRole, bio, highlightColor, bannerUrl, internalNetworks, signature, now))
+    statements.push(env.DB.prepare("INSERT OR IGNORE INTO gamification_profiles (user_id, level) VALUES (?, 'Criador')").bind(user.id))
+
+    const profileUpdates: string[] = []
+    const profileValues: unknown[] = []
+    for (const [column, value] of [
+      ['social_name', socialName], ['custom_role', customRole], ['bio', bio],
+      ['highlight_color', highlightColor], ['banner_url', bannerUrl],
+      ['internal_networks', internalNetworks], ['signature', signature],
+    ] as const) {
+      if (value !== undefined) {
+        profileUpdates.push(`${column} = ?`)
+        profileValues.push(value)
+      }
+    }
+    if (profileUpdates.length > 0) {
+      profileUpdates.push('updated_at = ?')
+      profileValues.push(now, user.id)
+      statements.push(env.DB.prepare(`UPDATE gamification_profiles SET ${profileUpdates.join(', ')} WHERE user_id = ?`).bind(...profileValues))
+    }
 
     await env.DB.batch(statements)
-  } catch {}
+  } catch (error) {
+    console.error('Profile update failed', error)
+    return Response.json({ error: 'Não foi possível atualizar o perfil' }, { status: 500 })
+  }
 
   return Response.json({ success: true })
 }

@@ -1,5 +1,6 @@
 name = "six-os"
-compatibility_date = "2026-08-03"
+compatibility_date = "2026-08-04"
+compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
 
 [[d1_databases]]
@@ -7,3 +8,11 @@ binding = "DB"
 database_name = "six-os"
 database_id = "SUBSTITUA_PELO_ID_DO_D1"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "SUBSTITUA_PELO_BUCKET_R2"
+
+# Configure CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD in the environment used by
+# Cloudflare Pages. Configure INTEGRATIONS_ENCRYPTION_KEY as an encrypted Pages
+# secret; never commit the key to this file.

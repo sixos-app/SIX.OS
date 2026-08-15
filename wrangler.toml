@@ -1,6 +1,10 @@
 name = "six-os"
 compatibility_date = "2026-08-04"
+compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
+
+[placement]
+mode = "off"
 
 [[d1_databases]]
 binding = "DB"
@@ -11,6 +15,3 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "FILES"
 bucket_name = "six-os-files"
-
-[vars]
-ALLOW_DEV_AUTH_BYPASS = "true"

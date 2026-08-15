@@ -26,5 +26,5 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   } catch {
     return Response.json({ error: 'Esta sigla já está em uso' }, { status: 409 })
   }
-  return Response.json({ client: { id, name, shortCode, imageUrl } }, { status: 201 })
+  return Response.json({ client: { id, name, shortCode, imageUrl, description: null } }, { status: 201 })
 }

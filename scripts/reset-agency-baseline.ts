@@ -13,6 +13,12 @@ if (!process.env.TARGET_ORGANIZATION_ID) {
   process.exit(1);
 }
 
+const targetOrganizationId = process.env.TARGET_ORGANIZATION_ID;
+if (!/^[a-zA-Z0-9_-]{2,80}$/.test(targetOrganizationId)) {
+  console.error('ABORT: TARGET_ORGANIZATION_ID has an invalid format.');
+  process.exit(1);
+}
+
 const masterEmail = 'agsix@sixos.app';
 const password = process.env.SIXOS_MASTER_PASSWORD;
 
@@ -55,6 +61,15 @@ function getCount(table: string) {
   } catch {
     return 0;
   }
+}
+
+// This legacy reset uses global deletes because several old child tables do not
+// carry organization_id. It is safe only when the database contains exactly the
+// requested tenant; abort instead of risking a cross-tenant wipe.
+const organizations = runSql('SELECT id FROM organizations ORDER BY id', true) as Array<{ id: string }>;
+if (organizations.length !== 1 || organizations[0]?.id !== targetOrganizationId) {
+  console.error('ABORT: Baseline reset is restricted to a single-tenant database matching TARGET_ORGANIZATION_ID.');
+  process.exit(1);
 }
 
 // 1. Data Matrix Definitions
@@ -144,7 +159,7 @@ if (isDryRun) {
   process.exit(0);
 }
 
-console.log('\n[2/3] Executing DESTUCTIVE CLEANUP...');
+console.log('\n[2/3] Executing DESTRUCTIVE CLEANUP...');
 
 for (const table of tablesToWipe) {
   runSql(`DELETE FROM ${table};`);

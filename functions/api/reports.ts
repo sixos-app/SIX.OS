@@ -24,20 +24,35 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     }
 
     const { results } = await env.DB.prepare(`
+      WITH demand_stats AS (
+        SELECT client_id,
+          COUNT(*) AS totalDemands,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completedDemands,
+          SUM(CASE WHEN scope_type = 'extra' THEN 1 ELSE 0 END) AS extraDemands,
+          SUM(CASE WHEN complexity = 'urgent' THEN 1 ELSE 0 END) AS urgentDemands
+        FROM demands
+        WHERE organization_id = ?
+        GROUP BY client_id
+      ), time_stats AS (
+        SELECT client_id, SUM(hours + minutes / 60.0) AS totalHoursSpent
+        FROM time_entries
+        WHERE organization_id = ?
+        GROUP BY client_id
+      )
       SELECT 
         c.id AS clientId,
         c.name AS clientName,
-        COUNT(DISTINCT d.id) AS totalDemands,
-        SUM(CASE WHEN d.status = 'completed' THEN 1 ELSE 0 END) AS completedDemands,
-        SUM(CASE WHEN d.scope_type = 'extra' THEN 1 ELSE 0 END) AS extraDemands,
-        SUM(CASE WHEN d.complexity = 'urgent' THEN 1 ELSE 0 END) AS urgentDemands,
-        COALESCE(SUM(te.hours + te.minutes / 60.0), 0) AS totalHoursSpent
+        COALESCE(ds.totalDemands, 0) AS totalDemands,
+        COALESCE(ds.completedDemands, 0) AS completedDemands,
+        COALESCE(ds.extraDemands, 0) AS extraDemands,
+        COALESCE(ds.urgentDemands, 0) AS urgentDemands,
+        COALESCE(ts.totalHoursSpent, 0) AS totalHoursSpent
       FROM clients c
-      LEFT JOIN demands d ON d.client_id = c.id
-      LEFT JOIN time_entries te ON te.client_id = c.id
+      LEFT JOIN demand_stats ds ON ds.client_id = c.id
+      LEFT JOIN time_stats ts ON ts.client_id = c.id
       WHERE c.organization_id = ?${scopeFilter}
-      GROUP BY c.id, c.name
-    `).bind(...binds).all()
+      ORDER BY c.name
+    `).bind(user.organizationId, user.organizationId, ...binds).all()
 
     return Response.json(results ?? [])
   }
@@ -59,19 +74,33 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     }
 
     const { results } = await env.DB.prepare(`
+      WITH task_stats AS (
+        SELECT t.assignee_id AS user_id,
+          COUNT(*) AS totalTasks,
+          SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS completedTasks
+        FROM tasks t
+        JOIN demands d ON d.id = t.demand_id
+        WHERE d.organization_id = ?
+        GROUP BY t.assignee_id
+      ), time_stats AS (
+        SELECT user_id, SUM(hours + minutes / 60.0) AS totalHoursLogged
+        FROM time_entries
+        WHERE organization_id = ?
+        GROUP BY user_id
+      )
       SELECT 
         u.id AS userId,
         u.name AS userName,
         u.role AS userRole,
-        COUNT(DISTINCT t.id) AS totalTasks,
-        SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) AS completedTasks,
-        COALESCE(SUM(te.hours + te.minutes / 60.0), 0) AS totalHoursLogged
+        COALESCE(tasks.totalTasks, 0) AS totalTasks,
+        COALESCE(tasks.completedTasks, 0) AS completedTasks,
+        COALESCE(times.totalHoursLogged, 0) AS totalHoursLogged
       FROM users u
-      LEFT JOIN tasks t ON t.assignee_id = u.id
-      LEFT JOIN time_entries te ON te.user_id = u.id
+      LEFT JOIN task_stats tasks ON tasks.user_id = u.id
+      LEFT JOIN time_stats times ON times.user_id = u.id
       WHERE u.organization_id = ?${scopeFilter}
-      GROUP BY u.id, u.name, u.role
-    `).bind(...binds).all()
+      ORDER BY u.name
+    `).bind(user.organizationId, user.organizationId, ...binds).all()
 
     return Response.json(results ?? [])
   }

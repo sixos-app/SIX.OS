@@ -9,7 +9,7 @@ Nenhuma API pode confiar implicitamente em payloads injetados pelo cliente para 
 A infraestrutura será provida por D1 Databases isolados. O ambiente de Beta utilizará um D1 Database completamente apartado do ambiente Dev, com seeds populados unicamente por dados administrativos estritos. O backup estará ativo e haverá pelo menos um ensaio de restore bem sucedido.
 
 ## 3. Isolamento RBAC e Multi-Tenant (Cross-Org)
-Os testes de certificação (`npm run certify:beta`) devem atestar pass-rate 100% nas defesas contra exploração vertical (privilégio expandido) e isolamento horizontal (Cross-Org).
+Os testes de certificação (`pnpm certify:beta`) devem atestar pass-rate 100% nas defesas contra exploração vertical (privilégio expandido) e isolamento horizontal (Cross-Org).
 
 ## 4. UI/UX Limiar
 Não deve existir tela sem um *empty state*, sem *loading indicator* (durante fetches visíveis), ou que perca responsividade a 320px de largura de forma catastrófica (overflows não intencionais que impedem o uso). A funcionalidade de "Report Bug/Feedback" deve estar unificada no shell do app.

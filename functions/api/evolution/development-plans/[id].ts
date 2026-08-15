@@ -28,18 +28,34 @@ export async function onRequestPut({ request, env, params }: { request: Request;
   if (!user) return accessRequiredResponse()
 
   const planId = params.id as string
-  const body = await request.json() as { title?: string; description?: string; status?: string; startDate?: string; endDate?: string }
+  const body = await request.json().catch(() => null) as { title?: string; description?: string; status?: string; startDate?: string; endDate?: string } | null
+  if (!body) return Response.json({ error: 'Invalid payload' }, { status: 400 })
 
   const plan = await env.DB.prepare(`
-    SELECT subject_user_id AS subjectUserId
+    SELECT subject_user_id AS subjectUserId, status
     FROM development_plans
     WHERE id = ? AND organization_id = ? AND deleted_at IS NULL
-  `).bind(planId, user.organizationId).first<{ subjectUserId: string }>()
+  `).bind(planId, user.organizationId).first<{ subjectUserId: string; status: string }>()
 
   if (!plan) return Response.json({ error: 'Not found' }, { status: 404 })
 
   const hasAccess = await validateDevelopmentScope(env, request, user, plan.subjectUserId, 'development.plans.edit')
-  if (!hasAccess) return permissionRequiredResponse()
+  const canManage = await validateDevelopmentScope(env, request, user, plan.subjectUserId, 'development.plans.manage')
+  if (!hasAccess && !canManage) return permissionRequiredResponse()
+
+  if (plan.status === 'completed' || plan.status === 'cancelled') {
+    return Response.json({ error: 'Closed plans are immutable' }, { status: 409 })
+  }
+  const transitions: Record<string, string[]> = {
+    draft: ['draft', 'active', 'cancelled'],
+    active: ['active', 'completed', 'cancelled'],
+  }
+  if (body.status && !transitions[plan.status]?.includes(body.status)) {
+    return Response.json({ error: `Invalid status transition from ${plan.status} to ${body.status}` }, { status: 409 })
+  }
+  if (body.title !== undefined && !body.title.trim()) return Response.json({ error: 'Title cannot be empty' }, { status: 400 })
+  if (body.startDate && Number.isNaN(Date.parse(body.startDate))) return Response.json({ error: 'Invalid start date' }, { status: 400 })
+  if (body.endDate && Number.isNaN(Date.parse(body.endDate))) return Response.json({ error: 'Invalid end date' }, { status: 400 })
 
   // Update
   await env.DB.prepare(`
@@ -50,14 +66,15 @@ export async function onRequestPut({ request, env, params }: { request: Request;
         start_date = COALESCE(?, start_date),
         end_date = COALESCE(?, end_date),
         updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
+    WHERE id = ? AND organization_id = ?
   `).bind(
-    body.title ?? null,
+    body.title?.trim() ?? null,
     body.description ?? null,
     body.status ?? null,
     body.startDate ?? null,
     body.endDate ?? null,
-    planId
+    planId,
+    user.organizationId
   ).run()
 
   return Response.json({ success: true })

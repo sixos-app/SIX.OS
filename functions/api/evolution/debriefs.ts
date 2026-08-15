@@ -52,11 +52,12 @@ export async function onRequestPost({ request, env }: { request: Request; env: B
   
   if (!body.subjectUserId) return Response.json({ error: 'Subject is required' }, { status: 400 })
 
+  const subject = await env.DB.prepare(`SELECT id, department_id, manager_id FROM users WHERE id = ? AND organization_id = ? AND status = 'active'`)
+    .bind(body.subjectUserId, user.organizationId).first<{ id: string; department_id: string | null; manager_id: string | null }>()
+  if (!subject) return Response.json({ error: 'Subject not found in this organization' }, { status: 404 })
+
   const scope = await getPermissionScope(env, request, user, 'development.debriefs.edit')
   if (scope !== 'all') {
-    const subject = await env.DB.prepare(`SELECT department_id, manager_id FROM users WHERE id = ?`).bind(body.subjectUserId).first<{ department_id: string, manager_id: string }>()
-    if (!subject) return Response.json({ error: 'Subject not found' }, { status: 404 })
-
     if (scope === 'department' && subject.department_id !== user.departmentId) {
       return permissionRequiredResponse()
     } else if (scope === 'team' && subject.manager_id !== user.id) {
@@ -69,10 +70,9 @@ export async function onRequestPost({ request, env }: { request: Request; env: B
   // Confidentiality Check (Obscured)
   if (body.cycleId) {
     const cycle = await env.DB.prepare(`SELECT results_available_at FROM evaluation_cycles WHERE id = ? AND organization_id = ?`).bind(body.cycleId, user.organizationId).first<{ results_available_at: string | null }>()
-    if (cycle && cycle.results_available_at) {
-      if (new Date(cycle.results_available_at).getTime() > Date.now()) {
-        return Response.json({ error: 'Cycle results are obscured and not available yet' }, { status: 403 })
-      }
+    if (!cycle) return Response.json({ error: 'Cycle not found in this organization' }, { status: 404 })
+    if (!cycle.results_available_at || new Date(cycle.results_available_at).getTime() > Date.now()) {
+      return Response.json({ error: 'Cycle results are obscured and not available yet' }, { status: 403 })
     }
   }
 

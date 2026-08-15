@@ -1,5 +1,5 @@
-import { D1Database } from '@cloudflare/workers-types'
-import { AccessUser, getPermissionScope } from '../../_access'
+import type { D1Database } from '@cloudflare/workers-types'
+import { getPermissionScope, type AccessUser } from '../../_access'
 
 /**
  * Validates if the user has permission to access a specific subject user's data
@@ -36,8 +36,6 @@ export async function validateDevelopmentScope(
   `).bind(subjectUserId).first<{ organizationId: string; departmentId: string; managerId: string | null }>()
 
   if (!subject) return false
-
-  console.log(`validateDevelopmentScope: user=${user.id} subject=${subjectUserId} scope=${scope} subject.managerId=${subject.managerId}`)
 
   // Multi-org boundary check (Critical Invariant)
   if (subject.organizationId !== user.organizationId) {

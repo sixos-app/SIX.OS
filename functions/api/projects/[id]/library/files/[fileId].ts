@@ -8,7 +8,7 @@ type FileRow = {
   storageKey: string | null
 }
 
-export const onRequestGet: PagesFunction<LibraryBindings, { id: string; fileId: string }> = async ({ env, params, request }) => {
+export const onRequestGet: PagesFunction<LibraryBindings, 'id' | 'fileId'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
 
@@ -20,7 +20,7 @@ export const onRequestGet: PagesFunction<LibraryBindings, { id: string; fileId: 
     LIMIT 1
   `).bind(params.fileId, params.id, user.organizationId).first<FileRow>()
   if (!file?.storageKey) return Response.json({ error: 'Arquivo não encontrado' }, { status: 404 })
-  if (!await canAccessProjectLibrary(env, user, params.id)) return permissionRequiredResponse()
+  if (!await canAccessProjectLibrary(env, request, user, params.id as string)) return permissionRequiredResponse()
 
   const object = await env.FILES.get(file.storageKey)
   if (!object) return Response.json({ error: 'Conteúdo não encontrado' }, { status: 404 })

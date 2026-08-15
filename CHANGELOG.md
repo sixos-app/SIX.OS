@@ -2,6 +2,22 @@
 
 Histórico de entregas e atualizações de funcionalidades do sistema operacional da agência.
 
+## [Não lançado] — Hardening de segurança e integridade
+
+- Autenticação obrigatória no perfil e remoção dos fallbacks administrativos no navegador.
+- Validação estrita de JWT Cloudflare Access, origem CSRF e limite de tentativas de login.
+- Migration 0021 reescrita e testada com dados filhos populados, sem perda por cascata.
+- Credencial histórica removida e sessões revogadas pela migration 0022.
+- Functions incluídas no typecheck; duplicação `_access.js` removida.
+- Isolamento multi-organização reforçado em contratos, demandas, horas e PDI.
+- Segredos de integrações isolados por organização e criptografados com AES-GCM.
+- Relatórios corrigidos para impedir multiplicação cartesiana de horas.
+- Testes reais adicionados a `pnpm test` e `pnpm certify:beta`.
+- Dashboard, equipe, projetos e analytics passaram a usar somente dados do D1; fallbacks e edições locais foram removidos.
+- Criação e ciclo de projetos agora são persistidos e isolados por organização.
+- Catálogo fictício de busca, calendário aleatório, briefing rotulado indevidamente como IA e métricas simuladas foram removidos.
+- Busca da biblioteca agora consulta arquivos reais e a migration 0027 elimina somente os registros históricos conhecidos da demonstração.
+
 ## [0.43.0] — 2026-08-06
 
 ### Em Desenvolvimento (Estabilização do MVP & Refinamento de UX)
