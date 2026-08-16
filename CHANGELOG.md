@@ -6,6 +6,18 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.45.0] - 2026-08-15
+
+### Added
+- **Construtor Dinâmico de Fluxo de Missões**: Card *"FLUXO DA MISSÃO"* em `MissionCreateModal.tsx` com adição, remoção e ordenação de etapas por setor e responsável, além de presets rápidos (Campanha, Design, Vídeo, Social).
+- **Pipeline Interativo de Workflow no Detalhe**: Visualização do status de cada etapa ($✓, \bullet, \circ$) e botões de ação para avanço de etapa e solicitação de ajustes/revisão.
+- **Sistema Estruturado de Revisão e Retrabalho**: Modal dedicado para solicitar ajustes com motivo detalhado, registro do histórico de auditoria e persistência de notas de revisão (`review_notes`).
+- **Controle de Tempo Estimado vs Realizado**: Suporte a estimativas de tempo em horas/minutos (`expected_minutes`) na missão e no detalhe, comparando o planejado com os timers realizados.
+- **Migration 0037**: Adição de campos operacionais não-destrutivos em `missions` e `mission_workflow_steps`.
+- **Gate de Certificação Operacional**: Novo teste `scripts/test_operational_missions.ts` integrado à suíte de certificação.
+
+---
+
 ## [0.44.0] - 2026-08-15
 
 ### Added

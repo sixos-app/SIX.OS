@@ -3,8 +3,10 @@ import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequi
 export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  const input = await request.json().catch(() => null) as { targetPosition?: unknown } | null
+  const input = await request.json().catch(() => null) as { targetPosition?: unknown; reason?: unknown } | null
   const targetPosition = typeof input?.targetPosition === 'number' && Number.isInteger(input.targetPosition) ? input.targetPosition : -1
+  const reason = typeof input?.reason === 'string' ? input.reason.trim().slice(0, 1000) : ''
+
   const mission = await env.DB.prepare(`
     SELECT missions.id, missions.current_workflow_position AS currentPosition,
       (SELECT department_name FROM mission_workflow_steps WHERE mission_id = missions.id AND position = missions.current_workflow_position) AS currentDepartment,
@@ -30,11 +32,13 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
   if (!canManage && !finalDepartmentMember) return permissionRequiredResponse()
 
   const now = new Date().toISOString()
+  const historyDetail = reason ? `Ajustes solicitados para ${mission.targetDepartment}: "${reason}".` : `Missão devolvida para ${mission.targetDepartment}.`
+
   const statements = [
     env.DB.prepare(`UPDATE mission_workflow_steps SET status = 'pending', completed_by_user_id = NULL, completed_at = NULL WHERE mission_id = ? AND position >= ?`).bind(mission.id, targetPosition),
-    env.DB.prepare(`UPDATE mission_workflow_steps SET status = 'active' WHERE mission_id = ? AND position = ?`).bind(mission.id, targetPosition),
+    env.DB.prepare(`UPDATE mission_workflow_steps SET status = 'returned', review_notes = ? WHERE mission_id = ? AND position = ?`).bind(reason || null, mission.id, targetPosition),
     env.DB.prepare(`UPDATE missions SET current_workflow_position = ?, status = 'in_progress', approval_status = 'not_requested', updated_at = ? WHERE id = ?`).bind(targetPosition, now, mission.id),
-    env.DB.prepare(`INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, 'workflow_returned', ?, ?)`).bind(crypto.randomUUID(), mission.id, user.id, `Missão devolvida para ${mission.targetDepartment}.`, now),
+    env.DB.prepare(`INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, 'workflow_returned', ?, ?)`).bind(crypto.randomUUID(), mission.id, user.id, historyDetail, now),
     env.DB.prepare(`
       UPDATE time_entries
       SET ended_at = ?, duration_seconds = CAST((strftime('%s', ?) - strftime('%s', started_at)) AS INTEGER),
@@ -53,5 +57,5 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
 
   await env.DB.batch(statements)
   const next = await env.DB.prepare('SELECT department_name AS name FROM mission_workflow_steps WHERE mission_id = ? AND position = ?').bind(mission.id, targetPosition + 1).first<{ name: string }>()
-  return Response.json({ missionId: mission.id, status: 'workflow_returned', currentDepartment: mission.targetDepartment, nextDepartment: next?.name ?? null })
+  return Response.json({ missionId: mission.id, status: 'workflow_returned', currentDepartment: mission.targetDepartment, nextDepartment: next?.name ?? null, reason: reason || null })
 }

@@ -28,6 +28,35 @@ export type MissionHistoryItem = {
   createdAt: string
 }
 
+export type MissionWorkflowStep = {
+  id: string
+  position: number
+  departmentName: string
+  status: 'pending' | 'active' | 'completed' | 'returned'
+  responsibleUserId: string | null
+  responsibleName: string | null
+  completedByUserId: string | null
+  completedByName: string | null
+  completedAt: string | null
+  stepType?: string | null
+  expectedMinutes?: number | null
+  reviewNotes?: string | null
+}
+
+export type MissionTimeTracking = {
+  totalSeconds: number
+  entriesCount: number
+  recentEntries: Array<{
+    id: string
+    userId: string
+    userName: string
+    durationSeconds: number
+    startedAt: string | null
+    endedAt: string | null
+    entryType: string
+  }>
+}
+
 export type MissionDetails = {
   mission: {
     id: string
@@ -41,10 +70,12 @@ export type MissionDetails = {
     status: string
     priority: string
     dueAt: string | null
+    expectedMinutes?: number | null
     xpReward: number
     ideasReward: number
     rewardLabel: string | null
     approvalStatus: string
+    currentWorkflowPosition?: number
     createdAt: string
     completedAt: string | null
     approvedAt: string | null
@@ -58,6 +89,8 @@ export type MissionDetails = {
   comments: MissionComment[]
   attachments: MissionAttachment[]
   history: MissionHistoryItem[]
+  workflowSteps?: MissionWorkflowStep[]
+  timeTracking?: MissionTimeTracking
   activeTimer: { id: string; startedAt: string } | null
   permissions: { canInteract: boolean; canManage: boolean; canApprove: boolean; canTrackTime: boolean }
 }
@@ -101,8 +134,8 @@ export async function deleteMission(missionId: string) {
   }
 }
 
-export function returnMissionWorkflow(missionId: string, targetPosition: number) {
-  return requestJson<{ missionId: string; status: string; currentDepartment: string; nextDepartment: string | null }>(`/api/missions/${encodeURIComponent(missionId)}/workflow`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetPosition }) })
+export function returnMissionWorkflow(missionId: string, targetPosition: number, reason?: string) {
+  return requestJson<{ missionId: string; status: string; currentDepartment: string; nextDepartment: string | null }>(`/api/missions/${encodeURIComponent(missionId)}/workflow`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetPosition, reason }) })
 }
 
 export function startMissionTimer(missionId: string) {
@@ -118,12 +151,13 @@ export type SaveMissionInput = {
   projectId: string
   assigneeId: string
   dueAt: string
+  expectedMinutes?: number | null
   priority: 'normal' | 'urgent'
   description?: string
   xpReward?: number
   xpRuleId?: string | null
   workflowDepartments?: string[]
-  workflowSteps?: Array<{ departmentName: string; responsibleUserId: string }>
+  workflowSteps?: Array<{ departmentName: string; responsibleUserId: string; stepType?: string; expectedMinutes?: number | null }>
 }
 
 export type SavedMission = {
@@ -135,17 +169,16 @@ export type SavedMission = {
   priority: string
   description: string
   xpReward: number
-  rewardLabel: string | null
   xpRuleId?: string | null
-  xpRecipientUserId?: string | null
-  currentDepartment?: string | null
-  nextDepartment?: string | null
-  currentResponsibleUserId?: string | null
-  nextResponsibleUserId?: string | null
   boardId?: string | null
   stageId?: string | null
   stageName?: string | null
   stageType?: 'backlog' | 'ready' | 'doing' | 'review' | 'approval' | 'done' | null
+  currentDepartment?: string | null
+  nextDepartment?: string | null
+  currentResponsibleUserId?: string | null
+  nextResponsibleUserId?: string | null
+  rewardLabel?: string | null
 }
 
 export function createMission(input: SaveMissionInput) {

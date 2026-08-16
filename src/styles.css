@@ -580,15 +580,13 @@ button { border: 0; cursor: pointer; }
 .xp-award-history strong { display: grid; color: #607f13; text-align: right; }
 .gamification-message { color: #536e10; font-size: 10px; font-weight: 800; }
 .mission-xp-rule-note { display: block; margin-top: 6px; color: #8b8b84; font-size: 9px; font-weight: 700; letter-spacing: 0; text-transform: none; }
-.mission-workflow-builder { display: grid; gap: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #4c4c47; border-radius: 9px; background: #22221f; }
+.mission-workflow-builder { display: grid; gap: 8px; padding: 14px; margin-bottom: 12px; border: 1px solid #4c4c47; border-radius: 9px; background: #22221f; }
 .mission-workflow-builder > span, .mission-return-actions > span { color: #a4a49c; font-size: 8px; font-weight: 900; letter-spacing: 1px; }
-.mission-workflow-builder > div { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 7px; }
-.mission-workflow-builder b { padding: 10px; border-radius: 7px; background: #343430; color: #fff; font-size: 10px; text-align: center; }
+.mission-workflow-builder b { padding: 8px 10px; border-radius: 7px; background: #343430; color: #fff; font-size: 10px; text-align: center; }
 .mission-workflow-builder i { color: #c6ff38; font-style: normal; }
 .mission-workflow-builder label { margin: 0; }
 .mission-workflow-builder select { height: 38px; padding: 0 8px; }
-.mission-workflow-builder small { color: #aaa9a1; font-size: 8px; line-height: 1.4; }
-.mission-workflow-builder .mission-workflow-responsibles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.mission-workflow-builder small { color: #aaa9a1; font-size: 9px; line-height: 1.4; }
 .mission-workflow-responsibles > span, .mission-workflow-responsibles > label { min-width: 0; display: grid; gap: 4px; }
 .mission-workflow-responsibles > span { padding: 6px; border: 1px solid #44443f; border-radius: 7px; }
 .mission-workflow-responsibles > span b { overflow: hidden; padding: 7px; text-overflow: ellipsis; white-space: nowrap; }

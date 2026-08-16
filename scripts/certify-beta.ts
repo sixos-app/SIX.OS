@@ -12,6 +12,7 @@ const gates: TestGate[] = [
   { name: 'RBAC V2 & Access Profiles', command: 'tsx scripts/test_rbac_v2.ts', category: 'SECURITY' },
   { name: 'Security & Tenant Isolation', command: 'tsx scripts/test-security.ts', category: 'SECURITY' },
   { name: 'Sector Workflows & Mission Timers', command: 'tsx scripts/test_workflow_lifecycle.ts', category: 'WORKFLOW' },
+  { name: 'Operational Missions & Review Cycles', command: 'tsx scripts/test_operational_missions.ts', category: 'WORKFLOW' },
   { name: 'Expanded Agenda & Events', command: 'tsx scripts/test_agenda_expansion.ts', category: 'AGENDA' },
   { name: 'Vite Production Build', command: 'tsc -b && vite build', category: 'BUILD' },
 ]

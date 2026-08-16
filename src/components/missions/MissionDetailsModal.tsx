@@ -6,8 +6,10 @@ import {
   attachProjectLibraryFile,
   getMissionDetails,
   requestMissionCompletion,
+  returnMissionWorkflow,
   setMissionChecklistItem,
   type MissionDetails,
+  type MissionWorkflowStep,
 } from '../../data/missionRepository'
 import {
   getProjectLibrary,
@@ -18,7 +20,17 @@ import {
 import { deadlineToMissionDate } from '../../utils/formatters'
 import { MissionTimerValue } from '../shared/MissionTimerValue'
 
-export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPending }: { mission: Mission; onClose: () => void; onTimerToggle: (id: string) => Promise<void>; isTimerPending: boolean }) {
+export function MissionDetailsModal({
+  mission,
+  onClose,
+  onTimerToggle,
+  isTimerPending,
+}: {
+  mission: Mission
+  onClose: () => void
+  onTimerToggle: (id: string) => Promise<void>
+  isTimerPending: boolean
+}) {
   const [details, setDetails] = useState<MissionDetails | null>(null)
   const [library, setLibrary] = useState<ProjectLibrary>(projectLibrarySeed)
   const [checklistLabel, setChecklistLabel] = useState('')
@@ -28,6 +40,9 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
   const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [isUploadingFile, setIsUploadingFile] = useState(false)
   const [message, setMessage] = useState('')
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false)
+  const [returnTargetPosition, setReturnTargetPosition] = useState(0)
+  const [returnReason, setReturnReason] = useState('')
 
   async function reload() {
     try {
@@ -39,7 +54,7 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
           setLibrary(projectLibrary)
           setUploadFolderId((current) => current || projectLibrary.folders[0]?.id || '')
         } catch {
-          setMessage('Detalhes carregados, mas a Biblioteca do Projeto não está disponível.')
+          // Biblioteca indisponível
         }
       }
     } catch (error) {
@@ -56,6 +71,7 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
           status: mission.status ?? 'open',
           priority: mission.urgent ? 'urgent' : 'normal',
           dueAt: deadlineToMissionDate(mission.deadline),
+          expectedMinutes: null,
           xpReward: mission.xp,
           ideasReward: mission.ideas,
           rewardLabel: null,
@@ -81,13 +97,17 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
   }
 
   useEffect(() => { void reload() }, [mission.id])
+
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') {
+        if (isReturnModalOpen) setIsReturnModalOpen(false)
+        else onClose()
+      }
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [onClose])
+  }, [onClose, isReturnModalOpen])
 
   async function addChecklist(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -154,13 +174,32 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
     }
   }
 
-  async function complete() {
+  async function advanceStep() {
     try {
       const result = await requestMissionCompletion(mission.id)
-      setMessage(result.status === 'pending_approval' ? 'Entrega enviada para aprovação.' : 'Missão aprovada e XP liberado.')
+      if (result.status === 'workflow_advanced') {
+        setMessage(`Etapa concluída! Próximo setor: ${result.nextDepartment ?? 'Aprovação'}.`)
+      } else if (result.status === 'completed') {
+        setMessage('Missão aprovada com sucesso e XP creditado a todos os participantes!')
+      } else {
+        setMessage('Entrega enviada para aprovação.')
+      }
       await reload()
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Não foi possível concluir a missão.')
+      setMessage(error instanceof Error ? error.message : 'Não foi possível avançar a etapa.')
+    }
+  }
+
+  async function handleReturnWorkflow(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    try {
+      await returnMissionWorkflow(mission.id, returnTargetPosition, returnReason.trim())
+      setMessage('Ajustes solicitados com sucesso. A missão retornou para a etapa selecionada.')
+      setIsReturnModalOpen(false)
+      setReturnReason('')
+      await reload()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível solicitar ajustes.')
     }
   }
 
@@ -173,6 +212,13 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
     }
   }
 
+  const steps = details?.workflowSteps ?? []
+  const activeStep = steps.find((s) => s.status === 'active' || s.status === 'returned')
+  const completedSteps = steps.filter((s) => s.status === 'completed')
+  const totalTrackedSeconds = details?.timeTracking?.totalSeconds ?? 0
+  const trackedHoursFormatted = `${Math.floor(totalTrackedSeconds / 3600)}h ${Math.floor((totalTrackedSeconds % 3600) / 60)}min`
+  const expectedHoursFormatted = details?.mission.expectedMinutes ? `${Math.floor(details.mission.expectedMinutes / 60)}h ${details.mission.expectedMinutes % 60 ? `${details.mission.expectedMinutes % 60}min` : ''}` : null
+
   return (
     <div className="mission-create-overlay mission-details-overlay" role="dialog" aria-modal="true" aria-label="Detalhes da missão">
       <section className="mission-details-dialog">
@@ -182,22 +228,137 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
         ) : (
           <>
             <header>
-              <p>MISSÃO</p>
-              <h2>{details.mission.title}</h2>
-              <span>{details.mission.client} · {details.mission.project}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <p>MISSÃO</p>
+                  <h2>{details.mission.title}</h2>
+                  <span>{details.mission.client} · {details.mission.project}</span>
+                </div>
+                {details.mission.status === 'completed' && (
+                  <span style={{ background: '#c6ff38', color: '#111', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
+                    CONCLUÍDA ✓
+                  </span>
+                )}
+              </div>
             </header>
 
             <div className="mission-details-meta">
               <b>{details.mission.priority.toLocaleUpperCase('pt-BR')}</b>
               <span>{details.mission.assignee ?? 'Responsável a definir'}</span>
               <span>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Prazo a definir'}</span>
-              {details.mission.stageName && <span>{details.mission.stageName.toLocaleUpperCase('pt-BR')}</span>}
+              {expectedHoursFormatted && <span>Estimativa: {expectedHoursFormatted}</span>}
+              <span>Tempo: {trackedHoursFormatted}</span>
               <span>+{details.mission.xpReward} XP</span>
             </div>
 
-            {details.permissions.canTrackTime && (details.mission.stageType === 'backlog' || details.mission.stageType === 'ready' || details.mission.stageType === 'doing') && (
+            {/* WORKFLOW PIPELINE INTERATIVO */}
+            {steps.length > 0 && (
+              <div className="mission-workflow-pipeline" style={{ background: '#171717', border: '1px solid #282828', borderRadius: '10px', padding: '14px', margin: '14px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <small style={{ color: '#888', fontWeight: 800, letterSpacing: '1px', fontSize: '9px' }}>
+                    WORKFLOW OPERACIONAL DA MISSÃO
+                  </small>
+                  {activeStep && (
+                    <span style={{ fontSize: '10px', color: activeStep.status === 'returned' ? '#ff6b6b' : '#c6ff38', fontWeight: 800 }}>
+                      {activeStep.status === 'returned' ? 'AJUSTES SOLICITADOS' : 'ETAPA ATIVA'} · {activeStep.departmentName.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                  {steps.map((step, idx) => {
+                    const isDone = step.status === 'completed'
+                    const isActive = step.status === 'active' || step.status === 'returned'
+                    const isReturned = step.status === 'returned'
+
+                    return (
+                      <div key={step.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <div
+                          style={{
+                            background: isDone ? '#243015' : isActive ? (isReturned ? '#361c1c' : '#222') : '#1c1c1c',
+                            border: isDone ? '1px solid #486620' : isActive ? (isReturned ? '1px solid #ff6b6b' : '1px solid #c6ff38') : '1px solid #333',
+                            borderRadius: '8px',
+                            padding: '6px 10px',
+                            display: 'grid',
+                            gap: '2px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: isDone ? '#c6ff38' : isActive ? (isReturned ? '#ff6b6b' : '#c6ff38') : '#777', fontWeight: 900, fontSize: '11px' }}>
+                              {isDone ? '✓' : isActive ? (isReturned ? '↺' : '●') : '○'}
+                            </span>
+                            <b style={{ fontSize: '11px', color: isDone ? '#c6ff38' : '#f8f8f2' }}>
+                              {idx + 1}. {step.departmentName}
+                            </b>
+                          </div>
+                          <small style={{ fontSize: '9px', color: '#999' }}>
+                            {step.responsibleName ?? 'A definir'}
+                            {step.completedAt && ` · ${new Date(step.completedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
+                          </small>
+                          {step.reviewNotes && (
+                            <small style={{ fontSize: '9px', color: '#ff8585', fontStyle: 'italic', marginTop: '2px' }}>
+                              Nota: {step.reviewNotes}
+                            </small>
+                          )}
+                        </div>
+                        {idx < steps.length - 1 && (
+                          <span style={{ color: isDone ? '#c6ff38' : '#555', fontWeight: 900 }}>→</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* AÇÕES OPERACIONAIS DO WORKFLOW */}
+                {details.mission.status !== 'completed' && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #262626' }}>
+                    <button
+                      type="button"
+                      onClick={() => { void advanceStep() }}
+                      style={{
+                        background: '#c6ff38',
+                        color: '#111',
+                        border: 'none',
+                        borderRadius: '6px',
+                        padding: '7px 14px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      CONCLUIR ETAPA E AVANÇAR →
+                    </button>
+
+                    {completedSteps.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReturnTargetPosition(completedSteps[completedSteps.length - 1]?.position ?? 0)
+                          setIsReturnModalOpen(true)
+                        }}
+                        style={{
+                          background: '#242424',
+                          color: '#ff8585',
+                          border: '1px solid #4a2d2d',
+                          borderRadius: '6px',
+                          padding: '7px 14px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        SOLICITAR AJUSTES / DEVOLVER ↺
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CRONÔMETRO 1-CLIQUE */}
+            {details.permissions.canTrackTime && details.mission.status !== 'completed' && (
               <button className={`mission-drawer-timer ${details.activeTimer ? 'active' : ''}`} type="button" disabled={isTimerPending} onClick={() => { void toggleTimer() }}>
-                {isTimerPending ? 'ATUALIZANDO…' : details.activeTimer ? <><span>Ⅱ PAUSAR</span><b><MissionTimerValue startedAt={details.activeTimer.startedAt} /></b></> : <><span>▶ {details.mission.stageType === 'doing' ? 'CONTINUAR MISSÃO' : 'INICIAR MISSÃO'}</span><b>1 CLIQUE</b></>}
+                {isTimerPending ? 'ATUALIZANDO…' : details.activeTimer ? <><span>Ⅱ PAUSAR CRONÔMETRO</span><b><MissionTimerValue startedAt={details.activeTimer.startedAt} /></b></> : <><span>▶ INICIAR TIMER DA MISSÃO</span><b>1 CLIQUE</b></>}
               </button>
             )}
 
@@ -233,7 +394,6 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
               {/* ANEXOS */}
               <section>
                 <h3>ANEXOS DA MISSÃO</h3>
-
                 {details.attachments.length > 0 && (
                   <div className="mission-attachments-list">
                     {details.attachments.map((attachment) => (
@@ -250,7 +410,6 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
                     ))}
                   </div>
                 )}
-
                 <div
                   className={`mission-dropzone ${isDraggingFile ? 'dragging' : ''}`}
                   onDragOver={(event) => { event.preventDefault(); setIsDraggingFile(true) }}
@@ -270,16 +429,17 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
               </section>
             </div>
 
+            {/* COMENTÁRIOS */}
             <section className="mission-comments">
-              <h3>COMENTÁRIOS</h3>
+              <h3>COMENTÁRIOS OPERACIONAIS</h3>
               <form onSubmit={addComment}>
                 <textarea
                   value={commentBody}
                   onChange={(event) => setCommentBody(event.target.value)}
-                  placeholder="Registre uma atualização para o time"
+                  placeholder="Registre uma atualização para o time ou @mencione um colega"
                   maxLength={3000}
                 />
-                <button>COMENTAR</button>
+                <button type="submit">COMENTAR</button>
               </form>
               {details.comments.map((comment) => (
                 <article key={comment.id}>
@@ -289,21 +449,75 @@ export function MissionDetailsModal({ mission, onClose, onTimerToggle, isTimerPe
               ))}
             </section>
 
+            {/* HISTÓRICO & AUDITORIA */}
             <section className="mission-history">
-              <h3>HISTÓRICO</h3>
+              <h3>TIMELINE & HISTÓRICO AUDITÁVEL</h3>
               {details.history.map((entry) => (
-                <p key={entry.id}><b>{entry.actor ?? 'Sistema'}</b> · {entry.detail ?? entry.action}</p>
+                <p key={entry.id}>
+                  <small style={{ color: '#888', marginRight: '6px' }}>
+                    {entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
+                  </small>
+                  <b>{entry.actor ?? 'Sistema'}</b> · {entry.detail ?? entry.action}
+                </p>
               ))}
             </section>
 
             {message && <p className="mission-detail-message">{message}</p>}
-
-            {details.mission.status !== 'completed' && (
-              <button className="mission-detail-complete" type="button" onClick={() => { void complete() }}>
-                {details.permissions.canApprove ? 'APROVAR E CONCLUIR' : 'ENVIAR PARA APROVAÇÃO'} <span>→</span>
-              </button>
-            )}
           </>
+        )}
+
+        {/* MODAL DE SOLICITAÇÃO DE AJUSTES / DEVOLUÇÃO */}
+        {isReturnModalOpen && (
+          <div className="mission-create-overlay" style={{ zIndex: 100 }} role="dialog" aria-modal="true">
+            <form className="mission-create-dialog" onSubmit={handleReturnWorkflow} style={{ maxWidth: '480px' }}>
+              <button className="close-button" type="button" onClick={() => setIsReturnModalOpen(false)}>×</button>
+              <p style={{ color: '#ff8585', fontWeight: 800, fontSize: '10px' }}>REVISÃO / RETRABALHO</p>
+              <h2>Solicitar Ajustes na Missão</h2>
+
+              <label style={{ display: 'grid', gap: '4px', margin: '12px 0' }}>
+                <span>DEVOLVER PARA A ETAPA:</span>
+                <select
+                  value={returnTargetPosition}
+                  onChange={(e) => setReturnTargetPosition(Number(e.target.value))}
+                  style={{ background: '#1c1c1c', color: '#fff', border: '1px solid #333', borderRadius: '6px', padding: '8px' }}
+                >
+                  {completedSteps.map((step) => (
+                    <option value={step.position} key={step.id}>
+                      {step.position + 1}. {step.departmentName} ({step.responsibleName ?? 'Responsável'})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{ display: 'grid', gap: '4px', margin: '12px 0' }}>
+                <span>MOTIVO DOS AJUSTES (DETALHE O QUE PRECISA SER ALTERADO):</span>
+                <textarea
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  placeholder="Ex.: Por favor ajustar as fontes do título e alterar a cor do botão principal..."
+                  required
+                  rows={4}
+                  style={{ background: '#1c1c1c', color: '#fff', border: '1px solid #333', borderRadius: '6px', padding: '8px' }}
+                />
+              </label>
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsReturnModalOpen(false)}
+                  style={{ background: 'transparent', color: '#aaa', border: '1px solid #444', borderRadius: '6px', padding: '8px 14px', cursor: 'pointer' }}
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="submit"
+                  style={{ background: '#ff6b6b', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 16px', fontWeight: 800, cursor: 'pointer' }}
+                >
+                  DEVOLVER ETAPA COM AJUSTES →
+                </button>
+              </div>
+            </form>
+          </div>
         )}
       </section>
     </div>
