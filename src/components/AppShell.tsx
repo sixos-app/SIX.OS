@@ -29,6 +29,7 @@ import {
 } from '../data/projectRepository'
 import { usePermission } from '../hooks/usePermission'
 import { LogoWhite } from '../Logo'
+import { APP_VERSION_LABEL } from '../version'
 import {
   deadlineToMissionDate,
   enrichProjectClientIdentity,
@@ -461,6 +462,9 @@ export function AppShell({
   return (
     <main className="app-shell">
       <aside className="sidebar">
+        <div className="sidebar-version-badge">
+          <span className="version-pill">{APP_VERSION_LABEL}</span>
+        </div>
         <button className="brand" onClick={() => setActiveSection('home')} aria-label="Voltar ao início">
           <LogoWhite className="brand-logo" />
         </button>

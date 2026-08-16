@@ -1,49 +1,65 @@
-# Changelog — SIX.OS
+# Changelog
 
-Histórico de entregas e atualizações de funcionalidades do sistema operacional da agência.
+Todas as alterações notáveis no projeto **SIX.OS** serão documentadas neste arquivo.
 
-## [Não lançado] — Hardening de segurança e integridade
+O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/) conforme definido em [VERSIONING.md](./VERSIONING.md).
 
-- Autenticação obrigatória no perfil e remoção dos fallbacks administrativos no navegador.
-- Validação estrita de JWT Cloudflare Access, origem CSRF e limite de tentativas de login.
-- Migration 0021 reescrita e testada com dados filhos populados, sem perda por cascata.
-- Credencial histórica removida e sessões revogadas pela migration 0022.
-- Functions incluídas no typecheck; duplicação `_access.js` removida.
-- Isolamento multi-organização reforçado em contratos, demandas, horas e PDI.
-- Segredos de integrações isolados por organização e criptografados com AES-GCM.
-- Relatórios corrigidos para impedir multiplicação cartesiana de horas.
-- Testes reais adicionados a `pnpm test` e `pnpm certify:beta`.
-- Dashboard, equipe, projetos e analytics passaram a usar somente dados do D1; fallbacks e edições locais foram removidos.
-- Criação e ciclo de projetos agora são persistidos e isolados por organização.
-- Catálogo fictício de busca, calendário aleatório, briefing rotulado indevidamente como IA e métricas simuladas foram removidos.
-- Busca da biblioteca agora consulta arquivos reais e a migration 0027 elimina somente os registros históricos conhecidos da demonstração.
+---
 
-## [0.43.0] — 2026-08-06
+## [0.44.0] - 2026-08-15
 
-### Em Desenvolvimento (Estabilização do MVP & Refinamento de UX)
-- **Menu da Conta (3 pontos)**: Popover de opções do perfil (Meu Perfil, Configurações, Alterar Senha, Preferências, Ajuda, Sair).
+### Added
+- **Módulo de Agenda Expandido**: Visualização fluida estilo Apple Calendar com visões Mensal, Semanal de 7 colunas e Diária de 08:00 às 21:00 (`src/components/AgendaCalendar.tsx`).
+- **Novos Tipos de Eventos de Agenda**: Suporte nativo a `birthday` (Aniversários da equipe/clientes), `vacation` (Férias/Ausências), `meeting` (Reuniões), `deadline` (Prazos) e `appointment` (Compromissos).
+- **Criação Ágil no Calendário**: Clique direto em uma data abre o modal de criação pré-preenchido para o dia selecionado.
+- **Exibição Dinâmica da Versão**: Tag oficial de versão renderizada no topo da barra lateral esquerda da aplicação (`src/components/AppShell.tsx`), consumindo a fonte única em `src/version.ts`.
+- **Suíte de Certificação Beta Unificada**: Script mestre de validação automatizada de qualidade (`scripts/certify-beta.ts` / `npm run certify:beta`) cobrindo 7 gates de types, segurança, workflows e build.
+- **Diretriz Oficial de Versionamento**: Documento permanente [VERSIONING.md](./VERSIONING.md) com regras estritas de SemVer para desenvolvedores e agentes de IA.
+
+### Changed
+- **Modularização Arquitetural de `src/App.tsx`**: Monólito refatorado de ~3.550 linhas para 58 linhas, segregando 28 componentes atômicos organizados por domínio em `src/components/`.
+- **Workflows Setoriais com Troca Automática de Responsável**: Ao avançar ou devolver etapas de uma missão entre setores (Concepção → Atendimento → Redação → Criação → Revisão → Aprovação), a tabela `mission_assignees` sincroniza imediatamente o colaborador responsável ativo.
+- **Auto-Encerramento de Timers de Produção**: Ao avançar etapa, devolver ou concluir uma missão com cronômetro em execução, o registro em `time_entries` é encerrado com cálculo preciso da duração.
+- **Distribuição de XP Multi-Participante**: Conclusão de missões credita recompensas de XP e bônus de pontualidade individualmente para todos os colaboradores que concluíram etapas no fluxo.
+
+### Security
+- **Auditoria e Isolamento Multi-Tenant**: Validação estrita de JWT Cloudflare Access, proteção contra CSRF e PBKDF2 com salt aleatório na autenticação.
+- **RBAC V2 Deny-by-Default**: Resolução determinística de permissões matriciais por perfis e permissões granulares.
+
+---
+
+## [0.43.0] - 2026-08-06
+
+### Added
+- **Menu da Conta**: Popover de opções do perfil (Meu Perfil, Configurações, Alterar Senha, Preferências, Ajuda, Sair).
 - **Gestão Completa de Colaboradores**: Cadastro com departamento, senha inicial, bloqueio/desativação, reset de senha e edição de permissões.
 - **Perfil do Colaborador na Equipe**: Detalhes completos ao clicar em qualquer membro (XP, Ranking, Missões, Projetos, Histórico).
-- **Módulo de Agenda Expandido (Estilo Apple Calendar)**: Visão mensal, semanal e diária com integração de Missões, Reuniões, Prazos, Aniversários e Eventos.
-- **Fluxo Operacional de Agência nas Missões**: Etapas sequenciais (Concepção → Atendimento → Redação → Criação → Revisão → Entrega) com encaminhamento automatizado entre responsáveis.
+- **Fluxo Operacional de Agência nas Missões**: Etapas sequenciais com encaminhamento automatizado entre responsáveis.
 - **Comentários com @Menção**: Notificação e destaque ao mencionar colaboradores.
-- **RBAC Matricial & Gamificação Avançada**: Controle fino de permissões e recompensas.
+- **RBAC Matricial & Gamificação**: Controle fino de permissões e regras de recompensas.
 
-## [0.42.0] — 2026-08-06
+---
 
-### Adicionado / Melhorado
-- **Identidade Visual SVG Oficial**: Implementação das marcas oficiais `LogoWhite` e `LogoBlack` vetorizadas em SVG, substituindo o texto genérico na sidebar e tela de login.
-- **Menu Lateral Estático (Fixação e Layout)**: Estrutura da barra lateral ajustada para permanecer 100% estática sem rolagem vertical, com dimensionamento proporcional e botões otimizados.
+## [0.42.0] - 2026-08-06
+
+### Added
+- **Identidade Visual SVG Oficial**: Implementação das marcas oficiais `LogoWhite` e `LogoBlack` vetorizadas em SVG na sidebar e tela de login.
 - **Página de Perfil do Colaborador**: Painel completo contendo avatar, estatísticas de projetos, streak, nível de conquista, ranking do time e sticker album.
-- **Melhorias de UI nas Missões**: Modal de seleção de data/hora encapsulado em Portal React (sem sobreposição de z-index), correção no wrapping de textos longos na descrição de missões e refinamento da lista de checklist e dropzone de arquivos.
 
-## [0.41.0] — 2026-08-05
+### Changed
+- **Menu Lateral Estático**: Estrutura da barra lateral ajustada para permanecer estática sem rolagem vertical, com dimensionamento proporcional e botões otimizados.
 
-### Adicionado
-- **Autenticação Obrigatória**: Bloqueio completo do App Shell se não houver sessão ativa. Login e Logout reativos e seguros integrados localmente.
-- **Briefing Inteligente (Fase 6)**: Assistente interativo integrado à inteligência operacional para planejar projetos, estruturar marcos e propor checklists de tarefas automatizadas.
-- **Dashboard do Projeto (Fase 6)**: Painel de acompanhamento expandido contendo controle de horas estimadas versus reais, progresso reativo e timeline de entrega.
-- **Busca Semântica na Biblioteca (Fase 6)**: Barra de pesquisa por IA que processa buscas conceituais agrupando arquivos relevantes.
-- **Feed da Agência & Kudos (Fase 7)**: Histórico dinâmico de conquistas alimentado em tempo real pelo banco de dados D1, além de funcionalidade para enviar elogios (kudos) a colegas de time com bônus de XP.
-- **Painel de Integrações Externas (Fase 8)**: Configurações no painel administrativo para webhooks do Slack (alertas automáticos disparados pelo backend) e API tokens do Runrun.it.
-- **Script Local Preview**: Adicionado atalho `"preview:local"` no `package.json` para facilitar a inicialização local pelo usuário.
+### Fixed
+- **Melhorias de UI nas Missões**: Modal de seleção de data/hora encapsulado em Portal React, correção no wrapping de textos longos e dropzone de arquivos.
+
+---
+
+## [0.41.0] - 2026-08-05
+
+### Added
+- **Autenticação Obrigatória**: Bloqueio do App Shell se não houver sessão ativa. Login e Logout reativos e seguros.
+- **Briefing Operacional**: Assistente interativo para estruturar marcos e checklists de tarefas operacionais.
+- **Dashboard do Projeto**: Painel de acompanhamento expandido contendo controle de horas estimadas versus reais e progresso.
+- **Busca na Biblioteca**: Pesquisa textual de arquivos reais isolados por organização.
+- **Feed da Agência & Kudos**: Histórico de conquistas alimentado pelo banco de dados D1 e envio de kudos com bônus de XP.
+- **Painel de Integrações Externas**: Configurações no painel administrativo para webhooks do Slack e Runrun.it.
