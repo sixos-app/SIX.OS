@@ -106,12 +106,13 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   const scopedProjects = projectScope(scope, user)
   const scopedTeam = teamScope(scope, user)
 
-  const [profile, missionsResult, projectsResult, teamResult, xpResult, eventResult, activeTimer] = await Promise.all([
-    env.DB.prepare(`
-      SELECT COALESCE(xp, 0) AS xp, COALESCE(ideas, 0) AS ideas,
-        COALESCE(level, 'Criador') AS level, COALESCE(streak_days, 0) AS streak
-      FROM gamification_profiles WHERE user_id = ? LIMIT 1
-    `).bind(user.id).first<{ xp: number; ideas: number; level: string; streak: number }>(),
+  try {
+    const [profile, missionsResult, projectsResult, teamResult, xpResult, eventResult, activeTimer] = await Promise.all([
+      env.DB.prepare(`
+        SELECT COALESCE(xp, 0) AS xp, COALESCE(ideas, 0) AS ideas,
+          COALESCE(level, 'Criador') AS level, COALESCE(streak_days, 0) AS streak
+        FROM gamification_profiles WHERE user_id = ? LIMIT 1
+      `).bind(user.id).first<{ xp: number; ideas: number; level: string; streak: number }>(),
     env.DB.prepare(`
       SELECT missions.id, missions.title, clients.name AS client, missions.project_id AS projectId,
         MIN(mission_assignees.user_id) AS assigneeId,
@@ -284,4 +285,11 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     notifications: [],
     activeTimer: activeTimer ?? null,
   })
+  } catch (err) {
+    console.error('Erro ao processar dashboard operacional:', err)
+    return Response.json(
+      { error: err instanceof Error ? err.message : 'Falha interna ao carregar o dashboard' },
+      { status: 500 }
+    )
+  }
 }
