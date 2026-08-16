@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { AccessSession } from '../../data/accessRepository'
 import type { Mission, Project, TeamMember } from '../../data/dashboard'
+import type { WorkType } from '../../data/workTypeRepository'
 import { usePermission } from '../../hooks/usePermission'
 import { MissionAssignmentPanel } from './MissionAssignmentPanel'
 import { MissionCard } from './MissionCard'
@@ -16,6 +17,7 @@ export function MissionsPage({
   onCreateMission,
   projects,
   team,
+  workTypes,
   accessSession,
   onReassignMission,
   onUpdateMission,
@@ -32,6 +34,7 @@ export function MissionsPage({
   onCreateMission: (input: MissionCreationInput) => void
   projects: Project[]
   team: TeamMember[]
+  workTypes?: WorkType[]
   accessSession: AccessSession | null
   onReassignMission: (id: string, assigneeId: string) => void
   onUpdateMission: (id: string, input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void
@@ -180,6 +183,7 @@ export function MissionsPage({
         <MissionCreateModal
           projects={projects}
           team={team}
+          workTypes={workTypes}
           onClose={() => setIsCreateOpen(false)}
           onCreate={(input) => { onCreateMission(input); setIsCreateOpen(false) }}
         />

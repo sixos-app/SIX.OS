@@ -6,6 +6,24 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.46.0] - 2026-08-16
+
+### Added
+- **Catálogo de Tipos de Trabalho**: Módulo completo com tabela `work_types`, endpoints REST (`/api/work-types`), permissões RBAC (`work_types.view`, `work_types.manage`), normalização automática e prevenção de duplicidade por inquilino.
+- **Componente Searchable `WorkTypeSelector`**: Seletor com suporte a seleção simples e múltipla, busca em tempo real, badges de cor e duração, e sub-formulário para criação inline de novos tipos com paleta de cores.
+- **Relação N:N entre Projetos e Tipos de Trabalho**: Tabela associativa `project_work_types`, permitindo vincular tipos de entregas aos projetos tanto no modal de criação quanto na visualização de dashboard do projeto.
+- **Seleção de Tipo de Trabalho na Missão**: Integração no `MissionCreateModal` com autopreenchimento dinâmico de horas estimadas (`defaultMinutes`) e respeito às restrições do projeto.
+- **Upload Drop-in e Gestão de Anexos**: Dropzone interativa no modal de criação de missões com suporte a arrastar e soltar (drag & drop), chips visuais com tamanho de arquivo formatado (KB/MB) e remoção individual.
+- **Paleta Estendida de 10 Cores**: Suporte completo e tokens CSS para as 10 cores oficiais (`lime`, `purple`, `orange`, `blue`, `cyan`, `turquoise`, `yellow`, `pink`, `coral`, `magenta`) nos cards, chips e badges do sistema com fallback retrocompatível.
+- **Migration 0038**: Criação de `work_types`, `project_work_types`, coluna `missions.work_type_id`, `color_key` e permissões de catálogo.
+- **Gate de Certificação do Catálogo**: Novo teste multi-tenant `scripts/test_work_types_catalog.ts` integrado à suíte de certificação (9 gates).
+
+### Fixed
+- **Layout do Modal de Nova Missão**: Reorganização em grid de alta densidade no desktop sem rolagem interna vertical, preservando responsividade em telas menores.
+- **Botão Adicionar Pasta na Biblioteca**: Dimensões travadas em 38×38px, eliminação de deslocamento no hover (`scale`), inversão de cores nítida e ícone vetorial SVG.
+
+---
+
 ## [0.45.0] - 2026-08-15
 
 ### Added

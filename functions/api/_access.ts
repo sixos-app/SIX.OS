@@ -117,11 +117,11 @@ type CredentialRow = {
 
 
 const rolePermissions: Record<string, readonly string[]> = {
-  admin: ['users.manage', 'roles.manage', 'gamification.manage', 'integrations.manage', 'projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'missions.update_own', 'clients.manage', 'library.manage', 'finance.view', 'ai.use', 'reports.view', 'agenda.team.view'],
-  management: ['projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view'],
-  coordinator: ['projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'agenda.team.view'],
-  service: ['projects.create', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'clients.manage', 'agenda.team.view'],
-  specialist: ['missions.update_own'],
+  admin: ['users.manage', 'roles.manage', 'gamification.manage', 'integrations.manage', 'projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'missions.update_own', 'clients.manage', 'library.manage', 'finance.view', 'ai.use', 'reports.view', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
+  management: ['projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
+  coordinator: ['projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
+  service: ['projects.create', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'clients.manage', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
+  specialist: ['missions.update_own', 'work_types.view'],
 }
 
 function parseCookies(request: Request) {

@@ -34,6 +34,7 @@ export type Mission = {
   stageColor?: 'lime' | 'purple' | 'orange' | 'neutral' | null
   startedAt?: string | null
   activeTimerStartedAt?: string | null
+  workTypeId?: string | null
 }
 
 export type ActiveMissionTimer = {
@@ -43,7 +44,17 @@ export type ActiveMissionTimer = {
   startedAt: string
 }
 
-export type ProjectTone = 'purple' | 'lime' | 'orange'
+export type ProjectTone =
+  | 'lime'
+  | 'purple'
+  | 'orange'
+  | 'blue'
+  | 'cyan'
+  | 'turquoise'
+  | 'yellow'
+  | 'pink'
+  | 'coral'
+  | 'magenta'
 
 export type Project = {
   id: string
@@ -59,6 +70,7 @@ export type Project = {
   nextStep: string
   activity: string
   clientImageUrl?: string | null
+  workTypeIds?: string[]
 }
 
 export type AgendaEvent = {
@@ -120,6 +132,8 @@ export type AppNotification = {
   tone: 'lime' | 'purple' | 'orange'
 }
 
+import type { WorkType } from './workTypeRepository'
+
 export type DashboardData = {
   profile: { xp: number; ideas: number; level: string }
   missions: Mission[]
@@ -130,6 +144,7 @@ export type DashboardData = {
   library: LibraryResource[]
   notifications: AppNotification[]
   activeTimer: ActiveMissionTimer | null
+  workTypes?: WorkType[]
 }
 
 export const emptyDashboard: DashboardData = {
@@ -154,4 +169,5 @@ export const emptyDashboard: DashboardData = {
   library: [],
   notifications: [],
   activeTimer: null,
+  workTypes: [],
 }

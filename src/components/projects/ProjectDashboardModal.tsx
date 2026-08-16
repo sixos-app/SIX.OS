@@ -1,11 +1,28 @@
 import { useEffect } from 'react'
 import type { Mission, Project, TeamMember } from '../../data/dashboard'
+import { formatWorkTypeMinutes, WORK_TYPE_COLORS, type WorkType } from '../../data/workTypeRepository'
 import { ClientMark } from '../shared/ClientMark'
 
-export function ProjectDashboardModal({ project, missions, completed, team, onClose }: { project: Project; missions: Mission[]; completed: string[]; team: TeamMember[]; onClose: () => void }) {
+export function ProjectDashboardModal({
+  project,
+  missions,
+  completed,
+  team,
+  workTypes,
+  onClose,
+}: {
+  project: Project
+  missions: Mission[]
+  completed: string[]
+  team: TeamMember[]
+  workTypes?: WorkType[]
+  onClose: () => void
+}) {
   const projectMissions = missions.filter((mission) => mission.projectId === project.id)
   const completedMissions = projectMissions.filter((mission) => completed.includes(mission.id))
   const activeMemberCount = team.filter((member) => projectMissions.some((mission) => mission.assigneeId === member.id)).length
+
+  const colorMap = Object.fromEntries(WORK_TYPE_COLORS.map((c) => [c.key, c.hex]))
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
@@ -110,6 +127,27 @@ export function ProjectDashboardModal({ project, missions, completed, team, onCl
           </div>
 
           <div style={{ display: 'grid', gap: '20px', alignContent: 'start' }}>
+            {project.workTypeIds && project.workTypeIds.length > 0 && (
+              <div style={{ background: '#252522', padding: '20px', borderRadius: '12px', color: '#fff' }}>
+                <span style={{ fontSize: '8px', color: '#a6a69f', letterSpacing: '1px', fontWeight: 'bold', display: 'block', marginBottom: '12px' }}>
+                  TIPOS DE TRABALHO HABILITADOS
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {project.workTypeIds.map((wtId) => {
+                    const wt = workTypes?.find((t) => t.id === wtId)
+                    if (!wt) return null
+                    return (
+                      <span key={wt.id} className="work-type-chip">
+                        <span className="work-type-color-badge" style={{ backgroundColor: colorMap[wt.colorKey] ?? '#c6ff38' }} />
+                        <b>{wt.name}</b>
+                        <small style={{ color: '#888', marginLeft: '4px' }}>({formatWorkTypeMinutes(wt.defaultMinutes)})</small>
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div style={{ background: '#252522', padding: '20px', borderRadius: '12px', color: '#fff' }}>
               <span style={{ fontSize: '8px', color: '#a6a69f', letterSpacing: '1px', fontWeight: 'bold', display: 'block', marginBottom: '16px' }}>PRÓXIMAS ENTREGAS</span>
               <div style={{ display: 'grid', gap: '14px', position: 'relative' }}>

@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Project, TeamMember } from '../../data/dashboard'
+import { fetchWorkTypes, type WorkType } from '../../data/workTypeRepository'
 import { missionDateTimeInputValue } from '../../utils/formatters'
 import { DateTimePicker } from '../shared/DateTimePicker'
 import { Icon } from '../shared/Icon'
+import { WorkTypeSelector } from '../shared/WorkTypeSelector'
 
 export type MissionWorkflowStepInput = {
   departmentName: string
@@ -21,6 +23,7 @@ export type MissionCreationInput = {
   description?: string
   files?: File[]
   xpRuleId?: string
+  workTypeId?: string | null
   workflowDepartments?: string[]
   workflowSteps?: MissionWorkflowStepInput[]
 }
@@ -44,25 +47,62 @@ const WORKFLOW_PRESETS: Record<string, string[]> = {
 export function MissionCreateModal({
   projects,
   team,
+  workTypes: initialWorkTypes,
   initialProjectId,
   onClose,
   onCreate,
 }: {
   projects: Project[]
   team: TeamMember[]
+  workTypes?: WorkType[]
   initialProjectId?: string
   onClose: () => void
   onCreate: (input: MissionCreationInput) => void
 }) {
   const [title, setTitle] = useState('')
   const [projectId, setProjectId] = useState(initialProjectId ?? projects[0]?.id ?? '')
+  const [workTypesList, setWorkTypesList] = useState<WorkType[]>(initialWorkTypes ?? [])
+  const [workTypeId, setWorkTypeId] = useState<string | null>(null)
   const [deadline, setDeadline] = useState(() => missionDateTimeInputValue('Hoje · 17h'))
   const [estimatedHours, setEstimatedHours] = useState<string>('4')
   const [priority, setPriority] = useState<'normal' | 'urgent'>('normal')
   const [description, setDescription] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [xpRules, setXpRules] = useState<Array<{ id: string; name: string; baseXp: number; onTimeBonusPercent: number }>>([])
   const [xpRuleId, setXpRuleId] = useState('')
+
+  useEffect(() => {
+    if (!initialWorkTypes || initialWorkTypes.length === 0) {
+      fetchWorkTypes().then(setWorkTypesList).catch(() => {})
+    }
+  }, [initialWorkTypes])
+
+  function formatBytes(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  function handleFilesAdded(incoming: FileList | File[]) {
+    const arr = Array.from(incoming)
+    setFiles((current) => {
+      const existingKeys = new Set(current.map((f) => `${f.name}-${f.size}`))
+      const next = [...current]
+      for (const file of arr) {
+        if (!existingKeys.has(`${file.name}-${file.size}`)) {
+          next.push(file)
+          existingKeys.add(`${file.name}-${file.size}`)
+        }
+      }
+      return next
+    })
+  }
+
+  function removeFile(index: number) {
+    setFiles((current) => current.filter((_, i) => i !== index))
+  }
 
   const peopleForDepartment = (department: string) => {
     const norm = department.toLowerCase()
@@ -129,6 +169,20 @@ export function MissionCreateModal({
     setSteps(steps.map((step, i) => i === index ? { ...step, responsibleUserId } : step))
   }
 
+  const currentProject = projects.find((p) => p.id === projectId)
+  const isRestricted = Boolean(currentProject?.workTypeIds && currentProject.workTypeIds.length > 0)
+  const availableWorkTypes = isRestricted
+    ? workTypesList.filter((wt) => currentProject?.workTypeIds?.includes(wt.id))
+    : workTypesList
+
+  function handleWorkTypeSelect(selected: WorkType | null) {
+    setWorkTypeId(selected ? selected.id : null)
+    if (selected && selected.defaultMinutes > 0) {
+      const hours = (selected.defaultMinutes / 60).toFixed(1).replace(/\.0$/, '')
+      setEstimatedHours(hours)
+    }
+  }
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!title.trim() || !projectId || !deadline.trim() || !steps.length) return
@@ -145,6 +199,7 @@ export function MissionCreateModal({
       description: description.trim(),
       files,
       xpRuleId: xpRuleId || undefined,
+      workTypeId: workTypeId || null,
       workflowSteps: steps.map((s) => ({
         departmentName: s.departmentName,
         responsibleUserId: s.responsibleUserId,
@@ -160,23 +215,11 @@ export function MissionCreateModal({
         <p>NOVA MISSÃO</p>
         <h2>Qual ideia vamos<br /><em>tornar possível?</em></h2>
 
-        <label>
-          <span>TÍTULO</span>
-          <input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Desdobramentos de campanha" required />
-        </label>
-
-        <label>
-          <span>BRIEFING, LINKS E CONTEXTO</span>
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Escreva o briefing da missão, orientações e cole links de referências." maxLength={4000} />
-        </label>
-
-        <label className="mission-create-files">
-          <span>ANEXOS E ARQUIVOS (OPCIONAL)</span>
-          <input type="file" accept="image/*,video/*,.pdf" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
-          <small>{files.length ? `${files.length} arquivo${files.length === 1 ? '' : 's'} selecionado${files.length === 1 ? '' : 's'}.` : 'Envie referências, imagens ou briefings anexados.'}</small>
-        </label>
-
-        <div className="mission-create-row">
+        <div className="mission-create-grid-2col">
+          <label>
+            <span>TÍTULO DA MISSÃO</span>
+            <input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Desdobramentos de campanha" required />
+          </label>
           <label>
             <span>PROJETO</span>
             <select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>
@@ -185,19 +228,35 @@ export function MissionCreateModal({
               ))}
             </select>
           </label>
+        </div>
+
+        <div className="mission-create-grid-2col">
+          <div>
+            <span style={{ color: '#a6a69f', fontSize: '8px', fontWeight: 900, letterSpacing: '1.1px', display: 'block', marginBottom: '6px' }}>
+              TIPO DE TRABALHO
+            </span>
+            <WorkTypeSelector
+              mode="single"
+              workTypes={availableWorkTypes}
+              selectedId={workTypeId}
+              onChangeSingle={handleWorkTypeSelect}
+              onWorkTypeCreated={(newType) => setWorkTypesList((prev) => [...prev, newType])}
+              placeholder="Selecione o tipo de trabalho..."
+            />
+          </div>
+          <label>
+            <span>PRAZO DE ENTREGA</span>
+            <DateTimePicker value={deadline} onChange={setDeadline} />
+          </label>
+        </div>
+
+        <div className="mission-create-grid-2col">
           <label>
             <span>PRIORIDADE</span>
             <select value={priority} onChange={(event) => setPriority(event.target.value as 'normal' | 'urgent')}>
               <option value="normal">Normal (80 XP base)</option>
               <option value="urgent">Urgente (120 XP base)</option>
             </select>
-          </label>
-        </div>
-
-        <div className="mission-create-row">
-          <label>
-            <span>PRAZO DE ENTREGA</span>
-            <DateTimePicker value={deadline} onChange={setDeadline} />
           </label>
           <label>
             <span>ESTIMATIVA DE TEMPO (HORAS)</span>
@@ -211,6 +270,78 @@ export function MissionCreateModal({
               placeholder="Ex.: 4"
             />
           </label>
+        </div>
+
+        <label>
+          <span>BRIEFING, LINKS E CONTEXTO</span>
+          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Escreva o briefing da missão, orientações e cole links de referências." maxLength={4000} rows={3} />
+        </label>
+
+        <div style={{ marginTop: '14px' }}>
+          <span style={{ color: '#a6a69f', fontSize: '8px', fontWeight: 900, letterSpacing: '1.1px', display: 'block', marginBottom: '6px' }}>
+            ANEXOS E ARQUIVOS (OPCIONAL)
+          </span>
+          <div
+            className={`mission-dropzone ${isDragging ? 'dragging' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+            onDragEnter={(e) => { e.preventDefault(); setIsDragging(true) }}
+            onDragLeave={(e) => { e.preventDefault(); setIsDragging(false) }}
+            onDrop={(e) => {
+              e.preventDefault()
+              setIsDragging(false)
+              if (e.dataTransfer.files?.length) {
+                handleFilesAdded(e.dataTransfer.files)
+              }
+            }}
+          >
+            <label
+              className="mission-dropzone-trigger"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  fileInputRef.current?.click()
+                }
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.zip"
+                onChange={(e) => {
+                  if (e.target.files?.length) {
+                    handleFilesAdded(e.target.files)
+                    e.target.value = ''
+                  }
+                }}
+              />
+              <span className="mission-dropzone-icon">↑</span>
+              <span>{isDragging ? 'SOLTE OS ARQUIVOS AQUI' : 'CLIQUE OU ARRASTE ARQUIVOS PARA ANEXAR'}</span>
+            </label>
+            <p>Suporte para imagens, vídeos, PDFs e documentos de briefing</p>
+          </div>
+
+          {files.length > 0 && (
+            <div className="mission-selected-files">
+              {files.map((file, idx) => (
+                <div key={`${file.name}-${idx}`} className="mission-selected-file-item">
+                  <div>
+                    <b title={file.name}>📎 {file.name}</b>
+                    <small>{formatBytes(file.size)}</small>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(idx)}
+                    title={`Remover ${file.name}`}
+                    aria-label={`Remover ${file.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* FLUXO DINÂMICO DA MISSÃO */}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ClientIdentity } from '../../data/clientRepository'
 import type { Mission, Project, TeamMember } from '../../data/dashboard'
+import type { WorkType } from '../../data/workTypeRepository'
 import { usePermission } from '../../hooks/usePermission'
 import { getProjectCollaborators, getProjectHealth } from '../../utils/formatters'
 import { MissionCreateModal, type MissionCreationInput } from '../missions/MissionCreateModal'
@@ -14,6 +15,7 @@ import { ProjectLifecycleModal } from './ProjectLifecycleModal'
 export function ProjectsPage({
   projects,
   clients,
+  workTypes,
   initialSelectedProjectId,
   missions,
   completed,
@@ -24,11 +26,12 @@ export function ProjectsPage({
 }: {
   projects: Project[]
   clients: ClientIdentity[]
+  workTypes?: WorkType[]
   initialSelectedProjectId: string | null
   missions: Mission[]
   completed: string[]
   team: TeamMember[]
-  onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => Promise<Project>
+  onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone']; workTypeIds?: string[] }) => Promise<Project>
   onCreateMission: (input: MissionCreationInput) => void
   onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => Promise<void>
 }) {
@@ -66,6 +69,7 @@ export function ProjectsPage({
         {isCreateOpen && (
           <ProjectCreateModal
             clients={clients}
+            workTypes={workTypes}
             onClose={() => setIsCreateOpen(false)}
             onCreate={async (input) => {
               const project = await onCreateProject(input)
@@ -197,6 +201,7 @@ export function ProjectsPage({
       {isCreateOpen && (
         <ProjectCreateModal
           clients={clients}
+          workTypes={workTypes}
           onClose={() => setIsCreateOpen(false)}
           onCreate={onCreateProject}
         />
@@ -207,6 +212,7 @@ export function ProjectsPage({
           missions={missions}
           completed={completed}
           team={team}
+          workTypes={workTypes}
           onClose={() => setIsDashboardOpen(false)}
         />
       )}
@@ -214,6 +220,7 @@ export function ProjectsPage({
         <MissionCreateModal
           projects={projects}
           team={team}
+          workTypes={workTypes}
           initialProjectId={selectedProject.id}
           onClose={() => setIsMissionCreateOpen(false)}
           onCreate={(input) => {

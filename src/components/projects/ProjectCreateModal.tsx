@@ -1,17 +1,43 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { ClientIdentity } from '../../data/clientRepository'
 import type { Project } from '../../data/dashboard'
+import { fetchWorkTypes, type WorkType } from '../../data/workTypeRepository'
 import { missionDateTimeInputValue } from '../../utils/formatters'
 import { DateTimePicker } from '../shared/DateTimePicker'
 import { Icon } from '../shared/Icon'
+import { WorkTypeSelector } from '../shared/WorkTypeSelector'
 
-export function ProjectCreateModal({ clients, onClose, onCreate }: { clients: ClientIdentity[]; onClose: () => void; onCreate: (input: { name: string; client: string; deadline: string; tone: Project['tone'] }) => Promise<Project> }) {
+export function ProjectCreateModal({
+  clients,
+  workTypes: initialWorkTypes,
+  onClose,
+  onCreate,
+}: {
+  clients: ClientIdentity[]
+  workTypes?: WorkType[]
+  onClose: () => void
+  onCreate: (input: {
+    name: string
+    client: string
+    deadline: string
+    tone: Project['tone']
+    workTypeIds?: string[]
+  }) => Promise<Project>
+}) {
   const [name, setName] = useState('')
   const [client, setClient] = useState('')
   const [deadline, setDeadline] = useState(() => missionDateTimeInputValue('Amanhã · 18h'))
   const [tone, setTone] = useState<Project['tone']>('lime')
+  const [workTypes, setWorkTypes] = useState<WorkType[]>(initialWorkTypes ?? [])
+  const [workTypeIds, setWorkTypeIds] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!initialWorkTypes || initialWorkTypes.length === 0) {
+      fetchWorkTypes().then(setWorkTypes).catch(() => {})
+    }
+  }, [initialWorkTypes])
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
@@ -28,7 +54,7 @@ export function ProjectCreateModal({ clients, onClose, onCreate }: { clients: Cl
     setIsSaving(true)
     setError('')
     try {
-      await onCreate({ name: name.trim(), client, deadline, tone })
+      await onCreate({ name: name.trim(), client, deadline, tone, workTypeIds })
       onClose()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível criar o projeto.')
@@ -58,6 +84,24 @@ export function ProjectCreateModal({ clients, onClose, onCreate }: { clients: Cl
           </select>
           <small className="project-create-client-note">Para cadastrar outro cliente, use Administração → Novo cliente.</small>
         </label>
+
+        <div style={{ marginTop: '14px' }}>
+          <span style={{ color: '#a6a69f', fontSize: '8px', fontWeight: 900, letterSpacing: '1.1px', display: 'block', marginBottom: '6px' }}>
+            TIPOS DE TRABALHO HABILITADOS
+          </span>
+          <WorkTypeSelector
+            mode="multiple"
+            workTypes={workTypes}
+            selectedIds={workTypeIds}
+            onChangeMultiple={setWorkTypeIds}
+            onWorkTypeCreated={(newType) => setWorkTypes((prev) => [...prev, newType])}
+            placeholder="Selecione ou crie tipos de trabalho para este projeto..."
+          />
+          <small style={{ display: 'block', marginTop: '4px', color: '#888', fontSize: '9px' }}>
+            Tipos de entregas comuns desta frente (ex.: Design, Vídeo, Redação, Social).
+          </small>
+        </div>
+
         <div className="mission-create-row">
           <label>
             <span>PRÓXIMO MARCO</span>
@@ -69,6 +113,13 @@ export function ProjectCreateModal({ clients, onClose, onCreate }: { clients: Cl
               <option value="lime">Lima</option>
               <option value="purple">Roxo</option>
               <option value="orange">Laranja</option>
+              <option value="blue">Azul</option>
+              <option value="cyan">Ciano</option>
+              <option value="turquoise">Turquesa</option>
+              <option value="yellow">Amarelo</option>
+              <option value="pink">Rosa</option>
+              <option value="coral">Coral</option>
+              <option value="magenta">Magenta</option>
             </select>
           </label>
         </div>

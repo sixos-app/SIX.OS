@@ -357,10 +357,12 @@ export function AppShell({
       projectId: input.projectId,
       assigneeId: input.assigneeId,
       dueAt: deadlineToMissionDate(input.deadline),
+      expectedMinutes: input.expectedMinutes,
       priority: input.priority,
       description: input.description,
       xpReward: input.priority === 'urgent' ? 120 : 80,
       xpRuleId: input.xpRuleId,
+      workTypeId: input.workTypeId,
       workflowDepartments: input.workflowDepartments,
       workflowSteps: input.workflowSteps,
     }).then(async (saved) => {
@@ -439,10 +441,22 @@ export function AppShell({
     }).then(applyUpdate).catch((reason: unknown) => setCompletionMessage(reason instanceof Error ? reason.message : 'Não foi possível atualizar a missão.'))
   }
 
-  async function createProject(input: { name: string; client: string; deadline: string; tone: Project['tone'] }) {
+  async function createProject(input: {
+    name: string
+    client: string
+    deadline: string
+    tone: Project['tone']
+    workTypeIds?: string[]
+  }) {
     const clientIdentity = clientIdentities.find((item) => item.name === input.client)
     if (!clientIdentity) throw new Error('Cliente não encontrado.')
-    const project = await persistProjectCreate({ name: input.name, clientId: clientIdentity.id, dueAt: input.deadline, tone: input.tone })
+    const project = await persistProjectCreate({
+      name: input.name,
+      clientId: clientIdentity.id,
+      dueAt: input.deadline,
+      tone: input.tone,
+      workTypeIds: input.workTypeIds,
+    })
     project.deadline = project.dueAt ? formatMissionDeadline(project.dueAt) : 'Próximo marco · em definição'
     setDashboardData((current) => ({ ...current, projects: [...current.projects, project] }))
     setCompletionMessage(`${project.name} foi criado e persistido.`)
@@ -614,6 +628,7 @@ export function AppShell({
             onCreateMission={createMission}
             projects={projectsWithMissionProgress}
             team={dashboardData.team}
+            workTypes={dashboardData.workTypes}
             accessSession={accessSession}
             onReassignMission={reassignMission}
             onUpdateMission={updateMission}
@@ -626,6 +641,7 @@ export function AppShell({
           <ProjectsPage
             projects={projectsWithMissionProgress}
             clients={clientIdentities}
+            workTypes={dashboardData.workTypes}
             initialSelectedProjectId={libraryProjectId}
             missions={dashboardData.missions}
             completed={completedMissionIds}

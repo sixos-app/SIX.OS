@@ -7,13 +7,28 @@ async function requestJson<T>(url: string, init: RequestInit): Promise<T> {
   return payload
 }
 
-export async function createProject(input: { name: string; clientId: string; dueAt: string; tone: Project['tone'] }) {
+export async function createProject(input: {
+  name: string
+  clientId: string
+  dueAt: string
+  tone: Project['tone']
+  workTypeIds?: string[]
+}) {
   const payload = await requestJson<{ project: Project }>('/api/projects', { method: 'POST', body: JSON.stringify(input) })
   return payload.project
 }
 
-export function updateProject(id: string, input: { status: string; dueAt: string; nextStep: string }) {
-  return requestJson<{ success: true; status: string; dueAt: string | null; nextStep: string; activity: string }>(`/api/projects/${encodeURIComponent(id)}`, {
+export function updateProject(
+  id: string,
+  input: {
+    status?: string
+    dueAt?: string
+    nextStep?: string
+    tone?: Project['tone']
+    workTypeIds?: string[]
+  }
+) {
+  return requestJson<{ success: true; status: string; dueAt: string | null; nextStep: string; activity: string; workTypeIds?: string[] }>(`/api/projects/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(input),
   })

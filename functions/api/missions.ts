@@ -12,6 +12,7 @@ type CreateMissionInput = {
   xpReward?: unknown
   rewardLabel?: unknown
   xpRuleId?: unknown
+  workTypeId?: unknown
   workflowDepartments?: unknown
   workflowSteps?: unknown
 }
@@ -34,6 +35,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const xpReward = typeof body?.xpReward === 'number' && Number.isInteger(body.xpReward) && body.xpReward >= 0 && body.xpReward <= 10000 ? body.xpReward : 0
   const rewardLabel = typeof body?.rewardLabel === 'string' ? body.rewardLabel.trim().slice(0, 120) : null
   const xpRuleId = typeof body?.xpRuleId === 'string' && body.xpRuleId ? body.xpRuleId : null
+  const workTypeId = typeof body?.workTypeId === 'string' && body.workTypeId ? body.workTypeId : null
 
   const workflowSteps = Array.isArray(body?.workflowSteps)
     ? body.workflowSteps.map((value) => {
@@ -60,6 +62,16 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const xpRule = xpRuleId ? await env.DB.prepare('SELECT id, base_xp AS baseXp FROM xp_rules WHERE id = ? AND organization_id = ? AND is_active = 1').bind(xpRuleId, user.organizationId).first<{ id: string; baseXp: number }>() : null
   if (xpRuleId && !xpRule) return Response.json({ error: 'Regra de XP não encontrada ou inativa' }, { status: 404 })
 
+  let validWorkType: { id: string; colorKey: string; defaultMinutes: number } | null = null
+  if (workTypeId) {
+    validWorkType = await env.DB.prepare(`
+      SELECT id, color_key AS colorKey, default_minutes AS defaultMinutes
+      FROM work_types
+      WHERE id = ? AND organization_id = ?
+      LIMIT 1
+    `).bind(workTypeId, user.organizationId).first<{ id: string; colorKey: string; defaultMinutes: number }>()
+  }
+
   if (workflowSteps.length) {
     const uniqueDepartments = [...new Set(workflowSteps.map((step) => step.departmentName))]
     const { results } = await env.DB.prepare(`SELECT name FROM departments WHERE organization_id = ? AND is_active = 1 AND name IN (${uniqueDepartments.map(() => '?').join(',')})`).bind(user.organizationId, ...uniqueDepartments).all<{ name: string }>()
@@ -75,8 +87,8 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
 
   const missionId = crypto.randomUUID(), now = new Date().toISOString()
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO missions (id, project_id, client_id, title, description, status, priority, expected_minutes, xp_reward, reward_label, xp_rule_id, xp_recipient_user_id, current_workflow_position, board_id, stage_id, due_at, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`)
-      .bind(missionId, project.id, project.clientId, title, description, priority, expectedMinutes, xpRule?.baseXp ?? xpReward, rewardLabel, xpRule?.id ?? null, assignee.id, workflow.board.id, initialStage.id, dueAt, user.id, now, now),
+    env.DB.prepare(`INSERT INTO missions (id, project_id, client_id, title, description, status, priority, expected_minutes, xp_reward, reward_label, xp_rule_id, xp_recipient_user_id, current_workflow_position, board_id, stage_id, due_at, created_by_user_id, work_type_id, color_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(missionId, project.id, project.clientId, title, description, priority, expectedMinutes, xpRule?.baseXp ?? xpReward, rewardLabel, xpRule?.id ?? null, assignee.id, workflow.board.id, initialStage.id, dueAt, user.id, validWorkType?.id ?? null, validWorkType?.colorKey ?? 'lime', now, now),
     env.DB.prepare('INSERT INTO mission_assignees (mission_id, user_id) VALUES (?, ?)').bind(missionId, assignee.id),
     env.DB.prepare('INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), missionId, user.id, 'created', 'Missão criada e atribuída.', now),
     env.DB.prepare('INSERT INTO mission_stage_history (id, mission_id, board_id, to_stage_id, actor_user_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), missionId, workflow.board.id, initialStage.id, user.id, 'Missão criada na etapa inicial.', now),
@@ -95,6 +107,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     stageId: initialStage.id,
     stageName: initialStage.name,
     stageType: initialStage.type,
+    workTypeId: validWorkType?.id ?? null,
     currentDepartment: workflowSteps[0]?.departmentName ?? null,
     nextDepartment: workflowSteps[1]?.departmentName ?? null,
     currentResponsibleUserId: workflowSteps[0]?.responsibleUserId ?? null,

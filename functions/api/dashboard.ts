@@ -32,6 +32,7 @@ type MissionRow = {
   stageColor: 'lime' | 'purple' | 'orange' | 'neutral' | null
   startedAt: string | null
   activeTimerStartedAt: string | null
+  workTypeId: string | null
 }
 
 type ProjectRow = {
@@ -47,6 +48,7 @@ type ProjectRow = {
   nextStep: string
   activity: string
   clientImageUrl: string | null
+  workTypeIdsCsv: string | null
 }
 
 type TeamRow = {
@@ -107,7 +109,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   const scopedTeam = teamScope(scope, user)
 
   try {
-    const [profile, missionsResult, projectsResult, teamResult, xpResult, eventResult, activeTimer] = await Promise.all([
+    const [profile, missionsResult, projectsResult, teamResult, xpResult, eventResult, activeTimer, workTypesResult] = await Promise.all([
       env.DB.prepare(`
         SELECT COALESCE(xp, 0) AS xp, COALESCE(ideas, 0) AS ideas,
           COALESCE(level, 'Criador') AS level, COALESCE(streak_days, 0) AS streak
@@ -142,7 +144,8 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
         (SELECT entries.started_at FROM time_entries entries
          WHERE entries.mission_id = missions.id AND entries.user_id = ?
            AND entries.entry_type = 'timer' AND entries.started_at IS NOT NULL AND entries.ended_at IS NULL
-         LIMIT 1) AS activeTimerStartedAt
+         LIMIT 1) AS activeTimerStartedAt,
+        missions.work_type_id AS workTypeId
       FROM missions
       JOIN clients ON clients.id = missions.client_id
       JOIN projects ON projects.id = missions.project_id
@@ -161,8 +164,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
         projects.progress, projects.due_at AS dueAt,
         CASE WHEN projects.due_at IS NULL THEN 'Próximo marco · em definição'
           ELSE strftime('%d/%m/%Y · %H:%M', projects.due_at, 'localtime') END AS deadline,
-        projects.visual_tone AS tone, projects.next_step AS nextStep,
-        projects.activity, clients.image_url AS clientImageUrl
+        COALESCE(projects.color_key, projects.visual_tone) AS tone, projects.next_step AS nextStep,
+        projects.activity, clients.image_url AS clientImageUrl,
+        (SELECT GROUP_CONCAT(pwt.work_type_id, ',') FROM project_work_types pwt WHERE pwt.project_id = projects.id) AS workTypeIdsCsv
       FROM projects
       JOIN clients ON clients.id = projects.client_id
       WHERE projects.organization_id = ?${scopedProjects.sql}
@@ -217,6 +221,12 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
         AND entries.started_at IS NOT NULL AND entries.ended_at IS NULL
       LIMIT 1
     `).bind(user.organizationId, user.id, user.organizationId).first<{ id: string; missionId: string; missionTitle: string; startedAt: string }>(),
+    env.DB.prepare(`
+      SELECT id, name, default_minutes AS defaultMinutes, color_key AS colorKey, is_active AS isActive
+      FROM work_types
+      WHERE organization_id = ? AND is_active = 1
+      ORDER BY name ASC
+    `).bind(user.organizationId).all<{ id: string; name: string; defaultMinutes: number; colorKey: string; isActive: number }>(),
   ])
 
   const xpByDay = new Map(xpResult.results.map(row => [row.day, Number(row.xp) || 0]))
@@ -246,7 +256,18 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   return Response.json({
     profile: profile ?? { xp: 0, ideas: 0, level: 'Criador', streak: 0 },
     missions,
-    projects: projectsResult.results.map(project => ({ ...project, members: [] })),
+    projects: projectsResult.results.map(project => ({
+      ...project,
+      members: [],
+      workTypeIds: project.workTypeIdsCsv ? project.workTypeIdsCsv.split(',').filter(Boolean) : [],
+    })),
+    workTypes: (workTypesResult?.results ?? []).map(wt => ({
+      id: wt.id,
+      name: wt.name,
+      defaultMinutes: Number(wt.defaultMinutes ?? 60),
+      colorKey: wt.colorKey ?? 'lime',
+      isActive: wt.isActive === 1,
+    })),
     team: teamResult.results.map((member, index) => {
       const capacity = Math.min(100, Number(member.openMissions) * 20)
       return {

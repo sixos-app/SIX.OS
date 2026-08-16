@@ -84,6 +84,7 @@ export type MissionDetails = {
     stageId: string | null
     stageName: string | null
     stageType: 'backlog' | 'ready' | 'doing' | 'review' | 'approval' | 'done' | null
+    workTypeId?: string | null
   }
   checklist: MissionChecklistItem[]
   comments: MissionComment[]
@@ -156,6 +157,7 @@ export type SaveMissionInput = {
   description?: string
   xpReward?: number
   xpRuleId?: string | null
+  workTypeId?: string | null
   workflowDepartments?: string[]
   workflowSteps?: Array<{ departmentName: string; responsibleUserId: string; stepType?: string; expectedMinutes?: number | null }>
 }
@@ -170,6 +172,7 @@ export type SavedMission = {
   description: string
   xpReward: number
   xpRuleId?: string | null
+  workTypeId?: string | null
   boardId?: string | null
   stageId?: string | null
   stageName?: string | null
