@@ -239,21 +239,13 @@ export function MissionDetailsModal({
                   <h2>{details.mission.title}</h2>
                   <span>{details.mission.client} · {details.mission.project}</span>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   {canDelete && details.mission.status !== 'completed' && onDelete && (
                     <button
+                      className="mission-delete-button"
                       type="button"
                       onClick={onDelete}
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid #7f1d1d',
-                        color: '#f87171',
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                      }}
+                      style={{ padding: '7px 14px', minHeight: '34px', fontSize: '8px' }}
                     >
                       EXCLUIR MISSÃO
                     </button>

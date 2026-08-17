@@ -674,8 +674,117 @@ button { border: 0; cursor: pointer; }
 .mission-return-actions > span { grid-column: 1 / -1; }
 .mission-return-actions button { padding: 8px; border: 1px solid #55554f; border-radius: 7px; background: transparent; color: #dddcd5; font-size: 8px; font-weight: 800; }
 .mission-return-actions button:hover { border-color: #c6ff38; color: #c6ff38; }
-.mission-delete-button { width: 100%; margin-top: 8px; padding: 9px; border: 1px solid #7b3d31; border-radius: 7px; background: transparent; color: #ff8066; font-size: 8px; font-weight: 900; letter-spacing: .7px; }
-.mission-delete-button:hover { background: #3b211d; }
+.mission-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 10px 18px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #ff6b6b;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s ease;
+}
+.mission-delete-button:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+.mission-delete-button:active {
+  background: rgba(239, 68, 68, 0.32);
+  transform: scale(0.98);
+}
+.mission-delete-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.dialog-cancel-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 10px 18px;
+  background: #282825;
+  border: 1px solid #44443f;
+  border-radius: 8px;
+  color: #d8d8d0;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .1s ease;
+}
+.dialog-cancel-button:hover {
+  background: #363631;
+  border-color: #5c5c54;
+  color: #fff;
+}
+.dialog-cancel-button:active {
+  transform: scale(0.98);
+}
+
+/* Modal de Confirmação & Ações Destrutivas Centralizado */
+.confirm-modal-overlay {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(18, 18, 17, 0.65);
+  backdrop-filter: blur(8px);
+  animation: modal-fade-in 0.15s ease-out;
+}
+.confirm-modal-dialog {
+  position: relative;
+  width: min(480px, calc(100vw - 32px));
+  max-width: 480px;
+  padding: 34px;
+  margin: auto;
+  background: #191919;
+  border: 1px solid #464641;
+  border-radius: 16px;
+  color: #fff;
+  box-shadow: 0 25px 90px rgba(0, 0, 0, 0.45);
+  animation: modal-scale-in 0.15s ease-out;
+}
+.confirm-modal-badge {
+  margin: 0 0 10px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.confirm-modal-title {
+  margin: 0 0 14px;
+  font-size: 26px;
+  letter-spacing: -1.4px;
+  line-height: 1.05;
+  color: #fff;
+}
+.confirm-modal-message {
+  margin: 0 0 26px;
+  color: #a6a69f;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.confirm-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
 
 /* Missions V2 — workflow and execution, preserving the current SIX.OS visual language */
 .active-mission-timer { display: grid; grid-template-columns: auto minmax(90px, 190px) auto; align-items: center; gap: 9px; height: 34px; padding: 0 11px; overflow: hidden; background: #171717; border: 1px solid #31312e; border-radius: 8px; color: #fff; text-align: left; }
@@ -691,24 +800,55 @@ button { border: 0; cursor: pointer; }
 .mission-stage-badge.stage-done { border-color: #b7d967; background: #f1fad9; color: #5c7717; }
 .mission-context-action { font-size: 8px; letter-spacing: .35px; }
 .mission-context-action.timer-active { background: #171717; color: #c6ff38; font-variant-numeric: tabular-nums; }
-.mission-details-overlay { display: flex; align-items: stretch; justify-content: flex-end; padding: 0; overflow: hidden; background: rgba(18,18,17,.46); backdrop-filter: blur(5px); }
-.mission-details-dialog { width: min(620px, 100%); height: 100vh; max-height: 100vh; margin: 0; padding: 36px 34px 48px; overflow-x: hidden; overflow-y: auto; border: 1px solid #33332f; border-radius: 16px 0 0 16px; box-shadow: -24px 0 70px rgba(0,0,0,.34); animation: mission-drawer-enter .2s ease-out; }
+
+/* Detalhes da Missão como Dialog Centralizado com Scroll Interno */
+.mission-details-overlay {
+  position: fixed;
+  z-index: 85;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow-y: auto;
+  background: rgba(18, 18, 17, 0.65);
+  backdrop-filter: blur(8px);
+  animation: modal-fade-in 0.18s ease-out;
+}
+.mission-details-dialog {
+  position: relative;
+  width: min(1100px, calc(100vw - 64px));
+  max-height: calc(100vh - 48px);
+  margin: auto;
+  padding: 34px 38px 40px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background: #191919;
+  border: 1px solid #464641;
+  border-radius: 16px;
+  color: #fff;
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.5);
+  animation: modal-scale-in 0.18s ease-out;
+}
 .mission-drawer-timer { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 0 0 20px; padding: 13px 15px; background: #c6ff38; border: 1px solid #c6ff38; border-radius: 8px; color: #171717; }
 .mission-drawer-timer span { font-size: 9px; font-weight: 900; letter-spacing: .8px; }
 .mission-drawer-timer b { font-size: 10px; font-variant-numeric: tabular-nums; }
 .mission-drawer-timer.active { background: #262624; color: #c6ff38; }
 .mission-drawer-timer:disabled { cursor: wait; opacity: .66; }
-@keyframes mission-drawer-enter { from { transform: translateX(24px); opacity: .5; } to { transform: translateX(0); opacity: 1; } }
+
+@keyframes modal-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-scale-in { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 @media (max-width: 980px) {
   .active-mission-timer { grid-template-columns: auto auto; }
   .active-mission-timer b { display: none; }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .active-mission-timer { position: fixed; z-index: 7; right: 14px; bottom: 14px; height: 42px; box-shadow: 0 10px 30px rgba(0,0,0,.24); }
-  .mission-details-overlay { padding: 0; }
-  .mission-details-dialog { width: 100%; padding: 30px 18px 42px; border-radius: 0; }
+  .mission-details-overlay { padding: 16px; }
+  .mission-details-dialog { width: 100%; max-height: calc(100vh - 32px); padding: 24px 18px 30px; border-radius: 14px; }
 }
 
 @media (max-width: 820px) {

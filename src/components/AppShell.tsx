@@ -882,30 +882,24 @@ export function AppShell({
       {activeModal === 'change-password' && <ChangePasswordModal onClose={() => setActiveModal(null)} />}
       {activeModal === 'help' && <HelpModal onClose={() => setActiveModal(null)} />}
       {pendingTimerSwitch && (
-        <div className="modal-overlay" onClick={() => setPendingTimerSwitch(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2>Trocar Missão Ativa</h2>
-              <button className="close-button" onClick={() => setPendingTimerSwitch(null)} aria-label="Fechar modal">×</button>
-            </div>
-            <div className="modal-body" style={{ color: '#a3a3a3' }}>
-              <p style={{ marginBottom: '16px' }}>Você já está trabalhando na missão <strong>{pendingTimerSwitch.activeTimer.missionTitle}</strong>.</p>
-              <p>Deseja pausar essa missão e iniciar <strong>{pendingTimerSwitch.targetMissionTitle}</strong>?</p>
-            </div>
-            <div className="modal-footer">
-              <button className="button-secondary" onClick={() => setPendingTimerSwitch(null)}>Cancelar</button>
-              <button className="button-primary" onClick={() => void confirmTimerSwitch()} disabled={timerPendingMissionId === pendingTimerSwitch.targetMissionId}>
-                {timerPendingMissionId === pendingTimerSwitch.targetMissionId ? 'Trocando...' : 'Pausar e Iniciar Nova'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmActionModal
+          badgeLabel="TROCAR CRONÔMETRO"
+          title="Trocar Missão Ativa?"
+          message={`Você já está trabalhando na missão “${pendingTimerSwitch.activeTimer.missionTitle}”. Deseja pausar essa missão e iniciar “${pendingTimerSwitch.targetMissionTitle}”?`}
+          confirmLabel={timerPendingMissionId === pendingTimerSwitch.targetMissionId ? 'TROCANDO…' : 'PAUSAR E INICIAR NOVA'}
+          cancelLabel="CANCELAR"
+          isDestructive={false}
+          onConfirm={() => void confirmTimerSwitch()}
+          onCancel={() => setPendingTimerSwitch(null)}
+        />
       )}
       {pendingDeleteMission && (
         <ConfirmActionModal
-          title="Excluir Missão"
-          message={`Excluir “${pendingDeleteMission.title}”? A missão será cancelada e permanecerá no histórico de auditoria. Essa ação não poderá ser desfeita.`}
-          confirmLabel="Excluir Missão"
+          badgeLabel="AÇÃO DESTRUTIVA"
+          title="Excluir Missão?"
+          message={`Você está prestes a excluir “${pendingDeleteMission.title}”. A missão será cancelada e permanecerá no histórico de auditoria. Essa ação não poderá ser desfeita.`}
+          confirmLabel="EXCLUIR MISSÃO"
+          cancelLabel="CANCELAR"
           isDestructive={true}
           onConfirm={confirmDeleteMission}
           onCancel={() => setPendingDeleteMission(null)}
@@ -913,9 +907,11 @@ export function AppShell({
       )}
       {pendingDeleteProject && (
         <ConfirmActionModal
-          title="Excluir Projeto"
-          message={`Excluir “${pendingDeleteProject.name}”? Essa ação não poderá ser desfeita.`}
-          confirmLabel="Excluir Projeto"
+          badgeLabel="AÇÃO DESTRUTIVA"
+          title="Excluir Projeto?"
+          message={`Você está prestes a excluir “${pendingDeleteProject.name}”. Essa ação não poderá ser desfeita.`}
+          confirmLabel="EXCLUIR PROJETO"
+          cancelLabel="CANCELAR"
           isDestructive={true}
           onConfirm={() => void confirmDeleteProject()}
           onCancel={() => setPendingDeleteProject(null)}

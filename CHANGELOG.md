@@ -6,6 +6,13 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.47.2] - 2026-08-17
+
+### Fixed
+- **Modal Centralizado de Confirmação de Exclusão**: `ConfirmActionModal` reestruturado para ser exibido centralizado na viewport, com backdrop escuro com blur (`backdrop-filter: blur(8px)`), micro-badge `AÇÃO DESTRUTIVA`, tipografia nativa do SIX.OS e botões padronizados (`dialog-cancel-button` e `mission-delete-button`), eliminando a exibição como gaveta lateral ou elementos sem estilo.
+- **Modal Centralizado de Detalhes da Missão**: `MissionDetailsModal` convertido de gaveta/drawer lateral para dialog centralizado na viewport (`width: min(1100px, calc(100vw - 64px))`, `max-height: calc(100vh - 48px)`) com scroll interno contido, animação suave e sem deslocamento de layout da página.
+- **Padronização de Botões Destrutivos**: Componente de botão destrutivo (`.mission-delete-button`) unificado com fundo translúcido vermelho discreto, borda, tipografia em uppercase e estados de hover, active e disabled consistentes em todo o sistema.
+
 ## [0.47.1] - 2026-08-17
 
 ### Fixed

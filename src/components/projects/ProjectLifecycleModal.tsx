@@ -61,13 +61,24 @@ export function ProjectLifecycleModal({ project, onClose, onUpdate, canDelete, o
           <textarea value={nextStep} onChange={(event) => setNextStep(event.target.value)} required />
         </label>
         {error && <p className="admin-dialog-error">{error}</p>}
-        <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
           {canDelete && onDelete && (
-            <button className="mission-delete-button" type="button" disabled={isSaving} onClick={onDelete} style={{ flex: 1, padding: '16px', border: '1px solid #404040', color: '#f87171', background: 'transparent' }}>
+            <button
+              className="mission-delete-button"
+              type="button"
+              disabled={isSaving}
+              onClick={onDelete}
+              style={{ flex: '0 0 auto', padding: '12px 20px', minHeight: '44px' }}
+            >
               EXCLUIR
             </button>
           )}
-          <button className="mission-create-submit" type="submit" disabled={isSaving} style={{ flex: 3 }}>
+          <button
+            className="mission-create-submit"
+            type="submit"
+            disabled={isSaving}
+            style={{ flex: 1, margin: 0, minHeight: '44px' }}
+          >
             {isSaving ? 'SALVANDO…' : <>ATUALIZAR CICLO <span>→</span></>}
           </button>
         </div>
