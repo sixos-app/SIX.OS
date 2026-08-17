@@ -6,6 +6,18 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.47.0] - 2026-08-17
+
+### Added
+- **Custo Real de Missões**: O timer de missões agora calcula automaticamente o custo da sessão multiplicando as horas trabalhadas pelo custo/hora do colaborador, acumulando e exibindo o custo real ("realized_cost") nos detalhes da missão.
+- **Tratamento de Conflito de Timer**: O backend bloqueia timers simultâneos (HTTP 409). O frontend intercepta via `TimerConflictError` e apresenta um modal amigável sugerindo pausar a missão ativa para iniciar a nova.
+- **Exclusão de Missão**: Nova permissão `missions.delete` (incorporada por padrão para roles administrativas) para exclusão limpa via interface (que realiza um cancelamento com retenção de histórico). Um modal customizado (`ConfirmActionModal`) previne exclusões acidentais.
+- **Exclusão de Projeto**: Botão "EXCLUIR" dentro do modal de ciclo de projeto, visível para perfis com permissão `projects.delete`. Realiza "soft-delete" (status `archived`) com retenção de dependências e histórico. Utiliza o mesmo padrão de modal de confirmação anti-acidentes.
+
+### Changed
+- **UI do AppShell**: Refatoração no componente principal para comportar os múltiplos modais nativos de confirmação (Timer Switch, Confirm Delete Mission, Confirm Delete Project) e os estados associados.
+
+
 ## [0.46.3] - 2026-08-17
 
 ### Added

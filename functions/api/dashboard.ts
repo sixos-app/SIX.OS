@@ -127,6 +127,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
         missions.xp_reward AS xp, missions.ideas_reward AS ideas, missions.visual_tone AS tone,
         CASE WHEN missions.priority = 'urgent' THEN 1 ELSE 0 END AS urgent,
         missions.status, missions.approval_status AS approvalStatus,
+        missions.realized_cost AS realizedCost,
         missions.xp_recipient_user_id AS xpRecipientUserId,
         (SELECT recipient.name FROM users recipient WHERE recipient.id = missions.xp_recipient_user_id) AS xpRecipientName,
         (SELECT steps.department_name FROM mission_workflow_steps steps WHERE steps.mission_id = missions.id AND steps.position = missions.current_workflow_position LIMIT 1) AS currentDepartment,

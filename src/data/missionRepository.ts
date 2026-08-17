@@ -75,6 +75,7 @@ export type MissionDetails = {
     ideasReward: number
     rewardLabel: string | null
     approvalStatus: string
+    realizedCost: number
     currentWorkflowPosition?: number
     createdAt: string
     completedAt: string | null
@@ -139,8 +140,27 @@ export function returnMissionWorkflow(missionId: string, targetPosition: number,
   return requestJson<{ missionId: string; status: string; currentDepartment: string; nextDepartment: string | null }>(`/api/missions/${encodeURIComponent(missionId)}/workflow`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetPosition, reason }) })
 }
 
-export function startMissionTimer(missionId: string) {
-  return requestJson<{ active: true; id: string; missionId: string; missionTitle: string; startedAt: string; elapsedSeconds: number }>(`/api/missions/${encodeURIComponent(missionId)}/timer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start' }) })
+export class TimerConflictError extends Error {
+  constructor(message: string, public activeTimer: { missionTitle: string; missionId: string; id: string; startedAt: string }) {
+    super(message)
+    this.name = 'TimerConflictError'
+  }
+}
+
+export async function startMissionTimer(missionId: string) {
+  const response = await fetch(`/api/missions/${encodeURIComponent(missionId)}/timer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ action: 'start' })
+  })
+  const payload = await response.json().catch(() => ({})) as any
+  if (!response.ok) {
+    if (response.status === 409 && payload.activeTimer) {
+      throw new TimerConflictError(payload.error, payload.activeTimer)
+    }
+    throw new Error(payload.error ?? 'Não foi possível iniciar o cronômetro')
+  }
+  return payload as { active: true; id: string; missionId: string; missionTitle: string; startedAt: string; elapsedSeconds: number }
 }
 
 export function stopMissionTimer(missionId: string) {

@@ -13,10 +13,12 @@ import {
   attachProjectLibraryFile,
   createMission as persistMissionCreate,
   deleteMission as persistMissionDelete,
+  getMissionDetails,
   requestMissionCompletion,
   returnMissionWorkflow,
   startMissionTimer,
   stopMissionTimer,
+  TimerConflictError,
   updateMission as persistMissionUpdate,
 } from '../data/missionRepository'
 import {
@@ -60,6 +62,7 @@ import { ProfilePage } from './profile/ProfilePage'
 import { ProjectsPage } from './projects/ProjectsPage'
 import { TeamPage } from './team/TeamPage'
 import { Avatar } from './shared/Avatar'
+import { ConfirmActionModal } from './modals/ConfirmActionModal'
 import { ComingSoon } from './shared/ComingSoon'
 import { Icon } from './shared/Icon'
 import { MissionTimerValue } from './shared/MissionTimerValue'
@@ -85,7 +88,10 @@ export function AppShell({
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>(getStoredReadNotifications)
   const [notificationMissionId, setNotificationMissionId] = useState<string | null>(null)
   const [completionMessage, setCompletionMessage] = useState('')
-  const [timerPendingMissionId, setTimerPendingMissionId] = useState('')
+  const [timerPendingMissionId, setTimerPendingMissionId] = useState<string | null>(null)
+  const [pendingTimerSwitch, setPendingTimerSwitch] = useState<{ targetMissionId: string; targetMissionTitle: string; activeTimer: { missionTitle: string; missionId: string; id: string; startedAt: string } } | null>(null)
+  const [pendingDeleteMission, setPendingDeleteMission] = useState<Mission | null>(null)
+  const [pendingDeleteProject, setPendingDeleteProject] = useState<Project | null>(null)
 
   useEffect(() => {
     const handleAccessDenied = () => setCompletionMessage('Acesso negado. Você não tem permissão para realizar esta ação.')
@@ -271,13 +277,42 @@ export function AppShell({
     }).catch((reason: unknown) => setCompletionMessage(reason instanceof Error ? reason.message : 'Não foi possível concluir a missão. Tente novamente.'))
   }
 
-  function deleteMission(id: string) {
+  function requestDeleteMission(id: string) {
     const mission = dashboardData.missions.find((item) => item.id === id)
-    if (!mission || !window.confirm(`Excluir “${mission.title}”? A missão será cancelada e permanecerá no histórico de auditoria.`)) return
+    if (mission) setPendingDeleteMission(mission)
+  }
+
+  function confirmDeleteMission() {
+    if (!pendingDeleteMission) return
+    const id = pendingDeleteMission.id
     void persistMissionDelete(id).then(() => {
       setDashboardData((current) => ({ ...current, missions: current.missions.filter((item) => item.id !== id) }))
-      setCompletionMessage(`${mission.title} foi cancelada e removida das visões operacionais.`)
+      setCompletionMessage(`${pendingDeleteMission.title} foi cancelada e removida das visões operacionais.`)
     }).catch((reason: unknown) => setCompletionMessage(reason instanceof Error ? reason.message : 'Não foi possível excluir a missão.'))
+      .finally(() => setPendingDeleteMission(null))
+  }
+
+  function requestDeleteProject(id: string) {
+    const project = dashboardData.projects.find((item) => item.id === id)
+    if (project) setPendingDeleteProject(project)
+  }
+
+  async function confirmDeleteProject() {
+    if (!pendingDeleteProject) return
+    const id = pendingDeleteProject.id
+    try {
+      const response = await fetch(`/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { error?: string }
+        throw new Error(payload.error || 'Falha ao excluir o projeto.')
+      }
+      setDashboardData((current) => ({ ...current, projects: current.projects.filter((p) => p.id !== id) }))
+      setCompletionMessage(`${pendingDeleteProject.name} foi movido para o arquivo morto.`)
+    } catch (reason) {
+      setCompletionMessage(reason instanceof Error ? reason.message : 'Não foi possível excluir o projeto.')
+    } finally {
+      setPendingDeleteProject(null)
+    }
   }
 
   function returnMission(id: string, targetPosition: number) {
@@ -364,6 +399,8 @@ export function AppShell({
         tone: input.priority === 'urgent' ? 'orange' : 'purple',
         urgent: input.priority === 'urgent',
         status: 'open',
+        approvalStatus: 'not_requested',
+        realizedCost: 0,
       }
       setDashboardData((current) => ({ ...current, missions: [...current.missions, mission] }))
     }
@@ -420,9 +457,34 @@ export function AppShell({
       setDashboardData(refreshed)
       setCompletionMessage(isActive ? `${mission.title}: cronômetro pausado.` : `${mission.title}: missão iniciada.`)
     } catch (reason) {
-      setCompletionMessage(reason instanceof Error ? reason.message : 'Não foi possível atualizar o cronômetro.')
+      if (reason instanceof TimerConflictError) {
+        setPendingTimerSwitch({
+          targetMissionId: missionId,
+          targetMissionTitle: mission.title,
+          activeTimer: reason.activeTimer
+        })
+      } else {
+        setCompletionMessage(reason instanceof Error ? reason.message : 'Não foi possível atualizar o cronômetro.')
+      }
     } finally {
-      setTimerPendingMissionId('')
+      setTimerPendingMissionId(null)
+    }
+  }
+
+  async function confirmTimerSwitch() {
+    if (!pendingTimerSwitch) return
+    setTimerPendingMissionId(pendingTimerSwitch.targetMissionId)
+    try {
+      await stopMissionTimer(pendingTimerSwitch.activeTimer.missionId)
+      await startMissionTimer(pendingTimerSwitch.targetMissionId)
+      const refreshed = await getDashboard()
+      setDashboardData(refreshed)
+      setCompletionMessage(`${pendingTimerSwitch.targetMissionTitle}: missão iniciada.`)
+    } catch (reason) {
+      setCompletionMessage(reason instanceof Error ? reason.message : 'Falha ao trocar o cronômetro.')
+    } finally {
+      setTimerPendingMissionId(null)
+      setPendingTimerSwitch(null)
     }
   }
 
@@ -665,7 +727,7 @@ export function AppShell({
             accessSession={accessSession}
             onReassignMission={reassignMission}
             onUpdateMission={updateMission}
-            onDeleteMission={deleteMission}
+            onDeleteMission={requestDeleteMission}
             onReturnMission={returnMission}
             onToggleTimer={toggleMissionTimer}
             timerPendingMissionId={timerPendingMissionId}
@@ -684,6 +746,7 @@ export function AppShell({
             onCreateProject={createProject}
             onCreateMission={createMission}
             onUpdateProjectLifecycle={updateProjectLifecycle}
+            onDeleteProject={requestDeleteProject}
           />
         ) : activeSection === 'agenda' ? (
           <AgendaPage
@@ -818,6 +881,46 @@ export function AppShell({
       )}
       {activeModal === 'change-password' && <ChangePasswordModal onClose={() => setActiveModal(null)} />}
       {activeModal === 'help' && <HelpModal onClose={() => setActiveModal(null)} />}
+      {pendingTimerSwitch && (
+        <div className="modal-overlay" onClick={() => setPendingTimerSwitch(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h2>Trocar Missão Ativa</h2>
+              <button className="close-button" onClick={() => setPendingTimerSwitch(null)} aria-label="Fechar modal">×</button>
+            </div>
+            <div className="modal-body" style={{ color: '#a3a3a3' }}>
+              <p style={{ marginBottom: '16px' }}>Você já está trabalhando na missão <strong>{pendingTimerSwitch.activeTimer.missionTitle}</strong>.</p>
+              <p>Deseja pausar essa missão e iniciar <strong>{pendingTimerSwitch.targetMissionTitle}</strong>?</p>
+            </div>
+            <div className="modal-footer">
+              <button className="button-secondary" onClick={() => setPendingTimerSwitch(null)}>Cancelar</button>
+              <button className="button-primary" onClick={() => void confirmTimerSwitch()} disabled={timerPendingMissionId === pendingTimerSwitch.targetMissionId}>
+                {timerPendingMissionId === pendingTimerSwitch.targetMissionId ? 'Trocando...' : 'Pausar e Iniciar Nova'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pendingDeleteMission && (
+        <ConfirmActionModal
+          title="Excluir Missão"
+          message={`Excluir “${pendingDeleteMission.title}”? A missão será cancelada e permanecerá no histórico de auditoria. Essa ação não poderá ser desfeita.`}
+          confirmLabel="Excluir Missão"
+          isDestructive={true}
+          onConfirm={confirmDeleteMission}
+          onCancel={() => setPendingDeleteMission(null)}
+        />
+      )}
+      {pendingDeleteProject && (
+        <ConfirmActionModal
+          title="Excluir Projeto"
+          message={`Excluir “${pendingDeleteProject.name}”? Essa ação não poderá ser desfeita.`}
+          confirmLabel="Excluir Projeto"
+          isDestructive={true}
+          onConfirm={() => void confirmDeleteProject()}
+          onCancel={() => setPendingDeleteProject(null)}
+        />
+      )}
     </main>
   )
 }

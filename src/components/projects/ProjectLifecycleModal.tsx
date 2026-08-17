@@ -4,7 +4,7 @@ import { missionDateTimeInputValue } from '../../utils/formatters'
 import { DateTimePicker } from '../shared/DateTimePicker'
 import { Icon } from '../shared/Icon'
 
-export function ProjectLifecycleModal({ project, onClose, onUpdate }: { project: Project; onClose: () => void; onUpdate: (input: { status: string; deadline: string; nextStep: string }) => Promise<void> }) {
+export function ProjectLifecycleModal({ project, onClose, onUpdate, canDelete, onDelete }: { project: Project; onClose: () => void; onUpdate: (input: { status: string; deadline: string; nextStep: string }) => Promise<void>; canDelete?: boolean; onDelete?: () => void }) {
   const [status, setStatus] = useState(project.status)
   const [deadline, setDeadline] = useState(() => project.dueAt ? missionDateTimeInputValue(project.dueAt) : missionDateTimeInputValue('Amanhã · 18h'))
   const [nextStep, setNextStep] = useState(project.nextStep)
@@ -61,9 +61,16 @@ export function ProjectLifecycleModal({ project, onClose, onUpdate }: { project:
           <textarea value={nextStep} onChange={(event) => setNextStep(event.target.value)} required />
         </label>
         {error && <p className="admin-dialog-error">{error}</p>}
-        <button className="mission-create-submit" type="submit" disabled={isSaving}>
-          {isSaving ? 'SALVANDO…' : <>ATUALIZAR CICLO <span>→</span></>}
-        </button>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+          {canDelete && onDelete && (
+            <button className="mission-delete-button" type="button" disabled={isSaving} onClick={onDelete} style={{ flex: 1, padding: '16px', border: '1px solid #404040', color: '#f87171', background: 'transparent' }}>
+              EXCLUIR
+            </button>
+          )}
+          <button className="mission-create-submit" type="submit" disabled={isSaving} style={{ flex: 3 }}>
+            {isSaving ? 'SALVANDO…' : <>ATUALIZAR CICLO <span>→</span></>}
+          </button>
+        </div>
       </form>
     </div>
   )

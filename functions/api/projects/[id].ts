@@ -113,3 +113,20 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, reque
     workTypeIds: savedWorkTypeIds,
   })
 }
+
+export const onRequestDelete: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
+  const user = await getAccessUser(request, env)
+  if (!user) return accessRequiredResponse()
+  if (!(await hasPermissionV2(env, request, user, 'projects.delete'))) return permissionRequiredResponse()
+  
+  const projectId = params.id as string
+  const project = await env.DB.prepare('SELECT id, status FROM projects WHERE id = ? AND organization_id = ? LIMIT 1').bind(projectId, user.organizationId).first<{ id: string; status: string }>()
+  
+  if (!project) return Response.json({ error: 'Projeto não encontrado' }, { status: 404 })
+  if (project.status === 'archived') return new Response(null, { status: 204 })
+
+  // Soft delete
+  await env.DB.prepare(`UPDATE projects SET status = 'archived', updated_at = ? WHERE id = ?`).bind(new Date().toISOString(), projectId).run()
+  
+  return new Response(null, { status: 204 })
+}

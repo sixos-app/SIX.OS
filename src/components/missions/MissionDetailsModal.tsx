@@ -76,6 +76,7 @@ export function MissionDetailsModal({
           ideasReward: mission.ideas,
           rewardLabel: null,
           approvalStatus: mission.approvalStatus ?? 'not_requested',
+          realizedCost: 0,
           createdAt: '',
           completedAt: null,
           approvedAt: null,
@@ -248,6 +249,7 @@ export function MissionDetailsModal({
               <span>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Prazo a definir'}</span>
               {expectedHoursFormatted && <span>Estimativa: {expectedHoursFormatted}</span>}
               <span>Tempo: {trackedHoursFormatted}</span>
+              {details.mission.realizedCost > 0 && <span>Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}</span>}
               <span>+{details.mission.xpReward} XP</span>
             </div>
 

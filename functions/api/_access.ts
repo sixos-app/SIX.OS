@@ -117,9 +117,9 @@ type CredentialRow = {
 
 
 const rolePermissions: Record<string, readonly string[]> = {
-  admin: ['users.manage', 'roles.manage', 'gamification.manage', 'integrations.manage', 'projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'missions.update_own', 'clients.manage', 'library.manage', 'finance.view', 'ai.use', 'reports.view', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
-  management: ['projects.create', 'projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
-  coordinator: ['projects.manage', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
+  admin: ['users.manage', 'roles.manage', 'gamification.manage', 'integrations.manage', 'projects.create', 'projects.manage', 'projects.delete', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'missions.update_own', 'clients.manage', 'library.manage', 'finance.view', 'ai.use', 'reports.view', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
+  management: ['projects.create', 'projects.manage', 'projects.delete', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'clients.manage', 'library.manage', 'ai.use', 'reports.view', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
+  coordinator: ['projects.manage', 'projects.delete', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
   service: ['projects.create', 'missions.assign', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'clients.manage', 'agenda.team.view', 'work_types.view', 'work_types.manage'],
   specialist: ['missions.update_own', 'work_types.view'],
 }
@@ -346,7 +346,7 @@ export async function getPermissionScope(
 // ----------------------------------------------------------------------------
 
 export const SYSTEM_PERMISSIONS = [
-  'users.manage', 'roles.manage', 'gamification.manage', 'integrations.manage', 'projects.create', 'projects.manage',
+  'users.manage', 'roles.manage', 'gamification.manage', 'integrations.manage', 'projects.create', 'projects.manage', 'projects.delete',
   'missions.view', 'missions.create', 'missions.edit', 'missions.assign', 'missions.complete', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'missions.update_own',
   'clients.view', 'clients.create', 'clients.edit', 'clients.manage',
   'library.view', 'library.manage',

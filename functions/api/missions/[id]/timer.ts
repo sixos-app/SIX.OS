@@ -69,12 +69,23 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
     const now = new Date()
     const durationSeconds = Math.max(0, Math.floor((now.getTime() - Date.parse(active.startedAt)) / 1000))
     const totalMinutes = Math.floor(durationSeconds / 60)
+    
+    // Fetch user's hourly rate
+    const userRow = await env.DB.prepare('SELECT hourly_rate FROM users WHERE id = ?').bind(user.id).first<{ hourly_rate: number }>()
+    const hourlyRate = userRow?.hourly_rate || 0
+    const cost = (durationSeconds / 3600) * hourlyRate
+
     await env.DB.batch([
       env.DB.prepare(`
         UPDATE time_entries
-        SET ended_at = ?, duration_seconds = ?, hours = ?, minutes = ?
+        SET ended_at = ?, duration_seconds = ?, hours = ?, minutes = ?, cost = ?
         WHERE id = ? AND organization_id = ? AND user_id = ? AND ended_at IS NULL
-      `).bind(now.toISOString(), durationSeconds, Math.floor(totalMinutes / 60), totalMinutes % 60, active.id, user.organizationId, user.id),
+      `).bind(now.toISOString(), durationSeconds, Math.floor(totalMinutes / 60), totalMinutes % 60, cost, active.id, user.organizationId, user.id),
+      env.DB.prepare(`
+        UPDATE missions
+        SET realized_cost = realized_cost + ?
+        WHERE id = ? AND project_id IN (SELECT id FROM projects WHERE organization_id = ?)
+      `).bind(cost, mission.id, user.organizationId),
       env.DB.prepare(`
         INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at)
         VALUES (?, ?, ?, 'timer_stopped', 'Cronômetro pausado.', ?)

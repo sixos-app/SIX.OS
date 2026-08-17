@@ -24,6 +24,7 @@ export function ProjectsPage({
   onCreateProject,
   onCreateMission,
   onUpdateProjectLifecycle,
+  onDeleteProject,
 }: {
   projects: Project[]
   clients: ClientIdentity[]
@@ -36,9 +37,11 @@ export function ProjectsPage({
   onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone']; workTypeIds?: string[] }) => Promise<Project>
   onCreateMission: (input: MissionCreationInput) => Promise<void>
   onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => Promise<void>
+  onDeleteProject: (id: string) => void
 }) {
   const { can } = usePermission()
   const canManageMissions = can('missions.assign')
+  const canDeleteProject = can('projects.delete')
   const [selectedProjectId, setSelectedProjectId] = useState(initialSelectedProjectId ?? projects[0]?.id ?? '')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isDashboardOpen, setIsDashboardOpen] = useState(false)
@@ -236,6 +239,8 @@ export function ProjectsPage({
           project={selectedProject}
           onClose={() => setIsLifecycleOpen(false)}
           onUpdate={(input) => onUpdateProjectLifecycle(selectedProject.id, input)}
+          canDelete={canDeleteProject}
+          onDelete={() => { setIsLifecycleOpen(false); onDeleteProject(selectedProject.id); }}
         />
       )}
       {isLibraryOpen && (

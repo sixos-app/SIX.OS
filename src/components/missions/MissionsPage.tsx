@@ -44,7 +44,7 @@ export function MissionsPage({
   onDeleteMission: (id: string) => void
   onReturnMission: (id: string, targetPosition: number) => void
   onToggleTimer: (id: string) => Promise<void>
-  timerPendingMissionId: string
+  timerPendingMissionId: string | null
   initialSelectedMissionId?: string | null
 }) {
   const { can, hasScope } = usePermission()

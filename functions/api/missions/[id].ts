@@ -18,6 +18,7 @@ type DetailRow = {
   ideasReward: number
   rewardLabel: string | null
   approvalStatus: string
+  realizedCost: number
   currentWorkflowPosition: number
   createdAt: string
   completedAt: string | null
@@ -68,6 +69,7 @@ export const onRequestGet: PagesFunction<Bindings, 'id'> = async ({ env, params,
       missions.expected_minutes AS expectedMinutes,
       missions.xp_reward AS xpReward, missions.ideas_reward AS ideasReward, missions.reward_label AS rewardLabel,
       missions.approval_status AS approvalStatus, missions.current_workflow_position AS currentWorkflowPosition,
+      missions.realized_cost AS realizedCost,
       missions.created_at AS createdAt, missions.completed_at AS completedAt, missions.approved_at AS approvedAt,
       missions.started_at AS startedAt, missions.board_id AS boardId, missions.stage_id AS stageId,
       workflow_stages.name AS stageName, workflow_stages.type AS stageType
