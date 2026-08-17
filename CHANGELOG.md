@@ -6,6 +6,32 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.46.3] - 2026-08-17
+
+### Added
+- **Captação na Agenda**: Novo tipo de evento com vínculo opcional à missão/roteiro e upload de documentos DOC, DOCX ou PDF (até 25 MB), armazenados no bucket privado da organização.
+- **Participantes de Eventos**: Responsáveis autorizados podem adicionar colaboradores ativos da própria organização; os eventos também passam a aparecer na agenda individual dos participantes.
+
+### Fixed
+- **Fluxo Setorial da Nova Missão**: O formulário agora utiliza exclusivamente os setores ativos da organização, eliminando o erro “A sequência contém um setor inválido” causado pelo catálogo fixo divergente em alguns perfis.
+- **Estado do Formulário de Missão**: Cada abertura inicia uma sessão limpa, e o modal só é fechado depois da confirmação do servidor; falhas preservam apenas a tentativa atual para permitir correção.
+- **Modal de Evento Responsivo**: Conteúdo longo ganhou rolagem interna delimitada e rodapé estável, sem corte dos participantes, vínculo de roteiro, anexo ou CTA em desktop, tablet e mobile.
+
+## [0.46.2] - 2026-08-16
+
+### Fixed
+- **Matriz de Permissões**: Cabeçalho, identificação do perfil e ações de cancelar/salvar foram ajustados para a superfície clara do Painel Administrativo, com contraste correto, proporções compactas e empilhamento responsivo no mobile.
+- **Navegação das Notificações**: O clique agora mantém a marcação como lida e abre o destino operacional correspondente, selecionando a missão ou o projeto relacionado quando disponível e usando Agenda/Equipe como fallback por categoria.
+
+## [0.46.1] - 2026-08-16
+
+### Fixed
+- **Modais Nova Frente e Nova Missão**: Separação entre corpo rolável e rodapé de ação, eliminando sobreposição do CTA, corte de conteúdo e conflitos de `overflow`/`z-index`; seletores de Tipos de Trabalho agora expandem no fluxo do formulário.
+- **Responsividade da Nova Missão**: Grids com colunas flexíveis e largura mínima zerada nos filhos, briefing em largura total e transição para coluna única em tablet/mobile, sem rolagem horizontal.
+- **Área de Anexos**: Dropzone alinhada à largura dos campos, com altura compacta e sem espaço vazio estrutural após o componente.
+- **Botão Nova Pasta da Biblioteca**: Uso direto dos assets oficiais `botao mas negativo.svg` no estado normal e `botao mais positivo.svg` em hover/focus, sem fundo, borda ou container visual adicional.
+- **Navegação do Painel Administrativo**: Substituição das abas principal e interna sem contraste por controles segmentados responsivos, com estados ativo, hover e foco alinhados à linguagem visual do SIX.OS; cabeçalhos de Cargos, Departamentos, Níveis e Perfis também foram normalizados para o fundo claro.
+
 ## [0.46.0] - 2026-08-16
 
 ### Added

@@ -16,6 +16,7 @@ export function ProjectsPage({
   projects,
   clients,
   workTypes,
+  departments,
   initialSelectedProjectId,
   missions,
   completed,
@@ -27,12 +28,13 @@ export function ProjectsPage({
   projects: Project[]
   clients: ClientIdentity[]
   workTypes?: WorkType[]
+  departments: Array<{ id: string; name: string }>
   initialSelectedProjectId: string | null
   missions: Mission[]
   completed: string[]
   team: TeamMember[]
   onCreateProject: (input: { name: string; client: string; deadline: string; tone: Project['tone']; workTypeIds?: string[] }) => Promise<Project>
-  onCreateMission: (input: MissionCreationInput) => void
+  onCreateMission: (input: MissionCreationInput) => Promise<void>
   onUpdateProjectLifecycle: (id: string, input: { status: string; deadline: string; nextStep: string }) => Promise<void>
 }) {
   const { can } = usePermission()
@@ -41,6 +43,7 @@ export function ProjectsPage({
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isDashboardOpen, setIsDashboardOpen] = useState(false)
   const [isMissionCreateOpen, setIsMissionCreateOpen] = useState(false)
+  const [missionCreateSession, setMissionCreateSession] = useState(0)
   const [isLifecycleOpen, setIsLifecycleOpen] = useState(false)
   const [isLibraryOpen, setIsLibraryOpen] = useState(false)
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? projects[0]
@@ -156,7 +159,7 @@ export function ProjectsPage({
           <div className="project-detail-section">
             <div className="project-missions-heading">
               <span>MISSÕES ATRIBUÍDAS</span>
-              {canManageMissions && <button onClick={() => setIsMissionCreateOpen(true)}>NOVA MISSÃO <b>+</b></button>}
+              {canManageMissions && <button onClick={() => { setMissionCreateSession((current) => current + 1); setIsMissionCreateOpen(true) }}>NOVA MISSÃO <b>+</b></button>}
             </div>
             <div className="project-mission-list">
               {projectMissions.length > 0 ? (
@@ -218,15 +221,14 @@ export function ProjectsPage({
       )}
       {isMissionCreateOpen && (
         <MissionCreateModal
+          key={missionCreateSession}
           projects={projects}
           team={team}
           workTypes={workTypes}
+          departments={departments}
           initialProjectId={selectedProject.id}
           onClose={() => setIsMissionCreateOpen(false)}
-          onCreate={(input) => {
-            onCreateMission(input)
-            setIsMissionCreateOpen(false)
-          }}
+          onCreate={onCreateMission}
         />
       )}
       {isLifecycleOpen && (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AppNotification } from '../../data/dashboard'
 
-export function NotificationsPanel({ notifications, activities, readNotificationIds, onClose, onMarkAllRead, onMarkRead }: { notifications: AppNotification[]; activities: AppNotification[]; readNotificationIds: string[]; onClose: () => void; onMarkAllRead: () => void; onMarkRead: (id: string) => void }) {
+export function NotificationsPanel({ notifications, activities, readNotificationIds, onClose, onMarkAllRead, onOpenNotification }: { notifications: AppNotification[]; activities: AppNotification[]; readNotificationIds: string[]; onClose: () => void; onMarkAllRead: () => void; onOpenNotification: (notification: AppNotification) => void }) {
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const visibleNotifications = notifications.filter((notification) => filter === 'all' || !readNotificationIds.includes(notification.id))
   const unreadCount = notifications.filter((notification) => !readNotificationIds.includes(notification.id)).length
@@ -36,7 +36,7 @@ export function NotificationsPanel({ notifications, activities, readNotification
           {visibleNotifications.map((notification) => {
             const isRead = readNotificationIds.includes(notification.id)
             return (
-              <button className={`notification-item tone-${notification.tone} ${isRead ? 'read' : ''}`} onClick={() => onMarkRead(notification.id)} key={notification.id}>
+              <button className={`notification-item tone-${notification.tone} ${isRead ? 'read' : ''}`} onClick={() => onOpenNotification(notification)} key={notification.id}>
                 <span className="notification-dot" />
                 <span>
                   <small>{notification.category} · {notification.time}</small>

@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
   createCalendarEvent,
+  deleteCalendarEvent,
+  uploadCalendarEventDocument,
   updateCalendarEvent,
   type CalendarEventRecord,
   type CalendarEventType,
@@ -27,21 +29,26 @@ export function CalendarEventModal({
   event: calendarEvent,
   initialDate,
   projects,
+  missions,
+  team = [],
   canCreateTeam,
   defaultOwnerUserId,
   defaultVisibility,
   onClose,
   onCreated,
+  onOpenMission,
 }: {
   event?: CalendarEventRecord
   initialDate?: string
   projects: Project[]
+  missions: Array<{ id: string; title: string; projectId?: string; status?: string }>
   team?: TeamMember[]
   canCreateTeam: boolean
   defaultOwnerUserId: string
   defaultVisibility: CalendarVisibility
   onClose: () => void
   onCreated: () => void
+  onOpenMission: (missionId: string) => void
 }) {
   const [title, setTitle] = useState(calendarEvent?.title ?? '')
   const [eventType, setEventType] = useState<CalendarEventType>(calendarEvent?.eventType ?? 'meeting')
@@ -61,9 +68,13 @@ export function CalendarEventModal({
   })
   const [visibility, setVisibility] = useState<CalendarVisibility>(calendarEvent?.visibility ?? defaultVisibility)
   const [projectId, setProjectId] = useState(calendarEvent?.projectId ?? '')
+  const [missionId, setMissionId] = useState(calendarEvent?.missionId ?? '')
   const [location, setLocation] = useState(calendarEvent?.location ?? '')
   const [description, setDescription] = useState(calendarEvent?.description ?? '')
-  const [ownerUserId] = useState(calendarEvent?.ownerUserId ?? defaultOwnerUserId)
+  const [ownerUserId, setOwnerUserId] = useState(calendarEvent?.ownerUserId ?? defaultOwnerUserId)
+  const [participantUserIds, setParticipantUserIds] = useState<string[]>(calendarEvent?.participantUserIds ?? [])
+  const [participantToAdd, setParticipantToAdd] = useState('')
+  const [documentFile, setDocumentFile] = useState<File | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -77,23 +88,42 @@ export function CalendarEventModal({
     event.preventDefault()
     setIsSaving(true)
     setError('')
+    let createdEventId = ''
     try {
-      const input = { title, startsAt, endsAt, eventType, visibility, projectId: projectId || undefined, location, description, ownerUserId: ownerUserId || undefined }
-      if (calendarEvent) await updateCalendarEvent(calendarEvent.id, input)
-      else await createCalendarEvent(input)
+      const input = { title, startsAt, endsAt, eventType, visibility, projectId: projectId || undefined, location, description, ownerUserId: ownerUserId || undefined, missionId: missionId || undefined, participantUserIds }
+      const eventId = calendarEvent
+        ? (await updateCalendarEvent(calendarEvent.id, input), calendarEvent.id)
+        : (await createCalendarEvent(input)).event.id
+      if (!calendarEvent) createdEventId = eventId
+      if (documentFile) await uploadCalendarEventDocument(eventId, documentFile)
       onCreated()
     } catch (reason) {
+      if (createdEventId) await deleteCalendarEvent(createdEventId).catch(() => undefined)
       setError(reason instanceof Error ? reason.message : 'Não foi possível criar o evento.')
     } finally {
       setIsSaving(false)
     }
   }
 
+  function selectMission(nextMissionId: string) {
+    setMissionId(nextMissionId)
+    const mission = missions.find((item) => item.id === nextMissionId)
+    if (mission?.projectId) setProjectId(mission.projectId)
+  }
+
+  function addParticipant() {
+    if (!participantToAdd || participantToAdd === ownerUserId || participantUserIds.includes(participantToAdd)) return
+    setParticipantUserIds((current) => [...current, participantToAdd])
+    setParticipantToAdd('')
+    if (canCreateTeam) setVisibility('team')
+  }
+
   return (
     <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label={calendarEvent ? 'Editar evento da agenda' : 'Novo evento da agenda'}>
-      <form className="mission-create-dialog agenda-create-dialog" onSubmit={submit}>
+      <form className="mission-create-dialog agenda-create-dialog" onSubmit={submit} autoComplete="off">
         <button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de evento">×</button>
-        <span className="mission-create-icon"><Icon name="calendar" size={21} /></span>
+        <div className="mission-create-scroll agenda-create-scroll">
+          <span className="mission-create-icon"><Icon name="calendar" size={21} /></span>
         <p>{calendarEvent ? 'EDITAR EVENTO' : 'NOVO EVENTO'}</p>
         <h2>{calendarEvent ? <>Ajuste o próximo<br /><em>movimento.</em></> : <>Organize o próximo<br /><em>movimento.</em></>}</h2>
         <label>
@@ -107,6 +137,7 @@ export function CalendarEventModal({
               <option value="meeting">Reunião</option>
               <option value="deadline">Prazo</option>
               <option value="appointment">Compromisso</option>
+              <option value="capture">Captação</option>
               <option value="vacation">Férias / Ausência</option>
               <option value="birthday">Aniversário</option>
             </select>
@@ -131,27 +162,85 @@ export function CalendarEventModal({
         </div>
         <div className="mission-create-row">
           <label>
+            <span>RESPONSÁVEL</span>
+            <select value={ownerUserId} onChange={(event) => { setOwnerUserId(event.target.value); setParticipantUserIds((current) => current.filter((id) => id !== event.target.value)) }} disabled={!canCreateTeam}>
+              {team.filter((member) => canCreateTeam || member.id === ownerUserId).map((member) => (
+                <option value={member.id} key={member.id}>{member.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
             <span>PROJETO (OPCIONAL)</span>
-            <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+            <select value={projectId} onChange={(event) => { setProjectId(event.target.value); if (missionId && missions.find((mission) => mission.id === missionId)?.projectId !== event.target.value) setMissionId('') }}>
               <option value="">Sem projeto vinculado</option>
               {projects.map((project) => (
                 <option value={project.id} key={project.id}>{project.name}</option>
               ))}
             </select>
           </label>
-          <label>
-            <span>LOCAL (OPCIONAL)</span>
-            <input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Ex.: Sala Norte" />
-          </label>
         </div>
+        {canCreateTeam && (
+          <div className="agenda-participants-field">
+            <span>USUÁRIOS PARTICIPANTES</span>
+            <div className="agenda-participant-add">
+              <select value={participantToAdd} onChange={(event) => setParticipantToAdd(event.target.value)} aria-label="Selecionar usuário participante">
+                <option value="">Selecione um usuário</option>
+                {team.filter((member) => member.id !== ownerUserId && !participantUserIds.includes(member.id)).map((member) => (
+                  <option value={member.id} key={member.id}>{member.name}</option>
+                ))}
+              </select>
+              <button type="button" onClick={addParticipant} disabled={!participantToAdd}>ADICIONAR +</button>
+            </div>
+            {participantUserIds.length > 0 && (
+              <div className="agenda-participant-chips">
+                {participantUserIds.map((userId) => {
+                  const member = team.find((item) => item.id === userId)
+                  return <button type="button" onClick={() => setParticipantUserIds((current) => current.filter((id) => id !== userId))} key={userId}>{member?.name ?? 'Usuário'} <span>×</span></button>
+                })}
+              </div>
+            )}
+          </div>
+        )}
+        <label>
+          <span>LOCAL (OPCIONAL)</span>
+          <input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Ex.: Sala Norte" />
+        </label>
+        {eventType === 'capture' && (
+          <div className="agenda-capture-source">
+            <div className="agenda-capture-heading">
+              <span>ROTEIRO DA CAPTAÇÃO</span>
+              <small>Vincule uma missão para consultar o roteiro ou anexe um documento.</small>
+            </div>
+            <div className="agenda-capture-grid">
+              <label>
+                <span>MISSÃO / ROTEIRO (OPCIONAL)</span>
+                <select value={missionId} onChange={(event) => selectMission(event.target.value)}>
+                  <option value="">Sem missão vinculada</option>
+                  {missions.filter((mission) => !projectId || mission.projectId === projectId).map((mission) => (
+                    <option value={mission.id} key={mission.id}>{mission.title}</option>
+                  ))}
+                </select>
+              </label>
+              <button className="agenda-open-mission-button" type="button" onClick={() => onOpenMission(missionId)} disabled={!missionId}>ABRIR MISSÃO / ROTEIRO ↗</button>
+            </div>
+            <label className="agenda-document-input">
+              <span>ANEXAR DOC, DOCX OU PDF (OPCIONAL)</span>
+              <input type="file" accept=".doc,.docx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} />
+              <small>{documentFile?.name ?? calendarEvent?.attachmentName ?? 'Nenhum documento selecionado'}</small>
+            </label>
+          </div>
+        )}
         <label>
           <span>CONTEXTO</span>
           <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="O que precisa acontecer neste compromisso?" maxLength={2000} />
         </label>
-        {error && <p className="agenda-status error">{error}</p>}
-        <button className="mission-create-submit" type="submit" disabled={isSaving}>
-          {isSaving ? 'SALVANDO…' : <>{calendarEvent ? 'SALVAR ALTERAÇÕES' : 'CRIAR EVENTO'} <span>→</span></>}
-        </button>
+        </div>
+        <footer className="mission-create-footer agenda-create-footer">
+          {error && <p className="agenda-status error" role="alert">{error}</p>}
+          <button className="mission-create-submit" type="submit" disabled={isSaving}>
+            {isSaving ? 'SALVANDO…' : <>{calendarEvent ? 'SALVAR ALTERAÇÕES' : 'CRIAR EVENTO'} <span>→</span></>}
+          </button>
+        </footer>
       </form>
     </div>
   )

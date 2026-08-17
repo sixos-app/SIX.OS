@@ -130,6 +130,10 @@ export type AppNotification = {
   time: string
   category: 'Projeto' | 'Agenda' | 'Equipe'
   tone: 'lime' | 'purple' | 'orange'
+  destination?:
+    | { section: 'missions'; missionId: string }
+    | { section: 'projects'; projectId?: string }
+    | { section: 'agenda' | 'team' | 'feed' }
 }
 
 import type { WorkType } from './workTypeRepository'
@@ -138,6 +142,7 @@ export type DashboardData = {
   profile: { xp: number; ideas: number; level: string }
   missions: Mission[]
   projects: Project[]
+  departments: Array<{ id: string; name: string }>
   agenda: AgendaEvent[]
   team: TeamMember[]
   analytics: AnalyticsData
@@ -151,6 +156,7 @@ export const emptyDashboard: DashboardData = {
   profile: { xp: 0, ideas: 0, level: 'Criador' },
   missions: [],
   projects: [],
+  departments: [],
   agenda: [],
   team: [],
   analytics: {

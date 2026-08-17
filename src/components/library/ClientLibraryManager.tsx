@@ -132,7 +132,8 @@ export function ClientLibraryManager({ client }: { client: ClientIdentity }) {
             <b>PASTAS</b>
             {canManageLibrary && (
               <button className="client-library-folder-add" type="button" aria-label="Nova pasta" title="Nova pasta" onClick={() => setIsFolderFormOpen((current) => !current)}>
-                +
+                <img className="client-library-folder-add-default" src="/botao mas negativo.svg" alt="" aria-hidden="true" />
+                <img className="client-library-folder-add-active" src="/botao mais positivo.svg" alt="" aria-hidden="true" />
               </button>
             )}
           </div>

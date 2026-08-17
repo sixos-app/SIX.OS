@@ -67,66 +67,66 @@ export function ProjectCreateModal({
     <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Criar projeto">
       <form className="mission-create-dialog project-create-dialog" onSubmit={submit}>
         <button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de projeto">×</button>
-        <span className="mission-create-icon"><Icon name="folder" size={21} /></span>
-        <p>NOVA FRENTE</p>
-        <h2>Qual projeto vamos<br /><em>colocar em órbita?</em></h2>
-        <label>
-          <span>NOME DO PROJETO</span>
-          <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Campanha de Natal" required />
-        </label>
-        <label>
-          <span>CLIENTE</span>
-          <select value={client} onChange={(event) => setClient(event.target.value)} required>
-            <option value="" disabled>Selecione o cliente</option>
-            {clients.map((item) => (
-              <option value={item.name} key={item.id}>{item.name} · {item.shortCode ?? 'SEM SIGLA'}</option>
-            ))}
-          </select>
-          <small className="project-create-client-note">Para cadastrar outro cliente, use Administração → Novo cliente.</small>
-        </label>
-
-        <div style={{ marginTop: '14px' }}>
-          <span style={{ color: '#a6a69f', fontSize: '8px', fontWeight: 900, letterSpacing: '1.1px', display: 'block', marginBottom: '6px' }}>
-            TIPOS DE TRABALHO HABILITADOS
-          </span>
-          <WorkTypeSelector
-            mode="multiple"
-            workTypes={workTypes}
-            selectedIds={workTypeIds}
-            onChangeMultiple={setWorkTypeIds}
-            onWorkTypeCreated={(newType) => setWorkTypes((prev) => [...prev, newType])}
-            placeholder="Selecione ou crie tipos de trabalho para este projeto..."
-          />
-          <small style={{ display: 'block', marginTop: '4px', color: '#888', fontSize: '9px' }}>
-            Tipos de entregas comuns desta frente (ex.: Design, Vídeo, Redação, Social).
-          </small>
-        </div>
-
-        <div className="mission-create-row">
+        <div className="mission-create-scroll">
+          <span className="mission-create-icon"><Icon name="folder" size={21} /></span>
+          <p>NOVA FRENTE</p>
+          <h2>Qual projeto vamos<br /><em>colocar em órbita?</em></h2>
           <label>
-            <span>PRÓXIMO MARCO</span>
-            <DateTimePicker value={deadline} onChange={setDeadline} />
+            <span>NOME DO PROJETO</span>
+            <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Campanha de Natal" required />
           </label>
           <label>
-            <span>IDENTIDADE</span>
-            <select value={tone} onChange={(event) => setTone(event.target.value as Project['tone'])}>
-              <option value="lime">Lima</option>
-              <option value="purple">Roxo</option>
-              <option value="orange">Laranja</option>
-              <option value="blue">Azul</option>
-              <option value="cyan">Ciano</option>
-              <option value="turquoise">Turquesa</option>
-              <option value="yellow">Amarelo</option>
-              <option value="pink">Rosa</option>
-              <option value="coral">Coral</option>
-              <option value="magenta">Magenta</option>
+            <span>CLIENTE</span>
+            <select value={client} onChange={(event) => setClient(event.target.value)} required>
+              <option value="" disabled>Selecione o cliente</option>
+              {clients.map((item) => (
+                <option value={item.name} key={item.id}>{item.name} · {item.shortCode ?? 'SEM SIGLA'}</option>
+              ))}
             </select>
+            <small className="project-create-client-note">Para cadastrar outro cliente, use Administração → Novo cliente.</small>
           </label>
+
+          <div className="mission-create-field">
+            <span>TIPOS DE TRABALHO HABILITADOS</span>
+            <WorkTypeSelector
+              mode="multiple"
+              workTypes={workTypes}
+              selectedIds={workTypeIds}
+              onChangeMultiple={setWorkTypeIds}
+              onWorkTypeCreated={(newType) => setWorkTypes((prev) => [...prev, newType])}
+              placeholder="Selecione ou crie tipos de trabalho para este projeto..."
+            />
+            <small>Tipos de entregas comuns desta frente (ex.: Design, Vídeo, Redação, Social).</small>
+          </div>
+
+          <div className="mission-create-row">
+            <label>
+              <span>PRÓXIMO MARCO</span>
+              <DateTimePicker value={deadline} onChange={setDeadline} />
+            </label>
+            <label>
+              <span>IDENTIDADE</span>
+              <select value={tone} onChange={(event) => setTone(event.target.value as Project['tone'])}>
+                <option value="lime">Lima</option>
+                <option value="purple">Roxo</option>
+                <option value="orange">Laranja</option>
+                <option value="blue">Azul</option>
+                <option value="cyan">Ciano</option>
+                <option value="turquoise">Turquesa</option>
+                <option value="yellow">Amarelo</option>
+                <option value="pink">Rosa</option>
+                <option value="coral">Coral</option>
+                <option value="magenta">Magenta</option>
+              </select>
+            </label>
+          </div>
         </div>
-        {error && <p className="admin-dialog-error">{error}</p>}
-        <button className="mission-create-submit" type="submit" disabled={clients.length === 0 || isSaving}>
-          {isSaving ? 'SALVANDO…' : <>CRIAR PROJETO <span>→</span></>}
-        </button>
+        <footer className="mission-create-footer">
+          {error && <p className="admin-dialog-error">{error}</p>}
+          <button className="mission-create-submit" type="submit" disabled={clients.length === 0 || isSaving}>
+            {isSaving ? 'SALVANDO…' : <>CRIAR PROJETO <span>→</span></>}
+          </button>
+        </footer>
       </form>
     </div>
   )

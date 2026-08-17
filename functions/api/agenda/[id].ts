@@ -1,9 +1,10 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type AccessUser, type Bindings } from '../_access'
 
-type EventRow = { id: string; visibility: 'personal' | 'team'; ownerUserId: string | null }
-type UpdateAgendaInput = { title?: unknown; startsAt?: unknown; endsAt?: unknown; eventType?: unknown; visibility?: unknown; description?: unknown; location?: unknown; projectId?: unknown; ownerUserId?: unknown }
+type AgendaBindings = Bindings & { FILES: R2Bucket }
+type EventRow = { id: string; visibility: 'personal' | 'team'; ownerUserId: string | null; attachmentKey: string | null }
+type UpdateAgendaInput = { title?: unknown; startsAt?: unknown; endsAt?: unknown; eventType?: unknown; visibility?: unknown; description?: unknown; location?: unknown; projectId?: unknown; ownerUserId?: unknown; missionId?: unknown; participantUserIds?: unknown }
 
-const eventTypes = new Set(['meeting', 'deadline', 'appointment', 'vacation'])
+const eventTypes = new Set(['meeting', 'deadline', 'appointment', 'capture', 'vacation', 'birthday'])
 
 function text(value: unknown, limit: number) {
   return typeof value === 'string' ? value.trim().slice(0, limit) : undefined
@@ -13,23 +14,30 @@ function toDate(value: unknown) {
   return typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : undefined
 }
 
+function participantIds(value: unknown) {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((item): item is string => typeof item === 'string' && Boolean(item)).slice(0, 50))]
+    : null
+}
+
 async function eventAccess(env: Bindings, request: Request, user: AccessUser, id: string) {
-  const event = await env.DB.prepare('SELECT id, visibility, owner_user_id AS ownerUserId FROM calendar_events WHERE id = ? AND organization_id = ? LIMIT 1').bind(id, user.organizationId).first<EventRow>()
+  const event = await env.DB.prepare('SELECT id, visibility, owner_user_id AS ownerUserId, attachment_key AS attachmentKey FROM calendar_events WHERE id = ? AND organization_id = ? LIMIT 1').bind(id, user.organizationId).first<EventRow>()
   if (!event) return null
   const canManage = event.ownerUserId === user.id || await hasPermissionV2(env, request, user, 'agenda.team.view')
   return { event, canManage }
 }
 
-export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
+export const onRequestPatch: PagesFunction<AgendaBindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  const access = await eventAccess(env, request, user, params.id as string)
+  const eventId = params.id as string
+  const access = await eventAccess(env, request, user, eventId)
   if (!access) return Response.json({ error: 'Evento não encontrado' }, { status: 404 })
   if (!access.canManage) return permissionRequiredResponse()
 
   const input = await request.json().catch(() => null) as UpdateAgendaInput | null
   if (!input) return Response.json({ error: 'Atualização inválida' }, { status: 400 })
-  const stored = await env.DB.prepare('SELECT title, starts_at AS startsAt, ends_at AS endsAt, event_type AS eventType, visibility, description, location, project_id AS projectId, owner_user_id AS ownerUserId FROM calendar_events WHERE id = ?').bind(params.id).first<{ title: string; startsAt: string; endsAt: string | null; eventType: string; visibility: 'personal' | 'team'; description: string; location: string | null; projectId: string | null; ownerUserId: string | null }>()
+  const stored = await env.DB.prepare('SELECT title, starts_at AS startsAt, ends_at AS endsAt, event_type AS eventType, visibility, description, location, project_id AS projectId, owner_user_id AS ownerUserId, mission_id AS missionId FROM calendar_events WHERE id = ?').bind(eventId).first<{ title: string; startsAt: string; endsAt: string | null; eventType: string; visibility: 'personal' | 'team'; description: string; location: string | null; projectId: string | null; ownerUserId: string | null; missionId: string | null }>()
   if (!stored) return Response.json({ error: 'Evento não encontrado' }, { status: 404 })
 
   const title = text(input.title, 160) ?? stored.title
@@ -42,24 +50,46 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
   const description = text(input.description, 2000) ?? stored.description
   const location = input.location === '' ? null : text(input.location, 160) ?? stored.location
   const requestedProjectId = typeof input.projectId === 'string' ? input.projectId || null : stored.projectId
+  const requestedMissionId = typeof input.missionId === 'string' ? input.missionId || null : stored.missionId
   const requestedOwnerId = typeof input.ownerUserId === 'string' && input.ownerUserId ? input.ownerUserId : stored.ownerUserId ?? user.id
   const ownerUserId = requestedOwnerId !== user.id && canCreateTeam ? requestedOwnerId : user.id
+  const selectedParticipants = participantIds(input.participantUserIds)
   if (!title || (requestedVisibility === 'team' && visibility !== 'team') || (endsAt && Date.parse(endsAt) < Date.parse(startsAt))) return Response.json({ error: 'Dados do evento inválidos' }, { status: 400 })
+  if ((selectedParticipants?.some((id) => id !== user.id) || requestedOwnerId !== user.id) && !canCreateTeam) return permissionRequiredResponse()
 
-  const project = requestedProjectId ? await env.DB.prepare('SELECT id, client_id AS clientId FROM projects WHERE id = ? AND organization_id = ? LIMIT 1').bind(requestedProjectId, user.organizationId).first<{ id: string; clientId: string }>() : null
-  if (requestedProjectId && !project) return Response.json({ error: 'Projeto não encontrado' }, { status: 404 })
+  const mission = requestedMissionId ? await env.DB.prepare('SELECT missions.id, missions.project_id AS projectId, projects.client_id AS clientId FROM missions JOIN projects ON projects.id = missions.project_id WHERE missions.id = ? AND projects.organization_id = ? LIMIT 1').bind(requestedMissionId, user.organizationId).first<{ id: string; projectId: string; clientId: string }>() : null
+  if (requestedMissionId && !mission) return Response.json({ error: 'Missão vinculada não encontrada' }, { status: 404 })
+  if (mission && requestedProjectId && mission.projectId !== requestedProjectId) return Response.json({ error: 'A missão não pertence ao projeto selecionado' }, { status: 400 })
+  const effectiveProjectId = requestedProjectId ?? mission?.projectId ?? null
+  const project = effectiveProjectId ? await env.DB.prepare('SELECT id, client_id AS clientId FROM projects WHERE id = ? AND organization_id = ? LIMIT 1').bind(effectiveProjectId, user.organizationId).first<{ id: string; clientId: string }>() : null
+  if (effectiveProjectId && !project) return Response.json({ error: 'Projeto não encontrado' }, { status: 404 })
   const owner = await env.DB.prepare('SELECT id FROM users WHERE id = ? AND organization_id = ? AND status = \'active\' LIMIT 1').bind(ownerUserId, user.organizationId).first()
   if (!owner) return Response.json({ error: 'Colaborador da agenda não encontrado' }, { status: 404 })
-  await env.DB.prepare('UPDATE calendar_events SET title = ?, starts_at = ?, ends_at = ?, event_type = ?, visibility = ?, description = ?, location = ?, project_id = ?, client_id = ?, owner_user_id = ?, updated_at = ? WHERE id = ?').bind(title, startsAt, endsAt, eventType, visibility, description, location, project?.id ?? null, project?.clientId ?? null, ownerUserId, new Date().toISOString(), params.id).run()
+
+  if (selectedParticipants?.length) {
+    const placeholders = selectedParticipants.map(() => '?').join(',')
+    const participants = await env.DB.prepare(`SELECT id FROM users WHERE organization_id = ? AND status = 'active' AND id IN (${placeholders})`).bind(user.organizationId, ...selectedParticipants).all<{ id: string }>()
+    if (participants.results.length !== selectedParticipants.length) return Response.json({ error: 'Um ou mais participantes não estão disponíveis' }, { status: 400 })
+  }
+
+  const now = new Date().toISOString()
+  const statements = [env.DB.prepare('UPDATE calendar_events SET title = ?, starts_at = ?, ends_at = ?, event_type = ?, visibility = ?, description = ?, location = ?, project_id = ?, client_id = ?, owner_user_id = ?, mission_id = ?, updated_at = ? WHERE id = ?').bind(title, startsAt, endsAt, eventType, visibility, description, location, project?.id ?? null, project?.clientId ?? mission?.clientId ?? null, ownerUserId, mission?.id ?? null, now, eventId)]
+  if (selectedParticipants) {
+    statements.push(env.DB.prepare('DELETE FROM calendar_event_participants WHERE event_id = ?').bind(eventId))
+    statements.push(...selectedParticipants.filter((participantId) => participantId !== ownerUserId).map((participantId) => env.DB.prepare('INSERT INTO calendar_event_participants (event_id, user_id, organization_id, created_at) VALUES (?, ?, ?, ?)').bind(eventId, participantId, user.organizationId, now)))
+  }
+  await env.DB.batch(statements)
   return Response.json({ ok: true })
 }
 
-export const onRequestDelete: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
+export const onRequestDelete: PagesFunction<AgendaBindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  const access = await eventAccess(env, request, user, params.id as string)
+  const eventId = params.id as string
+  const access = await eventAccess(env, request, user, eventId)
   if (!access) return Response.json({ error: 'Evento não encontrado' }, { status: 404 })
   if (!access.canManage) return permissionRequiredResponse()
-  await env.DB.prepare('DELETE FROM calendar_events WHERE id = ?').bind(params.id).run()
+  await env.DB.prepare('DELETE FROM calendar_events WHERE id = ?').bind(eventId).run()
+  if (access.event.attachmentKey) await env.FILES.delete(access.event.attachmentKey)
   return new Response(null, { status: 204 })
 }

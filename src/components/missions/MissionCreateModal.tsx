@@ -28,15 +28,6 @@ export type MissionCreationInput = {
   workflowSteps?: MissionWorkflowStepInput[]
 }
 
-const AVAILABLE_DEPARTMENTS = [
-  'Planejamento',
-  'Redação',
-  'Criação',
-  'Audiovisual',
-  'Social Mídia',
-  'Atendimento',
-]
-
 const WORKFLOW_PRESETS: Record<string, string[]> = {
   Campanha: ['Planejamento', 'Redação', 'Criação', 'Revisão', 'Atendimento'],
   Design: ['Planejamento', 'Criação', 'Revisão', 'Atendimento'],
@@ -48,6 +39,7 @@ export function MissionCreateModal({
   projects,
   team,
   workTypes: initialWorkTypes,
+  departments,
   initialProjectId,
   onClose,
   onCreate,
@@ -55,9 +47,10 @@ export function MissionCreateModal({
   projects: Project[]
   team: TeamMember[]
   workTypes?: WorkType[]
+  departments: Array<{ id: string; name: string }>
   initialProjectId?: string
   onClose: () => void
-  onCreate: (input: MissionCreationInput) => void
+  onCreate: (input: MissionCreationInput) => Promise<void> | void
 }) {
   const [title, setTitle] = useState('')
   const [projectId, setProjectId] = useState(initialProjectId ?? projects[0]?.id ?? '')
@@ -72,6 +65,29 @@ export function MissionCreateModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [xpRules, setXpRules] = useState<Array<{ id: string; name: string; baseXp: number; onTimeBonusPercent: number }>>([])
   const [xpRuleId, setXpRuleId] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [formError, setFormError] = useState('')
+
+  const departmentNames = departments.length
+    ? departments.map((department) => department.name)
+    : Array.from(new Set(team.map((member) => member.department).filter((department): department is string => Boolean(department))))
+
+  const peopleForDepartment = (department: string) => {
+    const norm = department.toLocaleLowerCase('pt-BR')
+    const matching = team.filter((member) => member.department?.toLocaleLowerCase('pt-BR') === norm)
+    return matching.length ? matching : team
+  }
+
+  const createInitialSteps = () => {
+    const preferred = ['Planejamento', 'Redação', 'Criação', 'Atendimento']
+    const selected = preferred.filter((name) => departmentNames.includes(name))
+    const initialDepartments = (selected.length ? selected : departmentNames).slice(0, 4)
+    return initialDepartments.map((departmentName, index) => ({
+      id: `initial-${index}`,
+      departmentName,
+      responsibleUserId: peopleForDepartment(departmentName)[0]?.id ?? team[0]?.id ?? '',
+    }))
+  }
 
   useEffect(() => {
     if (!initialWorkTypes || initialWorkTypes.length === 0) {
@@ -104,18 +120,7 @@ export function MissionCreateModal({
     setFiles((current) => current.filter((_, i) => i !== index))
   }
 
-  const peopleForDepartment = (department: string) => {
-    const norm = department.toLowerCase()
-    const matching = team.filter((member) => member.department?.toLowerCase() === norm)
-    return matching.length ? matching : team
-  }
-
-  const [steps, setSteps] = useState<Array<{ id: string; departmentName: string; responsibleUserId: string }>>(() => [
-    { id: '1', departmentName: 'Planejamento', responsibleUserId: team[0]?.id ?? '' },
-    { id: '2', departmentName: 'Redação', responsibleUserId: team[0]?.id ?? '' },
-    { id: '3', departmentName: 'Criação', responsibleUserId: team[0]?.id ?? '' },
-    { id: '4', departmentName: 'Atendimento', responsibleUserId: team[0]?.id ?? '' },
-  ])
+  const [steps, setSteps] = useState<Array<{ id: string; departmentName: string; responsibleUserId: string }>>(createInitialSteps)
 
   useEffect(() => {
     void fetch('/api/gamification/rules')
@@ -130,19 +135,21 @@ export function MissionCreateModal({
   function applyPreset(presetName: string) {
     const presetDepts = WORKFLOW_PRESETS[presetName]
     if (!presetDepts) return
-    setSteps(presetDepts.map((dept, index) => {
+    const validPresetDepartments = presetDepts.filter((department) => departmentNames.includes(department))
+    const nextDepartments = validPresetDepartments.length ? validPresetDepartments : departmentNames.slice(0, 4)
+    setSteps(nextDepartments.map((dept, index) => {
       const candidates = peopleForDepartment(dept)
       return {
         id: String(Date.now() + index),
-        departmentName: dept === 'Revisão' ? 'Criação' : dept,
+        departmentName: dept,
         responsibleUserId: candidates[0]?.id ?? team[0]?.id ?? '',
       }
     }))
   }
 
   function addStep() {
-    if (steps.length >= 8) return
-    const nextDept = steps.length % 2 === 0 ? 'Criação' : 'Revisão'
+    if (steps.length >= 8 || departmentNames.length === 0) return
+    const nextDept = departmentNames[steps.length % departmentNames.length]
     const candidates = peopleForDepartment(nextDept)
     setSteps([...steps, {
       id: String(Date.now()),
@@ -183,37 +190,50 @@ export function MissionCreateModal({
     }
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!title.trim() || !projectId || !deadline.trim() || !steps.length) return
+    setFormError('')
+    if (!title.trim() || !projectId || !deadline.trim() || !steps.length) {
+      setFormError(steps.length ? 'Preencha os campos obrigatórios.' : 'Nenhum departamento ativo está disponível para montar o fluxo.')
+      return
+    }
     const initialAssignee = steps[0]?.responsibleUserId || team[0]?.id || ''
     const expectedMinutesVal = estimatedHours ? Math.round(Number(estimatedHours) * 60) : null
 
-    onCreate({
-      title: title.trim(),
-      projectId,
-      assigneeId: initialAssignee,
-      deadline,
-      expectedMinutes: expectedMinutesVal,
-      priority,
-      description: description.trim(),
-      files,
-      xpRuleId: xpRuleId || undefined,
-      workTypeId: workTypeId || null,
-      workflowSteps: steps.map((s) => ({
-        departmentName: s.departmentName,
-        responsibleUserId: s.responsibleUserId,
-      })),
-    })
+    setIsSaving(true)
+    try {
+      await onCreate({
+        title: title.trim(),
+        projectId,
+        assigneeId: initialAssignee,
+        deadline,
+        expectedMinutes: expectedMinutesVal,
+        priority,
+        description: description.trim(),
+        files,
+        xpRuleId: xpRuleId || undefined,
+        workTypeId: workTypeId || null,
+        workflowSteps: steps.map((s) => ({
+          departmentName: s.departmentName,
+          responsibleUserId: s.responsibleUserId,
+        })),
+      })
+      onClose()
+    } catch (reason) {
+      setFormError(reason instanceof Error ? reason.message : 'Não foi possível criar a missão.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
     <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Criar missão">
-      <form className="mission-create-dialog mission-create-dialog-expanded" onSubmit={handleSubmit}>
+      <form className="mission-create-dialog mission-create-dialog-expanded" onSubmit={handleSubmit} autoComplete="off">
         <button className="close-button" type="button" onClick={onClose} aria-label="Fechar criação de missão">×</button>
-        <span className="mission-create-icon"><Icon name="target" size={21} /></span>
-        <p>NOVA MISSÃO</p>
-        <h2>Qual ideia vamos<br /><em>tornar possível?</em></h2>
+        <div className="mission-create-scroll">
+          <span className="mission-create-icon"><Icon name="target" size={21} /></span>
+          <p>NOVA MISSÃO</p>
+          <h2>Qual ideia vamos<br /><em>tornar possível?</em></h2>
 
         <div className="mission-create-grid-2col">
           <label>
@@ -231,10 +251,8 @@ export function MissionCreateModal({
         </div>
 
         <div className="mission-create-grid-2col">
-          <div>
-            <span style={{ color: '#a6a69f', fontSize: '8px', fontWeight: 900, letterSpacing: '1.1px', display: 'block', marginBottom: '6px' }}>
-              TIPO DE TRABALHO
-            </span>
+          <div className="mission-create-field">
+            <span>TIPO DE TRABALHO</span>
             <WorkTypeSelector
               mode="single"
               workTypes={availableWorkTypes}
@@ -272,15 +290,13 @@ export function MissionCreateModal({
           </label>
         </div>
 
-        <label>
+        <label className="mission-create-briefing">
           <span>BRIEFING, LINKS E CONTEXTO</span>
           <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Escreva o briefing da missão, orientações e cole links de referências." maxLength={4000} rows={3} />
         </label>
 
-        <div style={{ marginTop: '14px' }}>
-          <span style={{ color: '#a6a69f', fontSize: '8px', fontWeight: 900, letterSpacing: '1.1px', display: 'block', marginBottom: '6px' }}>
-            ANEXOS E ARQUIVOS (OPCIONAL)
-          </span>
+        <div className="mission-create-field mission-create-attachments">
+          <span>ANEXOS E ARQUIVOS (OPCIONAL)</span>
           <div
             className={`mission-dropzone ${isDragging ? 'dragging' : ''}`}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
@@ -388,7 +404,7 @@ export function MissionCreateModal({
                     fontWeight: 700,
                   }}
                 >
-                  {AVAILABLE_DEPARTMENTS.map((dept) => (
+                  {departmentNames.map((dept) => (
                     <option key={dept} value={dept}>{dept}</option>
                   ))}
                 </select>
@@ -475,9 +491,13 @@ export function MissionCreateModal({
           <small className="mission-xp-rule-note">O XP será distribuído na aprovação final para todos os participantes do fluxo.</small>
         </label>
 
-        <button className="mission-create-submit" type="submit">
-          CRIAR MISSÃO <span>→</span>
-        </button>
+        </div>
+        {formError && <p className="mission-create-error" role="alert">{formError}</p>}
+        <footer className="mission-create-footer">
+          <button className="mission-create-submit" type="submit" disabled={isSaving || steps.length === 0}>
+            {isSaving ? 'CRIANDO…' : <>CRIAR MISSÃO <span>→</span></>}
+          </button>
+        </footer>
       </form>
     </div>
   )

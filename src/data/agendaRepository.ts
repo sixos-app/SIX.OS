@@ -1,5 +1,5 @@
 export type AgendaScope = 'mine' | 'team'
-export type CalendarEventType = 'meeting' | 'deadline' | 'appointment' | 'vacation' | 'birthday'
+export type CalendarEventType = 'meeting' | 'deadline' | 'appointment' | 'capture' | 'vacation' | 'birthday'
 export type CalendarVisibility = 'personal' | 'team'
 
 export type CalendarEventRecord = {
@@ -17,6 +17,12 @@ export type CalendarEventRecord = {
   clientName: string | null
   ownerUserId: string | null
   ownerName: string | null
+  missionId: string | null
+  missionTitle: string | null
+  participantUserIds: string[]
+  participantNames: string[]
+  attachmentName: string | null
+  attachmentSize: number | null
 }
 
 export type AgendaPermissions = { canViewTeam: boolean; canCreateTeam: boolean }
@@ -33,6 +39,8 @@ export type CreateCalendarEventInput = {
   location?: string
   projectId?: string
   ownerUserId?: string
+  missionId?: string
+  participantUserIds?: string[]
 }
 
 export type UpdateCalendarEventInput = CreateCalendarEventInput
@@ -58,6 +66,13 @@ export async function createCalendarEvent(input: CreateCalendarEventInput) {
 export async function updateCalendarEvent(id: string, input: UpdateCalendarEventInput) {
   const response = await fetch(`/api/agenda/${id}`, { method: 'PATCH', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
   return readJson<{ ok: true }>(response)
+}
+
+export async function uploadCalendarEventDocument(eventId: string, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch(`/api/agenda/${encodeURIComponent(eventId)}/attachment`, { method: 'POST', body: form })
+  return readJson<{ attachment: { name: string; size: number } }>(response)
 }
 
 export async function deleteCalendarEvent(id: string) {

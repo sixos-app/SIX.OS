@@ -122,17 +122,17 @@ export function AdminPage({ onClientCreated = () => undefined }: { onClientCreat
         </div>
       </section>
 
-      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #333', padding: '1rem 2rem', marginBottom: '2rem' }}>
-        <button style={{ paddingBottom: '0.5rem', fontWeight: activeAdminTab === 'overview' ? 'bold' : 'normal', borderBottom: activeAdminTab === 'overview' ? '2px solid white' : 'none', color: activeAdminTab === 'overview' ? 'white' : '#aaa', background: 'transparent' }} onClick={() => setActiveAdminTab('overview')}>
+      <nav className="admin-section-tabs" aria-label="Áreas do painel administrativo">
+        <button type="button" className={activeAdminTab === 'overview' ? 'selected' : ''} aria-pressed={activeAdminTab === 'overview'} onClick={() => setActiveAdminTab('overview')}>
           Visão Geral & Setup
         </button>
-        <button style={{ paddingBottom: '0.5rem', fontWeight: activeAdminTab === 'people' ? 'bold' : 'normal', borderBottom: activeAdminTab === 'people' ? '2px solid white' : 'none', color: activeAdminTab === 'people' ? 'white' : '#aaa', background: 'transparent' }} onClick={() => setActiveAdminTab('people')}>
+        <button type="button" className={activeAdminTab === 'people' ? 'selected' : ''} aria-pressed={activeAdminTab === 'people'} onClick={() => setActiveAdminTab('people')}>
           Pessoas & Acessos
         </button>
-        <button style={{ paddingBottom: '0.5rem', fontWeight: activeAdminTab === 'departments' ? 'bold' : 'normal', borderBottom: activeAdminTab === 'departments' ? '2px solid white' : 'none', color: activeAdminTab === 'departments' ? 'white' : '#aaa', background: 'transparent' }} onClick={() => setActiveAdminTab('departments')}>
+        <button type="button" className={activeAdminTab === 'departments' ? 'selected' : ''} aria-pressed={activeAdminTab === 'departments'} onClick={() => setActiveAdminTab('departments')}>
           Departamentos
         </button>
-      </div>
+      </nav>
 
       {activeAdminTab === 'people' && <PeopleAccessAdmin />}
       {activeAdminTab === 'departments' && <DepartmentManager />}

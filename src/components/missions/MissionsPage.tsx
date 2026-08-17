@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AccessSession } from '../../data/accessRepository'
 import type { Mission, Project, TeamMember } from '../../data/dashboard'
 import type { WorkType } from '../../data/workTypeRepository'
@@ -18,6 +18,7 @@ export function MissionsPage({
   projects,
   team,
   workTypes,
+  departments,
   accessSession,
   onReassignMission,
   onUpdateMission,
@@ -25,16 +26,18 @@ export function MissionsPage({
   onReturnMission,
   onToggleTimer,
   timerPendingMissionId,
+  initialSelectedMissionId,
 }: {
   missions: Mission[]
   completed: string[]
   onComplete: (id: string) => void
   totalXp: number
   baseXp: number
-  onCreateMission: (input: MissionCreationInput) => void
+  onCreateMission: (input: MissionCreationInput) => Promise<void>
   projects: Project[]
   team: TeamMember[]
   workTypes?: WorkType[]
+  departments: Array<{ id: string; name: string }>
   accessSession: AccessSession | null
   onReassignMission: (id: string, assigneeId: string) => void
   onUpdateMission: (id: string, input: { title: string; projectId: string; assigneeId: string; deadline: string; priority: 'normal' | 'urgent' }) => void
@@ -42,6 +45,7 @@ export function MissionsPage({
   onReturnMission: (id: string, targetPosition: number) => void
   onToggleTimer: (id: string) => Promise<void>
   timerPendingMissionId: string
+  initialSelectedMissionId?: string | null
 }) {
   const { can, hasScope } = usePermission()
   const canManage = can('missions.assign')
@@ -52,9 +56,16 @@ export function MissionsPage({
   const [projectFilter, setProjectFilter] = useState('all')
   const [assigneeFilter, setAssigneeFilter] = useState('all')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [createSession, setCreateSession] = useState(0)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
-  const [selectedMissionId, setSelectedMissionId] = useState(missions[0]?.id ?? '')
+  const [selectedMissionId, setSelectedMissionId] = useState(initialSelectedMissionId ?? missions[0]?.id ?? '')
+
+  useEffect(() => {
+    if (initialSelectedMissionId && missions.some((mission) => mission.id === initialSelectedMissionId)) {
+      setSelectedMissionId(initialSelectedMissionId)
+    }
+  }, [initialSelectedMissionId, missions])
 
   const visibleMissions = missions.filter((mission) => {
     const isComplete = completed.includes(mission.id) || mission.stageType === 'done'
@@ -91,7 +102,7 @@ export function MissionsPage({
         </div>
         <div className="missions-intro-actions">
           {canManage && (
-            <button className="create-mission-button" onClick={() => setIsCreateOpen(true)}>
+            <button className="create-mission-button" onClick={() => { setCreateSession((current) => current + 1); setIsCreateOpen(true) }}>
               NOVA MISSÃO <span>+</span>
             </button>
           )}
@@ -181,11 +192,13 @@ export function MissionsPage({
       </div>
       {isCreateOpen && (
         <MissionCreateModal
+          key={createSession}
           projects={projects}
           team={team}
           workTypes={workTypes}
+          departments={departments}
           onClose={() => setIsCreateOpen(false)}
-          onCreate={(input) => { onCreateMission(input); setIsCreateOpen(false) }}
+          onCreate={onCreateMission}
         />
       )}
       {isEditOpen && selectedMission && (

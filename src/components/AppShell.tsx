@@ -83,6 +83,7 @@ export function AppShell({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [isJourneyOpen, setIsJourneyOpen] = useState(false)
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>(getStoredReadNotifications)
+  const [notificationMissionId, setNotificationMissionId] = useState<string | null>(null)
   const [completionMessage, setCompletionMessage] = useState('')
   const [timerPendingMissionId, setTimerPendingMissionId] = useState('')
 
@@ -236,9 +237,9 @@ export function AppShell({
   const operationalNotifications = useMemo<AppNotification[]>(() => {
     const urgentMissionNotifications = dashboardData.missions.filter((mission) => mission.urgent && !isMissionCompleted(mission, completed)).map((mission) => {
       const assignee = dashboardData.team.find((member) => member.id === mission.assigneeId)
-      return { id: `alert-mission-${mission.id}`, title: `Missão urgente: ${mission.title}`, description: `${mission.client} · prazo ${mission.deadline}${assignee ? ` · ${assignee.name}` : ''}.`, time: 'agora', category: 'Projeto' as const, tone: 'orange' as const }
+      return { id: `alert-mission-${mission.id}`, title: `Missão urgente: ${mission.title}`, description: `${mission.client} · prazo ${mission.deadline}${assignee ? ` · ${assignee.name}` : ''}.`, time: 'agora', category: 'Projeto' as const, tone: 'orange' as const, destination: { section: 'missions' as const, missionId: mission.id } }
     })
-    const projectNotifications = projectsWithMissionProgress.filter((project) => getProjectHealth(project, dashboardData.missions, completed).tone === 'attention').map((project) => ({ id: `alert-project-${project.id}`, title: `${project.name} precisa de atenção`, description: 'Há uma missão urgente em andamento nesta frente.', time: 'agora', category: 'Projeto' as const, tone: 'orange' as const }))
+    const projectNotifications = projectsWithMissionProgress.filter((project) => getProjectHealth(project, dashboardData.missions, completed).tone === 'attention').map((project) => ({ id: `alert-project-${project.id}`, title: `${project.name} precisa de atenção`, description: 'Há uma missão urgente em andamento nesta frente.', time: 'agora', category: 'Projeto' as const, tone: 'orange' as const, destination: { section: 'projects' as const, projectId: project.id } }))
     return [...urgentMissionNotifications, ...projectNotifications, ...dashboardData.notifications]
   }, [completed, dashboardData.missions, dashboardData.notifications, dashboardData.team, projectsWithMissionProgress])
 
@@ -302,9 +303,35 @@ export function AppShell({
     saveReadNotifications(next)
   }
 
-  function createMission(input: MissionCreationInput) {
+  function openNotification(notification: AppNotification) {
+    markNotificationRead(notification.id)
+    setIsNotificationsOpen(false)
+
+    const destination = notification.destination
+      ?? (notification.category === 'Agenda'
+        ? { section: 'agenda' as const }
+        : notification.category === 'Equipe'
+          ? { section: 'team' as const }
+          : { section: 'projects' as const })
+
+    if (destination.section === 'missions') {
+      setNotificationMissionId(destination.missionId)
+      setActiveSection('missions')
+      return
+    }
+
+    if (destination.section === 'projects') {
+      if (destination.projectId) setLibraryProjectId(destination.projectId)
+      setActiveSection('projects')
+      return
+    }
+
+    setActiveSection(destination.section)
+  }
+
+  async function createMission(input: MissionCreationInput) {
     const project = dashboardData.projects.find((item) => item.id === input.projectId)
-    if (!project) return
+    if (!project) throw new Error('Projeto não encontrado para criar a missão.')
     const projectClient = project.client
     const projectId = project.id
 
@@ -352,7 +379,8 @@ export function AppShell({
       }))
     }
 
-    void persistMissionCreate({
+    try {
+      const saved = await persistMissionCreate({
       title: input.title,
       projectId: input.projectId,
       assigneeId: input.assigneeId,
@@ -365,7 +393,7 @@ export function AppShell({
       workTypeId: input.workTypeId,
       workflowDepartments: input.workflowDepartments,
       workflowSteps: input.workflowSteps,
-    }).then(async (saved) => {
+      })
       addMission(saved)
       try {
         await attachCreationFiles(saved.id)
@@ -373,7 +401,11 @@ export function AppShell({
       } catch (error) {
         setCompletionMessage(error instanceof Error ? `${input.title} foi criada, mas os anexos falharam: ${error.message}` : `${input.title} foi criada e atribuída.`)
       }
-    }).catch((reason: unknown) => setCompletionMessage(reason instanceof Error ? reason.message : 'Não foi possível criar a missão.'))
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : 'Não foi possível criar a missão.'
+      setCompletionMessage(message)
+      throw reason instanceof Error ? reason : new Error(message)
+    }
   }
 
   async function toggleMissionTimer(missionId: string) {
@@ -629,6 +661,7 @@ export function AppShell({
             projects={projectsWithMissionProgress}
             team={dashboardData.team}
             workTypes={dashboardData.workTypes}
+            departments={dashboardData.departments}
             accessSession={accessSession}
             onReassignMission={reassignMission}
             onUpdateMission={updateMission}
@@ -636,12 +669,14 @@ export function AppShell({
             onReturnMission={returnMission}
             onToggleTimer={toggleMissionTimer}
             timerPendingMissionId={timerPendingMissionId}
+            initialSelectedMissionId={notificationMissionId}
           />
         ) : activeSection === 'projects' ? (
           <ProjectsPage
             projects={projectsWithMissionProgress}
             clients={clientIdentities}
             workTypes={dashboardData.workTypes}
+            departments={dashboardData.departments}
             initialSelectedProjectId={libraryProjectId}
             missions={dashboardData.missions}
             completed={completedMissionIds}
@@ -658,6 +693,10 @@ export function AppShell({
             team={dashboardData.team}
             completed={completedMissionIds}
             accessSession={accessSession}
+            onOpenMission={(missionId) => {
+              setNotificationMissionId(missionId)
+              setActiveSection('missions')
+            }}
           />
         ) : activeSection === 'team' ? (
           <TeamPage
@@ -758,7 +797,7 @@ export function AppShell({
           readNotificationIds={readNotificationIds}
           onClose={() => setIsNotificationsOpen(false)}
           onMarkAllRead={markAllNotificationsRead}
-          onMarkRead={markNotificationRead}
+          onOpenNotification={openNotification}
         />
       )}
       {isJourneyOpen && (

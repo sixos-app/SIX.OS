@@ -25,12 +25,15 @@ export type AgendaDisplayEvent = {
   duration: string
   attendees: string[]
   description: string
+  missionId: string | null
+  attachmentName: string | null
 }
 
 export const agendaCategoryLabels: Record<CalendarEventType, string> = {
   meeting: 'Reunião',
   deadline: 'Prazo',
   appointment: 'Compromisso',
+  capture: 'Captação',
   vacation: 'Férias',
   birthday: 'Aniversário',
 }
@@ -66,7 +69,7 @@ export function agendaDuration(startsAt: string, endsAt: string | null) {
 }
 
 export function agendaTone(type: CalendarEventType): Mission['tone'] {
-  if (type === 'deadline') return 'orange'
+  if (type === 'deadline' || type === 'capture') return 'orange'
   if (type === 'vacation') return 'lime'
   if (type === 'birthday') return 'purple'
   return type === 'meeting' ? 'purple' : 'lime'
@@ -74,6 +77,7 @@ export function agendaTone(type: CalendarEventType): Mission['tone'] {
 
 export function calendarEventToDisplay(event: CalendarEventRecord): AgendaDisplayEvent {
   const context = [event.clientName ?? event.projectName, event.location].filter(Boolean).join(' · ')
+  const attendeeNames = Array.from(new Set([event.ownerName, ...event.participantNames].filter((name): name is string => Boolean(name))))
   return {
     id: event.id,
     time: agendaTime(event.startsAt),
@@ -83,8 +87,10 @@ export function calendarEventToDisplay(event: CalendarEventRecord): AgendaDispla
     category: agendaCategoryLabels[event.eventType] ?? 'Compromisso',
     tone: agendaTone(event.eventType),
     duration: agendaDuration(event.startsAt, event.endsAt),
-    attendees: event.ownerName ? [getInitials(event.ownerName)] : [],
+    attendees: attendeeNames.map(getInitials),
     description: event.description || 'Sem contexto adicional registrado.',
+    missionId: event.missionId,
+    attachmentName: event.attachmentName,
   }
 }
 
@@ -95,6 +101,7 @@ export function AgendaPage({
   team,
   completed,
   accessSession,
+  onOpenMission,
 }: {
   events: AgendaEvent[]
   missions: Mission[]
@@ -102,6 +109,7 @@ export function AgendaPage({
   team: TeamMember[]
   completed: string[]
   accessSession: AccessSession | null
+  onOpenMission: (missionId: string) => void
 }) {
   const [scope, setScope] = useState<AgendaScope>('mine')
   const [remoteEvents, setRemoteEvents] = useState<CalendarEventRecord[]>([])
@@ -157,12 +165,14 @@ export function AgendaPage({
       duration: 'Entrega',
       attendees: assignee ? [assignee.initials] : [],
       description: `Entrega da missão “${mission.title}” para ${project?.name ?? mission.client}.${assignee ? ` Responsável: ${assignee.name}.` : ''}`,
+      missionId: mission.id,
+      attachmentName: null,
     }
   })
 
-  const calendarEvents: AgendaDisplayEvent[] = accessSession ? remoteEvents.map(calendarEventToDisplay) : events.map((event) => ({ ...event, category: event.category === 'Criação' ? 'Compromisso' : event.category }))
+  const calendarEvents: AgendaDisplayEvent[] = accessSession ? remoteEvents.map(calendarEventToDisplay) : events.map((event) => ({ ...event, category: event.category === 'Criação' ? 'Compromisso' : event.category, missionId: null, attachmentName: null }))
   const agendaEvents = [...calendarEvents, ...missionEvents].sort((first, second) => agendaDayOrder(first.day) - agendaDayOrder(second.day) || first.time.localeCompare(second.time))
-  const [agendaFilter] = useState<'all' | 'Reunião' | 'Prazo' | 'Compromisso' | 'Férias' | 'Aniversário' | 'Entrega'>('all')
+  const [agendaFilter] = useState<'all' | 'Reunião' | 'Prazo' | 'Compromisso' | 'Captação' | 'Férias' | 'Aniversário' | 'Entrega'>('all')
   const [selectedEventId, setSelectedEventId] = useState(agendaEvents[0]?.id ?? '')
   const visibleEvents = agendaEvents.filter((event) => agendaFilter === 'all' || event.category === agendaFilter)
   const selectedEvent = visibleEvents.find((event) => event.id === selectedEventId) ?? visibleEvents[0] ?? agendaEvents[0]
@@ -278,6 +288,12 @@ export function AgendaPage({
               </div>
               <small>{selectedEvent.attendees.length > 0 ? `${selectedEvent.attendees.length} pessoa${selectedEvent.attendees.length === 1 ? '' : 's'} envolvida${selectedEvent.attendees.length === 1 ? '' : 's'}` : 'Evento individual'}</small>
             </div>
+            {(selectedEvent.missionId || selectedEvent.attachmentName) && (
+              <div className="agenda-detail-resource-actions">
+                {selectedEvent.missionId && <button onClick={() => onOpenMission(selectedEvent.missionId!)}>ABRIR MISSÃO / ROTEIRO ↗</button>}
+                {selectedEvent.attachmentName && <a href={`/api/agenda/${encodeURIComponent(selectedEvent.id)}/attachment`}>BAIXAR {selectedEvent.attachmentName} ↓</a>}
+              </div>
+            )}
             {canManageSelectedEvent && (
               <div className="agenda-detail-actions">
                 <button onClick={() => setEditingEvent(selectedRemoteEvent)}>EDITAR</button>
@@ -300,6 +316,7 @@ export function AgendaPage({
         <CalendarEventModal
           initialDate={selectedCreateDate}
           projects={projects}
+          missions={missions}
           team={team}
           canCreateTeam={permissions.canCreateTeam}
           defaultOwnerUserId={scope === 'team' ? selectedOwnerId : accessSession?.id ?? ''}
@@ -313,18 +330,21 @@ export function AgendaPage({
             setSelectedCreateDate(undefined)
             refreshAgenda()
           }}
+          onOpenMission={onOpenMission}
         />
       )}
       {editingEvent && (
         <CalendarEventModal
           event={editingEvent}
           projects={projects}
+          missions={missions}
           team={team}
           canCreateTeam={permissions.canCreateTeam}
           defaultOwnerUserId={editingEvent.ownerUserId ?? accessSession?.id ?? ''}
           defaultVisibility={editingEvent.visibility}
           onClose={() => setEditingEvent(null)}
           onCreated={() => { setEditingEvent(null); refreshAgenda() }}
+          onOpenMission={onOpenMission}
         />
       )}
     </section>

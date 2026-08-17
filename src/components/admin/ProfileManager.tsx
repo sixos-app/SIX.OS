@@ -92,14 +92,14 @@ export function ProfileManager() {
 
   return (
     <div className="admin-manager">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h3 style={{ margin: 0, color: '#fff' }}>Perfis de Acesso (RBAC)</h3>
+      <header className="admin-manager-head">
+        <h3>Perfis de Acesso (RBAC)</h3>
         {!editing && (
-          <button onClick={() => setEditing({ id: '', code: '', name: '', description: '', is_system: false, is_active: true, users_count: 0, permissions_count: 0 })} style={{ background: '#c6ff38', color: '#000', padding: '8px 16px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+          <button className="admin-manager-create-button" onClick={() => setEditing({ id: '', code: '', name: '', description: '', is_system: false, is_active: true, users_count: 0, permissions_count: 0 })}>
             + Novo Perfil
           </button>
         )}
-      </div>
+      </header>
 
       <div style={{ background: '#141414', borderRadius: '12px', border: '1px solid #2a2a2a', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>

@@ -104,18 +104,18 @@ export function ProfileMatrixEditor({ profile, onBack }: { profile: Profile, onB
 
   return (
     <div className="admin-manager matrix-editor">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #2a2a2a' }}>
-        <div>
-          <h3 style={{ margin: 0, color: '#fff' }}>Matriz de Permissões</h3>
-          <div style={{ fontSize: '13px', color: '#888', marginTop: '4px' }}>Editando permissões para o perfil: <strong style={{ color: '#c6ff38' }}>{profile.name}</strong></div>
+      <header className="matrix-editor-head">
+        <div className="matrix-editor-heading">
+          <h3>Matriz de Permissões</h3>
+          <p>Editando permissões para o perfil: <strong>{profile.name}</strong></p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={onBack} disabled={saving} style={{ padding: '10px 20px', background: 'none', border: '1px solid #444', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Cancelar</button>
-          <button onClick={handleSave} disabled={saving} style={{ padding: '10px 24px', background: '#c6ff38', color: '#000', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+        <div className="matrix-editor-actions">
+          <button className="matrix-editor-cancel" onClick={onBack} disabled={saving}>Cancelar</button>
+          <button className="matrix-editor-save" onClick={handleSave} disabled={saving}>
             {saving ? 'Salvando...' : 'Salvar Matriz'}
           </button>
         </div>
-      </div>
+      </header>
 
       {error && <div style={{ color: '#ff5252', marginBottom: '20px', padding: '12px', background: 'rgba(255, 82, 82, 0.1)', border: '1px solid rgba(255, 82, 82, 0.2)', borderRadius: '6px', fontSize: '14px' }}>{error}</div>}
 

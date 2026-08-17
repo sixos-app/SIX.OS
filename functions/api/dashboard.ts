@@ -109,7 +109,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   const scopedTeam = teamScope(scope, user)
 
   try {
-    const [profile, missionsResult, projectsResult, teamResult, xpResult, eventResult, activeTimer, workTypesResult] = await Promise.all([
+    const [profile, missionsResult, projectsResult, teamResult, xpResult, eventResult, activeTimer, workTypesResult, departmentsResult] = await Promise.all([
       env.DB.prepare(`
         SELECT COALESCE(xp, 0) AS xp, COALESCE(ideas, 0) AS ideas,
           COALESCE(level, 'Criador') AS level, COALESCE(streak_days, 0) AS streak
@@ -227,6 +227,12 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       WHERE organization_id = ? AND is_active = 1
       ORDER BY name ASC
     `).bind(user.organizationId).all<{ id: string; name: string; defaultMinutes: number; colorKey: string; isActive: number }>(),
+    env.DB.prepare(`
+      SELECT id, name
+      FROM departments
+      WHERE organization_id = ? AND is_active = 1
+      ORDER BY name ASC
+    `).bind(user.organizationId).all<{ id: string; name: string }>(),
   ])
 
   const xpByDay = new Map(xpResult.results.map(row => [row.day, Number(row.xp) || 0]))
@@ -261,6 +267,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       members: [],
       workTypeIds: project.workTypeIdsCsv ? project.workTypeIdsCsv.split(',').filter(Boolean) : [],
     })),
+    departments: departmentsResult.results,
     workTypes: (workTypesResult?.results ?? []).map(wt => ({
       id: wt.id,
       name: wt.name,

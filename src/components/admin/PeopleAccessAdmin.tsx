@@ -16,7 +16,7 @@ export function PeopleAccessAdmin() {
 
   return (
     <div className="people-access-admin">
-      <div className="admin-tabs" style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #eee', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
+      <nav className="admin-tabs" aria-label="Cadastros de pessoas e acessos">
         {(can('users.manage') || can('roles.manage')) && (
           <button className={activeTab === 'users' ? 'active' : ''} onClick={() => setActiveTab('users')}>
             Colaboradores
@@ -32,7 +32,7 @@ export function PeopleAccessAdmin() {
         {can('roles.manage') && (
           <button className={activeTab === 'profiles' ? 'active' : ''} onClick={() => setActiveTab('profiles')}>Perfis de Acesso</button>
         )}
-      </div>
+      </nav>
 
       <div className="admin-content">
         {activeTab === 'users' && <UserDirectory />}
