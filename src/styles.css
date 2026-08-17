@@ -801,7 +801,7 @@ button { border: 0; cursor: pointer; }
 .mission-context-action { font-size: 8px; letter-spacing: .35px; }
 .mission-context-action.timer-active { background: #171717; color: #c6ff38; font-variant-numeric: tabular-nums; }
 
-/* Detalhes da Missão como Dialog Centralizado com Scroll Interno */
+/* Detalhes da Missão como Dialog Centralizado com Abas e Scroll Interno */
 .mission-details-overlay {
   position: fixed;
   z-index: 85;
@@ -831,11 +831,142 @@ button { border: 0; cursor: pointer; }
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.5);
   animation: modal-scale-in 0.18s ease-out;
 }
-.mission-drawer-timer { display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 0 0 20px; padding: 13px 15px; background: #c6ff38; border: 1px solid #c6ff38; border-radius: 8px; color: #171717; }
-.mission-drawer-timer span { font-size: 9px; font-weight: 900; letter-spacing: .8px; }
-.mission-drawer-timer b { font-size: 10px; font-variant-numeric: tabular-nums; }
-.mission-drawer-timer.active { background: #262624; color: #c6ff38; }
-.mission-drawer-timer:disabled { cursor: wait; opacity: .66; }
+
+/* Timer Compacto no Header */
+.mission-compact-timer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 9px !important;
+  background: #c6ff38 !important;
+  border: 1px solid #c6ff38;
+  border-radius: 4px;
+  color: #171717 !important;
+  font-size: 8.5px !important;
+  font-weight: 900;
+  cursor: pointer;
+  transition: all .15s ease;
+  line-height: 1;
+}
+.mission-compact-timer:hover {
+  background: #d6ff58 !important;
+  transform: scale(1.04);
+}
+.mission-compact-timer:active {
+  transform: scale(0.96);
+}
+.mission-compact-timer.active {
+  background: #242420 !important;
+  border-color: #c6ff38;
+  color: #c6ff38 !important;
+}
+.mission-compact-timer:disabled {
+  opacity: 0.5;
+  cursor: wait;
+  transform: none;
+}
+
+/* Abas do Detalhe da Missão */
+.mission-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 18px 0 20px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #292926;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mission-tabs::-webkit-scrollbar {
+  display: none;
+}
+.mission-tab-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: #85857e;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color .15s ease, border-color .15s ease;
+  white-space: nowrap;
+}
+.mission-tab-button:hover {
+  color: #f1f1eb;
+}
+.mission-tab-button.active {
+  color: #c6ff38;
+  border-bottom-color: #c6ff38;
+}
+.mission-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #2b2b27;
+  border-radius: 4px;
+  color: #a3a39c;
+  font-size: 8px;
+  font-weight: 900;
+}
+.mission-tab-button.active .mission-tab-badge {
+  background: rgba(198, 255, 56, 0.16);
+  color: #c6ff38;
+}
+
+/* Painel de Conteúdo da Aba */
+.mission-tab-panel {
+  animation: modal-fade-in 0.15s ease-out;
+}
+
+/* Box de Descrição com Scroll Interno */
+.mission-description-box {
+  margin: 16px 0 20px;
+  padding: 14px 16px;
+  background: #171717;
+  border: 1px solid #2a2a27;
+  border-radius: 9px;
+}
+.mission-description-box h3 {
+  margin: 0 0 8px;
+  color: #c6ff38;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 1.1px;
+}
+.mission-description-content {
+  max-height: 140px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  color: #e2e1dc;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: #3d3d37 transparent;
+}
+.mission-description-content::-webkit-scrollbar {
+  width: 4px;
+}
+.mission-description-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.mission-description-content::-webkit-scrollbar-thumb {
+  background: #3d3d37;
+  border-radius: 4px;
+}
 
 @keyframes modal-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-scale-in { from { transform: scale(0.97); opacity: 0; } to { transform: scale(1); opacity: 1; } }

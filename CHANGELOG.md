@@ -6,6 +6,15 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.47.3] - 2026-08-17
+
+### Changed
+- **Reorganização do Detalhe da Missão em Abas**: O modal de detalhes da missão (`MissionDetailsModal`) agora conta com uma arquitetura interna baseada em abas (`MISSÃO`, `ANEXOS`, `COMENTÁRIOS` e `HISTÓRICO`) reduzindo o comprimento vertical da tela e organizando o fluxo de trabalho.
+- **Timer Compacto no Header**: O botão horizontal de timer em faixa verde foi removido e substituído por um controle compacto de Play/Pause integrado diretamente na linha de metadados do cabeçalho, à esquerda do badge de prioridade.
+- **Box de Descrição com Scroll e Links**: A descrição da missão foi inserida em um card dedicado com scroll interno contido (`max-height: 140px`) e linkificação segura para URLs externas.
+- **Aba Principal de Missão**: Agrupa o Workflow Operacional interativo, o novo Box de Descrição e o Checklist de atividades da missão.
+- **Abas de Anexos, Comentários e Histórico**: Telas dedicadas para upload/gerenciamento de arquivos (com contador de anexos), registro de comentários operacionais (com contador) e timeline auditável.
+
 ## [0.47.2] - 2026-08-17
 
 ### Fixed

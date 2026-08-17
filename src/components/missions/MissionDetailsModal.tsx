@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { Mission } from '../../data/dashboard'
 import {
   addMissionChecklistItem,
@@ -9,7 +9,6 @@ import {
   returnMissionWorkflow,
   setMissionChecklistItem,
   type MissionDetails,
-  type MissionWorkflowStep,
 } from '../../data/missionRepository'
 import {
   getProjectLibrary,
@@ -19,6 +18,28 @@ import {
 } from '../../data/projectLibraryRepository'
 import { deadlineToMissionDate } from '../../utils/formatters'
 import { MissionTimerValue } from '../shared/MissionTimerValue'
+
+function renderDescriptionWithLinks(text?: string | null): ReactNode {
+  if (!text || !text.trim()) return <span style={{ color: '#777' }}>Sem descrição adicionada.</span>
+  const urlRegex = /(https?:\/\/[^\s]+)/g
+  const parts = text.split(urlRegex)
+  return parts.map((part, index) => {
+    if (urlRegex.test(part)) {
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noreferrer noopener"
+          style={{ color: '#c6ff38', textDecoration: 'underline', overflowWrap: 'break-word', wordBreak: 'break-word' }}
+        >
+          {part}
+        </a>
+      )
+    }
+    return part
+  })
+}
 
 export function MissionDetailsModal({
   mission,
@@ -37,6 +58,7 @@ export function MissionDetailsModal({
 }) {
   const [details, setDetails] = useState<MissionDetails | null>(null)
   const [library, setLibrary] = useState<ProjectLibrary>(projectLibrarySeed)
+  const [activeTab, setActiveTab] = useState<'mission' | 'attachments' | 'comments' | 'history'>('mission')
   const [checklistLabel, setChecklistLabel] = useState('')
   const [commentBody, setCommentBody] = useState('')
   const [selectedFileId, setSelectedFileId] = useState('')
@@ -232,8 +254,9 @@ export function MissionDetailsModal({
           <p className="mission-details-loading">Carregando missão…</p>
         ) : (
           <>
+            {/* CABEÇALHO DA MISSÃO */}
             <header>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
                 <div>
                   <p>MISSÃO</p>
                   <h2>{details.mission.title}</h2>
@@ -259,228 +282,307 @@ export function MissionDetailsModal({
               </div>
             </header>
 
-            <div className="mission-details-meta">
+            {/* BARRA DE METADADOS COM TIMER COMPACTO INTEGRADO */}
+            <div className="mission-details-meta" style={{ alignItems: 'center' }}>
+              {details.permissions.canTrackTime && details.mission.status !== 'completed' && (
+                <button
+                  className={`mission-compact-timer ${details.activeTimer ? 'active' : ''}`}
+                  type="button"
+                  title={details.activeTimer ? 'Pausar timer' : 'Iniciar timer da missão'}
+                  disabled={isTimerPending}
+                  onClick={() => { void toggleTimer() }}
+                >
+                  {isTimerPending ? '…' : details.activeTimer ? '⏸' : '▶'}
+                </button>
+              )}
               <b>{details.mission.priority.toLocaleUpperCase('pt-BR')}</b>
               <span>{details.mission.assignee ?? 'Responsável a definir'}</span>
               <span>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Prazo a definir'}</span>
               {expectedHoursFormatted && <span>Estimativa: {expectedHoursFormatted}</span>}
-              <span>Tempo: {trackedHoursFormatted}</span>
+              <span>
+                Tempo: {details.activeTimer ? <MissionTimerValue startedAt={details.activeTimer.startedAt} /> : trackedHoursFormatted}
+              </span>
               {details.mission.realizedCost > 0 && <span>Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}</span>}
               <span>+{details.mission.xpReward} XP</span>
             </div>
 
-            {/* WORKFLOW PIPELINE INTERATIVO */}
-            {steps.length > 0 && (
-              <div className="mission-workflow-pipeline" style={{ background: '#171717', border: '1px solid #282828', borderRadius: '10px', padding: '14px', margin: '14px 0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <small style={{ color: '#888', fontWeight: 800, letterSpacing: '1px', fontSize: '9px' }}>
-                    WORKFLOW OPERACIONAL DA MISSÃO
-                  </small>
-                  {activeStep && (
-                    <span style={{ fontSize: '10px', color: activeStep.status === 'returned' ? '#ff6b6b' : '#c6ff38', fontWeight: 800 }}>
-                      {activeStep.status === 'returned' ? 'AJUSTES SOLICITADOS' : 'ETAPA ATIVA'} · {activeStep.departmentName.toUpperCase()}
-                    </span>
-                  )}
-                </div>
+            {/* NAVEGAÇÃO POR ABAS INTERNAS */}
+            <nav className="mission-tabs" aria-label="Navegação do detalhe da missão">
+              <button
+                className={`mission-tab-button ${activeTab === 'mission' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setActiveTab('mission')}
+              >
+                MISSÃO
+              </button>
+              <button
+                className={`mission-tab-button ${activeTab === 'attachments' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setActiveTab('attachments')}
+              >
+                ANEXOS
+                {details.attachments.length > 0 && (
+                  <span className="mission-tab-badge">{details.attachments.length}</span>
+                )}
+              </button>
+              <button
+                className={`mission-tab-button ${activeTab === 'comments' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setActiveTab('comments')}
+              >
+                COMENTÁRIOS
+                {details.comments.length > 0 && (
+                  <span className="mission-tab-badge">{details.comments.length}</span>
+                )}
+              </button>
+              <button
+                className={`mission-tab-button ${activeTab === 'history' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setActiveTab('history')}
+              >
+                HISTÓRICO
+              </button>
+            </nav>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                  {steps.map((step, idx) => {
-                    const isDone = step.status === 'completed'
-                    const isActive = step.status === 'active' || step.status === 'returned'
-                    const isReturned = step.status === 'returned'
+            {/* CONTEÚDO DA ABA 1 — MISSÃO */}
+            {activeTab === 'mission' && (
+              <div className="mission-tab-panel">
+                {/* WORKFLOW PIPELINE INTERATIVO */}
+                {steps.length > 0 && (
+                  <div className="mission-workflow-pipeline" style={{ background: '#171717', border: '1px solid #282828', borderRadius: '10px', padding: '14px', margin: '0 0 16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <small style={{ color: '#888', fontWeight: 800, letterSpacing: '1px', fontSize: '9px' }}>
+                        WORKFLOW OPERACIONAL DA MISSÃO
+                      </small>
+                      {activeStep && (
+                        <span style={{ fontSize: '10px', color: activeStep.status === 'returned' ? '#ff6b6b' : '#c6ff38', fontWeight: 800 }}>
+                          {activeStep.status === 'returned' ? 'AJUSTES SOLICITADOS' : 'ETAPA ATIVA'} · {activeStep.departmentName.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
 
-                    return (
-                      <div key={step.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                        <div
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                      {steps.map((step, idx) => {
+                        const isDone = step.status === 'completed'
+                        const isActive = step.status === 'active' || step.status === 'returned'
+                        const isReturned = step.status === 'returned'
+
+                        return (
+                          <div key={step.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                            <div
+                              style={{
+                                background: isDone ? '#243015' : isActive ? (isReturned ? '#361c1c' : '#222') : '#1c1c1c',
+                                border: isDone ? '1px solid #486620' : isActive ? (isReturned ? '1px solid #ff6b6b' : '1px solid #c6ff38') : '1px solid #333',
+                                borderRadius: '8px',
+                                padding: '6px 10px',
+                                display: 'grid',
+                                gap: '2px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ color: isDone ? '#c6ff38' : isActive ? (isReturned ? '#ff6b6b' : '#c6ff38') : '#777', fontWeight: 900, fontSize: '11px' }}>
+                                  {isDone ? '✓' : isActive ? (isReturned ? '↺' : '●') : '○'}
+                                </span>
+                                <b style={{ fontSize: '11px', color: isDone ? '#c6ff38' : '#f8f8f2' }}>
+                                  {idx + 1}. {step.departmentName}
+                                </b>
+                              </div>
+                              <small style={{ fontSize: '9px', color: '#999' }}>
+                                {step.responsibleName ?? 'A definir'}
+                                {step.completedAt && ` · ${new Date(step.completedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
+                              </small>
+                              {step.reviewNotes && (
+                                <small style={{ fontSize: '9px', color: '#ff8585', fontStyle: 'italic', marginTop: '2px' }}>
+                                  Nota: {step.reviewNotes}
+                                </small>
+                              )}
+                            </div>
+                            {idx < steps.length - 1 && (
+                              <span style={{ color: isDone ? '#c6ff38' : '#555', fontWeight: 900 }}>→</span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* AÇÕES OPERACIONAIS DO WORKFLOW */}
+                    {details.mission.status !== 'completed' && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #262626' }}>
+                        <button
+                          type="button"
+                          onClick={() => { void advanceStep() }}
                           style={{
-                            background: isDone ? '#243015' : isActive ? (isReturned ? '#361c1c' : '#222') : '#1c1c1c',
-                            border: isDone ? '1px solid #486620' : isActive ? (isReturned ? '1px solid #ff6b6b' : '1px solid #c6ff38') : '1px solid #333',
-                            borderRadius: '8px',
-                            padding: '6px 10px',
-                            display: 'grid',
-                            gap: '2px',
+                            background: '#c6ff38',
+                            color: '#111',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '7px 14px',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ color: isDone ? '#c6ff38' : isActive ? (isReturned ? '#ff6b6b' : '#c6ff38') : '#777', fontWeight: 900, fontSize: '11px' }}>
-                              {isDone ? '✓' : isActive ? (isReturned ? '↺' : '●') : '○'}
-                            </span>
-                            <b style={{ fontSize: '11px', color: isDone ? '#c6ff38' : '#f8f8f2' }}>
-                              {idx + 1}. {step.departmentName}
-                            </b>
-                          </div>
-                          <small style={{ fontSize: '9px', color: '#999' }}>
-                            {step.responsibleName ?? 'A definir'}
-                            {step.completedAt && ` · ${new Date(step.completedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
-                          </small>
-                          {step.reviewNotes && (
-                            <small style={{ fontSize: '9px', color: '#ff8585', fontStyle: 'italic', marginTop: '2px' }}>
-                              Nota: {step.reviewNotes}
-                            </small>
-                          )}
-                        </div>
-                        {idx < steps.length - 1 && (
-                          <span style={{ color: isDone ? '#c6ff38' : '#555', fontWeight: 900 }}>→</span>
+                          CONCLUIR ETAPA E AVANÇAR →
+                        </button>
+
+                        {completedSteps.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReturnTargetPosition(completedSteps[completedSteps.length - 1]?.position ?? 0)
+                              setIsReturnModalOpen(true)
+                            }}
+                            style={{
+                              background: '#242424',
+                              color: '#ff8585',
+                              border: '1px solid #4a2d2d',
+                              borderRadius: '6px',
+                              padding: '7px 14px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            SOLICITAR AJUSTES / DEVOLVER ↺
+                          </button>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-
-                {/* AÇÕES OPERACIONAIS DO WORKFLOW */}
-                {details.mission.status !== 'completed' && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #262626' }}>
-                    <button
-                      type="button"
-                      onClick={() => { void advanceStep() }}
-                      style={{
-                        background: '#c6ff38',
-                        color: '#111',
-                        border: 'none',
-                        borderRadius: '6px',
-                        padding: '7px 14px',
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      CONCLUIR ETAPA E AVANÇAR →
-                    </button>
-
-                    {completedSteps.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setReturnTargetPosition(completedSteps[completedSteps.length - 1]?.position ?? 0)
-                          setIsReturnModalOpen(true)
-                        }}
-                        style={{
-                          background: '#242424',
-                          color: '#ff8585',
-                          border: '1px solid #4a2d2d',
-                          borderRadius: '6px',
-                          padding: '7px 14px',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        SOLICITAR AJUSTES / DEVOLVER ↺
-                      </button>
                     )}
                   </div>
                 )}
+
+                {/* BOX DE DESCRIÇÃO COM SCROLL */}
+                <div className="mission-description-box">
+                  <h3>DESCRIÇÃO</h3>
+                  <div className="mission-description-content">
+                    {renderDescriptionWithLinks(details.mission.description)}
+                  </div>
+                </div>
+
+                {/* CHECKLIST */}
+                <section className="mission-checklist-section" style={{ padding: '14px', background: '#292926', border: '1px solid #333', borderRadius: '8px' }}>
+                  <h3 style={{ margin: '0 0 10px', color: '#c6ff38', fontSize: '8px', fontWeight: 900, letterSpacing: '1px' }}>CHECKLIST DA MISSÃO</h3>
+                  <div className="mission-checklist">
+                    {details.checklist.map((item) => (
+                      <label key={item.id} className="mission-checklist-item">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(item.isCompleted)}
+                          onChange={(event) => { void toggleChecklist(item.id, event.target.checked) }}
+                        />
+                        <span className={item.isCompleted ? 'done' : ''}>{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <form className="mission-checklist-form" onSubmit={addChecklist}>
+                    <input
+                      value={checklistLabel}
+                      onChange={(event) => setChecklistLabel(event.target.value)}
+                      placeholder="Adicionar item ao checklist…"
+                      maxLength={240}
+                    />
+                    <button type="submit">ADICIONAR</button>
+                  </form>
+                </section>
               </div>
             )}
 
-            {/* CRONÔMETRO 1-CLIQUE */}
-            {details.permissions.canTrackTime && details.mission.status !== 'completed' && (
-              <button className={`mission-drawer-timer ${details.activeTimer ? 'active' : ''}`} type="button" disabled={isTimerPending} onClick={() => { void toggleTimer() }}>
-                {isTimerPending ? 'ATUALIZANDO…' : details.activeTimer ? <><span>Ⅱ PAUSAR CRONÔMETRO</span><b><MissionTimerValue startedAt={details.activeTimer.startedAt} /></b></> : <><span>▶ INICIAR TIMER DA MISSÃO</span><b>1 CLIQUE</b></>}
-              </button>
+            {/* CONTEÚDO DA ABA 2 — ANEXOS */}
+            {activeTab === 'attachments' && (
+              <div className="mission-tab-panel">
+                <section style={{ padding: '16px', background: '#292926', border: '1px solid #333', borderRadius: '8px' }}>
+                  <h3 style={{ margin: '0 0 14px', color: '#c6ff38', fontSize: '8px', fontWeight: 900, letterSpacing: '1px' }}>ANEXOS DA MISSÃO</h3>
+                  {details.attachments.length > 0 ? (
+                    <div className="mission-attachments-list">
+                      {details.attachments.map((attachment) => (
+                        <a
+                          className="mission-attachment"
+                          key={attachment.id}
+                          href={`/api/projects/${details.mission.projectId}/library/files/${attachment.libraryFileId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <span>📎 {attachment.fileName}</span>
+                          <b>V{attachment.fileVersion} ↓</b>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ margin: '0 0 14px', color: '#888', fontSize: '11px' }}>Nenhum arquivo anexado a esta missão ainda.</p>
+                  )}
+                  <div
+                    className={`mission-dropzone ${isDraggingFile ? 'dragging' : ''}`}
+                    onDragOver={(event) => { event.preventDefault(); setIsDraggingFile(true) }}
+                    onDragLeave={() => setIsDraggingFile(false)}
+                    onDrop={(event) => { event.preventDefault(); void uploadAndAttachFile(event.dataTransfer.files[0]) }}
+                  >
+                    <label className="mission-dropzone-trigger">
+                      <input
+                        type="file"
+                        onChange={(event) => { void uploadAndAttachFile(event.target.files?.[0]); event.currentTarget.value = '' }}
+                      />
+                      <span className="mission-dropzone-icon">↑</span>
+                      <span>{isUploadingFile ? 'ENVIANDO…' : 'CLIQUE OU ARRASTE UM ARQUIVO'}</span>
+                    </label>
+                    <p>Solte o arquivo aqui para anexar à biblioteca do projeto e à missão</p>
+                  </div>
+                </section>
+              </div>
             )}
 
-            <p className="mission-details-description">{details.mission.description || 'Sem descrição adicionada.'}</p>
-
-            <div className="mission-details-grid">
-              {/* CHECKLIST */}
-              <section>
-                <h3>CHECKLIST</h3>
-                <div className="mission-checklist">
-                  {details.checklist.map((item) => (
-                    <label key={item.id} className="mission-checklist-item">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(item.isCompleted)}
-                        onChange={(event) => { void toggleChecklist(item.id, event.target.checked) }}
-                      />
-                      <span className={item.isCompleted ? 'done' : ''}>{item.label}</span>
-                    </label>
-                  ))}
-                </div>
-                <form className="mission-checklist-form" onSubmit={addChecklist}>
-                  <input
-                    value={checklistLabel}
-                    onChange={(event) => setChecklistLabel(event.target.value)}
-                    placeholder="Adicionar item ao checklist…"
-                    maxLength={240}
-                  />
-                  <button type="submit">ADICIONAR</button>
-                </form>
-              </section>
-
-              {/* ANEXOS */}
-              <section>
-                <h3>ANEXOS DA MISSÃO</h3>
-                {details.attachments.length > 0 && (
-                  <div className="mission-attachments-list">
-                    {details.attachments.map((attachment) => (
-                      <a
-                        className="mission-attachment"
-                        key={attachment.id}
-                        href={`/api/projects/${details.mission.projectId}/library/files/${attachment.libraryFileId}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <span>📎 {attachment.fileName}</span>
-                        <b>V{attachment.fileVersion} ↓</b>
-                      </a>
-                    ))}
-                  </div>
-                )}
-                <div
-                  className={`mission-dropzone ${isDraggingFile ? 'dragging' : ''}`}
-                  onDragOver={(event) => { event.preventDefault(); setIsDraggingFile(true) }}
-                  onDragLeave={() => setIsDraggingFile(false)}
-                  onDrop={(event) => { event.preventDefault(); void uploadAndAttachFile(event.dataTransfer.files[0]) }}
-                >
-                  <label className="mission-dropzone-trigger">
-                    <input
-                      type="file"
-                      onChange={(event) => { void uploadAndAttachFile(event.target.files?.[0]); event.currentTarget.value = '' }}
+            {/* CONTEÚDO DA ABA 3 — COMENTÁRIOS */}
+            {activeTab === 'comments' && (
+              <div className="mission-tab-panel">
+                <section className="mission-comments" style={{ padding: '16px', background: '#292926', border: '1px solid #333', borderRadius: '8px' }}>
+                  <h3 style={{ margin: '0 0 14px', color: '#c6ff38', fontSize: '8px', fontWeight: 900, letterSpacing: '1px' }}>COMENTÁRIOS OPERACIONAIS</h3>
+                  <form onSubmit={addComment}>
+                    <textarea
+                      value={commentBody}
+                      onChange={(event) => setCommentBody(event.target.value)}
+                      placeholder="Registre uma atualização para o time ou @mencione um colega"
+                      maxLength={3000}
+                      rows={3}
                     />
-                    <span className="mission-dropzone-icon">↑</span>
-                    <span>{isUploadingFile ? 'ENVIANDO…' : 'CLIQUE OU ARRASTE UM ARQUIVO'}</span>
-                  </label>
-                  <p>Solte o arquivo aqui para anexar à missão</p>
-                </div>
-              </section>
-            </div>
+                    <button type="submit">COMENTAR</button>
+                  </form>
+                  {details.comments.length > 0 ? (
+                    <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
+                      {details.comments.map((comment) => (
+                        <article key={comment.id} style={{ padding: '10px 12px', background: '#1c1c1a', border: '1px solid #333', borderRadius: '6px' }}>
+                          <b style={{ color: '#c6ff38', fontSize: '9px' }}>{comment.author}</b>
+                          <p style={{ margin: '4px 0 0', color: '#ddd', fontSize: '11px', lineHeight: 1.45 }}>{comment.body}</p>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ margin: '14px 0 0', color: '#888', fontSize: '11px' }}>Nenhum comentário registrado nesta missão.</p>
+                  )}
+                </section>
+              </div>
+            )}
 
-            {/* COMENTÁRIOS */}
-            <section className="mission-comments">
-              <h3>COMENTÁRIOS OPERACIONAIS</h3>
-              <form onSubmit={addComment}>
-                <textarea
-                  value={commentBody}
-                  onChange={(event) => setCommentBody(event.target.value)}
-                  placeholder="Registre uma atualização para o time ou @mencione um colega"
-                  maxLength={3000}
-                />
-                <button type="submit">COMENTAR</button>
-              </form>
-              {details.comments.map((comment) => (
-                <article key={comment.id}>
-                  <b>{comment.author}</b>
-                  <p>{comment.body}</p>
-                </article>
-              ))}
-            </section>
+            {/* CONTEÚDO DA ABA 4 — HISTÓRICO */}
+            {activeTab === 'history' && (
+              <div className="mission-tab-panel">
+                <section className="mission-history" style={{ padding: '16px', background: '#292926', border: '1px solid #333', borderRadius: '8px', maxHeight: '380px' }}>
+                  <h3 style={{ margin: '0 0 14px', color: '#c6ff38', fontSize: '8px', fontWeight: 900, letterSpacing: '1px' }}>TIMELINE & HISTÓRICO AUDITÁVEL</h3>
+                  {details.history.length > 0 ? (
+                    details.history.map((entry) => (
+                      <p key={entry.id} style={{ padding: '8px 0', borderBottom: '1px solid #383834', fontSize: '11px' }}>
+                        <small style={{ color: '#888', marginRight: '8px', fontFamily: 'monospace' }}>
+                          {entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+                        </small>
+                        <b style={{ color: '#c6ff38', marginRight: '4px' }}>{entry.actor ?? 'Sistema'}</b> · {entry.detail ?? entry.action}
+                      </p>
+                    ))
+                  ) : (
+                    <p style={{ color: '#888', fontSize: '11px' }}>Nenhum histórico registrado.</p>
+                  )}
+                </section>
+              </div>
+            )}
 
-            {/* HISTÓRICO & AUDITORIA */}
-            <section className="mission-history">
-              <h3>TIMELINE & HISTÓRICO AUDITÁVEL</h3>
-              {details.history.map((entry) => (
-                <p key={entry.id}>
-                  <small style={{ color: '#888', marginRight: '6px' }}>
-                    {entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
-                  </small>
-                  <b>{entry.actor ?? 'Sistema'}</b> · {entry.detail ?? entry.action}
-                </p>
-              ))}
-            </section>
-
-            {message && <p className="mission-detail-message">{message}</p>}
+            {message && <p className="mission-detail-message" style={{ margin: '14px 0 0' }}>{message}</p>}
           </>
         )}
 
