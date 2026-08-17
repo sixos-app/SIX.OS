@@ -330,12 +330,22 @@ export function AppShell({
     const next = [...readNotificationIds, id]
     setReadNotificationIds(next)
     saveReadNotifications(next)
+    void fetch('/api/notifications/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notificationId: id }),
+    }).catch(() => {})
   }
 
   function markAllNotificationsRead() {
     const next = operationalNotifications.map((notification) => notification.id)
     setReadNotificationIds(next)
     saveReadNotifications(next)
+    void fetch('/api/notifications/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => {})
   }
 
   function openNotification(notification: AppNotification) {

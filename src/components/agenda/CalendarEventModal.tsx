@@ -11,6 +11,7 @@ import {
 import type { Project, TeamMember } from '../../data/dashboard'
 import { DateTimePicker } from '../shared/DateTimePicker'
 import { Icon } from '../shared/Icon'
+import { MentionTextarea } from '../shared/MentionTextarea'
 
 export function agendaDateTimeInputValue(offsetMinutes = 60, baseDate?: Date) {
   const date = baseDate ? new Date(baseDate.getTime() + offsetMinutes * 60_000) : new Date(Date.now() + offsetMinutes * 60_000)
@@ -232,7 +233,14 @@ export function CalendarEventModal({
         )}
         <label>
           <span>CONTEXTO</span>
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="O que precisa acontecer neste compromisso?" maxLength={2000} />
+          <MentionTextarea
+            value={description}
+            onChange={setDescription}
+            teamMembers={team}
+            placeholder="O que precisa acontecer neste compromisso? Digite @ para mencionar colegas..."
+            maxLength={2000}
+            rows={3}
+          />
         </label>
         </div>
         <footer className="mission-create-footer agenda-create-footer">

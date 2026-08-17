@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import type { Mission } from '../../data/dashboard'
+import { useEffect, useState, type FormEvent } from 'react'
+import type { Mission, TeamMember } from '../../data/dashboard'
 import {
   addMissionChecklistItem,
   addMissionComment,
@@ -18,31 +18,12 @@ import {
 } from '../../data/projectLibraryRepository'
 import { deadlineToMissionDate } from '../../utils/formatters'
 import { MissionTimerValue } from '../shared/MissionTimerValue'
-
-function renderDescriptionWithLinks(text?: string | null): ReactNode {
-  if (!text || !text.trim()) return <span style={{ color: '#777' }}>Sem descrição adicionada.</span>
-  const urlRegex = /(https?:\/\/[^\s]+)/g
-  const parts = text.split(urlRegex)
-  return parts.map((part, index) => {
-    if (urlRegex.test(part)) {
-      return (
-        <a
-          key={index}
-          href={part}
-          target="_blank"
-          rel="noreferrer noopener"
-          style={{ color: '#c6ff38', textDecoration: 'underline', overflowWrap: 'break-word', wordBreak: 'break-word' }}
-        >
-          {part}
-        </a>
-      )
-    }
-    return part
-  })
-}
+import { MentionRenderer } from '../shared/MentionRenderer'
+import { MentionTextarea } from '../shared/MentionTextarea'
 
 export function MissionDetailsModal({
   mission,
+  team = [],
   onClose,
   onTimerToggle,
   isTimerPending,
@@ -50,6 +31,7 @@ export function MissionDetailsModal({
   onDelete,
 }: {
   mission: Mission
+  team?: TeamMember[]
   onClose: () => void
   onTimerToggle: (id: string) => Promise<void>
   isTimerPending: boolean
@@ -455,7 +437,7 @@ export function MissionDetailsModal({
                 <div className="mission-description-box">
                   <h3>DESCRIÇÃO</h3>
                   <div className="mission-description-content">
-                    {renderDescriptionWithLinks(details.mission.description)}
+                    <MentionRenderer text={details.mission.description} />
                   </div>
                 </div>
 
@@ -536,21 +518,24 @@ export function MissionDetailsModal({
                 <section className="mission-comments" style={{ padding: '16px', background: '#292926', border: '1px solid #333', borderRadius: '8px' }}>
                   <h3 style={{ margin: '0 0 14px', color: '#c6ff38', fontSize: '8px', fontWeight: 900, letterSpacing: '1px' }}>COMENTÁRIOS OPERACIONAIS</h3>
                   <form onSubmit={addComment}>
-                    <textarea
+                    <MentionTextarea
                       value={commentBody}
-                      onChange={(event) => setCommentBody(event.target.value)}
-                      placeholder="Registre uma atualização para o time ou @mencione um colega"
+                      onChange={setCommentBody}
+                      teamMembers={team}
+                      placeholder="Registre uma atualização para o time ou digite @ para mencionar um colega"
                       maxLength={3000}
                       rows={3}
                     />
-                    <button type="submit">COMENTAR</button>
+                    <button type="submit" style={{ marginTop: '8px' }}>COMENTAR</button>
                   </form>
                   {details.comments.length > 0 ? (
                     <div style={{ display: 'grid', gap: '8px', marginTop: '12px' }}>
                       {details.comments.map((comment) => (
                         <article key={comment.id} style={{ padding: '10px 12px', background: '#1c1c1a', border: '1px solid #333', borderRadius: '6px' }}>
                           <b style={{ color: '#c6ff38', fontSize: '9px' }}>{comment.author}</b>
-                          <p style={{ margin: '4px 0 0', color: '#ddd', fontSize: '11px', lineHeight: 1.45 }}>{comment.body}</p>
+                          <p style={{ margin: '4px 0 0', color: '#ddd', fontSize: '11px', lineHeight: 1.45 }}>
+                            <MentionRenderer text={comment.body} />
+                          </p>
                         </article>
                       ))}
                     </div>
@@ -611,10 +596,11 @@ export function MissionDetailsModal({
 
               <label style={{ display: 'grid', gap: '4px', margin: '12px 0' }}>
                 <span>MOTIVO DOS AJUSTES (DETALHE O QUE PRECISA SER ALTERADO):</span>
-                <textarea
+                <MentionTextarea
                   value={returnReason}
-                  onChange={(e) => setReturnReason(e.target.value)}
-                  placeholder="Ex.: Por favor ajustar as fontes do título e alterar a cor do botão principal..."
+                  onChange={setReturnReason}
+                  teamMembers={team}
+                  placeholder="Ex.: Por favor ajustar as fontes do título e confirmar com @fernanda.alves..."
                   required
                   rows={4}
                   style={{ background: '#1c1c1c', color: '#fff', border: '1px solid #333', borderRadius: '6px', padding: '8px' }}

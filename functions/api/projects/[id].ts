@@ -1,4 +1,5 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
+import { notifyMentionedUsers } from '../_notifications'
 
 const statuses: Record<string, string> = {
   'EM CONCEPÇÃO': 'planning',
@@ -30,12 +31,13 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, reque
   if (!projectId) return Response.json({ error: 'ID do projeto é obrigatório' }, { status: 400 })
 
   const existing = await env.DB.prepare(`
-    SELECT id, status, due_at AS dueAt, visual_tone AS visualTone, color_key AS colorKey, next_step AS nextStep
+    SELECT id, name, status, due_at AS dueAt, visual_tone AS visualTone, color_key AS colorKey, next_step AS nextStep
     FROM projects
     WHERE id = ? AND organization_id = ?
     LIMIT 1
   `).bind(projectId, user.organizationId).first<{
     id: string
+    name: string
     status: string
     dueAt: string | null
     visualTone: string
@@ -77,6 +79,19 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, reque
     SET status = ?, due_at = ?, visual_tone = ?, color_key = ?, next_step = ?, activity = ?, progress = CASE WHEN ? = 'delivered' THEN 100 ELSE progress END, updated_at = ?
     WHERE id = ? AND organization_id = ?
   `).bind(status, dueAt, fallbackTone, tone, nextStep, activity, status, now, projectId, user.organizationId).run()
+
+  // Notificar colaboradores mencionados no próximo movimento se tiver sido alterado
+  if (nextStep && nextStep !== existing.nextStep) {
+    await notifyMentionedUsers(env.DB, {
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      actorName: user.name,
+      text: nextStep,
+      entityType: 'project',
+      entityId: existing.id,
+      entityTitle: existing.name,
+    })
+  }
 
   // Sincronizar workTypeIds se fornecido
   let savedWorkTypeIds: string[] | undefined = undefined

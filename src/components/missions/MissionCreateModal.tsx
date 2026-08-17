@@ -4,6 +4,7 @@ import { fetchWorkTypes, type WorkType } from '../../data/workTypeRepository'
 import { missionDateTimeInputValue } from '../../utils/formatters'
 import { DateTimePicker } from '../shared/DateTimePicker'
 import { Icon } from '../shared/Icon'
+import { MentionTextarea } from '../shared/MentionTextarea'
 import { WorkTypeSelector } from '../shared/WorkTypeSelector'
 
 export type MissionWorkflowStepInput = {
@@ -292,7 +293,14 @@ export function MissionCreateModal({
 
         <label className="mission-create-briefing">
           <span>BRIEFING, LINKS E CONTEXTO</span>
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Escreva o briefing da missão, orientações e cole links de referências." maxLength={4000} rows={3} />
+          <MentionTextarea
+            value={description}
+            onChange={setDescription}
+            teamMembers={team}
+            placeholder="Escreva o briefing da missão, orientações, mencione com @ e cole links de referências."
+            maxLength={4000}
+            rows={3}
+          />
         </label>
 
         <div className="mission-create-field mission-create-attachments">

@@ -213,6 +213,7 @@ export function MissionsPage({
       {isDetailsOpen && selectedMission && (
         <MissionDetailsModal
           mission={selectedMission}
+          team={team}
           onClose={() => setIsDetailsOpen(false)}
           onTimerToggle={onToggleTimer}
           isTimerPending={timerPendingMissionId === selectedMission.id}

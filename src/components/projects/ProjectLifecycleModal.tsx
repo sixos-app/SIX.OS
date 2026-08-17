@@ -1,10 +1,25 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { Project } from '../../data/dashboard'
+import type { Project, TeamMember } from '../../data/dashboard'
 import { missionDateTimeInputValue } from '../../utils/formatters'
 import { DateTimePicker } from '../shared/DateTimePicker'
 import { Icon } from '../shared/Icon'
+import { MentionTextarea } from '../shared/MentionTextarea'
 
-export function ProjectLifecycleModal({ project, onClose, onUpdate, canDelete, onDelete }: { project: Project; onClose: () => void; onUpdate: (input: { status: string; deadline: string; nextStep: string }) => Promise<void>; canDelete?: boolean; onDelete?: () => void }) {
+export function ProjectLifecycleModal({
+  project,
+  team = [],
+  onClose,
+  onUpdate,
+  canDelete,
+  onDelete,
+}: {
+  project: Project
+  team?: TeamMember[]
+  onClose: () => void
+  onUpdate: (input: { status: string; deadline: string; nextStep: string }) => Promise<void>
+  canDelete?: boolean
+  onDelete?: () => void
+}) {
   const [status, setStatus] = useState(project.status)
   const [deadline, setDeadline] = useState(() => project.dueAt ? missionDateTimeInputValue(project.dueAt) : missionDateTimeInputValue('Amanhã · 18h'))
   const [nextStep, setNextStep] = useState(project.nextStep)
@@ -58,7 +73,14 @@ export function ProjectLifecycleModal({ project, onClose, onUpdate, canDelete, o
         </label>
         <label>
           <span>PRÓXIMO MOVIMENTO</span>
-          <textarea value={nextStep} onChange={(event) => setNextStep(event.target.value)} required />
+          <MentionTextarea
+            value={nextStep}
+            onChange={setNextStep}
+            teamMembers={team}
+            placeholder="Descreva o próximo passo do projeto e mencione colegas com @"
+            required
+            rows={3}
+          />
         </label>
         {error && <p className="admin-dialog-error">{error}</p>}
         <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>

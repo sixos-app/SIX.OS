@@ -237,6 +237,7 @@ export function ProjectsPage({
       {isLifecycleOpen && (
         <ProjectLifecycleModal
           project={selectedProject}
+          team={team}
           onClose={() => setIsLifecycleOpen(false)}
           onUpdate={(input) => onUpdateProjectLifecycle(selectedProject.id, input)}
           canDelete={canDeleteProject}

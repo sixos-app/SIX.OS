@@ -1,4 +1,5 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type AccessUser, type Bindings } from '../_access'
+import { notifyMentionedUsers } from '../_notifications'
 
 type AgendaBindings = Bindings & { FILES: R2Bucket }
 type EventRow = { id: string; visibility: 'personal' | 'team'; ownerUserId: string | null; attachmentKey: string | null }
@@ -79,6 +80,19 @@ export const onRequestPatch: PagesFunction<AgendaBindings, 'id'> = async ({ env,
     statements.push(...selectedParticipants.filter((participantId) => participantId !== ownerUserId).map((participantId) => env.DB.prepare('INSERT INTO calendar_event_participants (event_id, user_id, organization_id, created_at) VALUES (?, ?, ?, ?)').bind(eventId, participantId, user.organizationId, now)))
   }
   await env.DB.batch(statements)
+
+  if (description) {
+    await notifyMentionedUsers(env.DB, {
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      actorName: user.name,
+      text: description,
+      entityType: 'agenda_event',
+      entityId: eventId,
+      entityTitle: title ?? 'Compromisso',
+    })
+  }
+
   return Response.json({ ok: true })
 }
 

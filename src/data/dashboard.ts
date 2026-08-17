@@ -90,6 +90,7 @@ export type AgendaEvent = {
 export type TeamMember = {
   id: string
   name: string
+  username?: string | null
   initials: string
   role: string
   department?: string | null
@@ -131,6 +132,7 @@ export type AppNotification = {
   time: string
   category: 'Projeto' | 'Agenda' | 'Equipe'
   tone: 'lime' | 'purple' | 'orange'
+  isRead?: boolean
   destination?:
     | { section: 'missions'; missionId: string }
     | { section: 'projects'; projectId?: string }

@@ -1,4 +1,5 @@
 import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, type Bindings } from '../../_access'
+import { notifyMentionedUsers } from '../../_notifications'
 import { canAccessMission, getMissionAccess } from '../_missionAccess'
 
 export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
@@ -15,5 +16,17 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
     env.DB.prepare('INSERT INTO mission_comments (id, mission_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)').bind(comment.id, mission.id, user.id, comment.body, comment.createdAt),
     env.DB.prepare('INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), mission.id, user.id, 'commented', 'Comentou na missão.', comment.createdAt),
   ])
+
+  // Notificar colaboradores mencionados no comentário
+  await notifyMentionedUsers(env.DB, {
+    organizationId: user.organizationId,
+    actorUserId: user.id,
+    actorName: user.name,
+    text: comment.body,
+    entityType: 'mission',
+    entityId: mission.id,
+    entityTitle: mission.title,
+  })
+
   return Response.json({ comment }, { status: 201 })
 }

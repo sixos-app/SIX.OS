@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { TeamMember } from '../../data/dashboard'
+import { MentionTextarea } from '../shared/MentionTextarea'
 
 export function KudoModal({ team, onClose, onSent }: { team: TeamMember[]; onClose: () => void; onSent: () => void }) {
   const [targetName, setTargetName] = useState('')
@@ -52,7 +53,15 @@ export function KudoModal({ team, onClose, onSent }: { team: TeamMember[]; onClo
           </label>
           <label>
             <span>MOTIVO DO ELOGIO / RECONHECIMENTO</span>
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Descreva por que você está elogiando este colega..." maxLength={200} required />
+            <MentionTextarea
+              value={reason}
+              onChange={setReason}
+              teamMembers={team}
+              placeholder="Descreva por que você está elogiando este colega e mencione com @..."
+              maxLength={200}
+              required
+              rows={3}
+            />
           </label>
           {error && <p style={{ margin: 0, color: '#d63031', fontSize: '11px' }}>{error}</p>}
           <button className="profile-edit-submit" style={{ background: '#8b73ff', color: '#fff' }} type="submit" disabled={saving}>

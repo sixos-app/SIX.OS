@@ -6,6 +6,26 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.48.0] - 2026-08-17
+
+### Added
+- **Sistema Global de Menções de Colaboradores (@mentions)**: Implementação centralizada do sistema de menções no formato `@login` (utilizando o username já cadastrado dos usuários), com detecção de gatilho, busca em tempo real, suporte completo a navegação por teclado (`ArrowDown`, `ArrowUp`, `Enter`, `Tab`, `Escape`) e vinculação estruturada com o `user.id` real.
+- **Componentes Globais Reutilizáveis**:
+  - `MentionTextarea`: Componente desacoplado para escrita colaborativa com popover de menções integrado.
+  - `MentionPopover`: Popover de sugestões com superfície escura SIX.OS, avatar e setor do colaborador.
+  - `MentionRenderer`: Renderizador de texto com destaque visual verde-lima (`#c6ff38`) para menções e abertura segura de links.
+  - `useMentions`: Hook customizado para lógica de menções e posicionamento de cursor.
+- **Tabela e Sistema de Notificações de Menções**:
+  - Migration `0042_app_notifications.sql` criando a tabela `app_notifications` no D1.
+  - Módulo `functions/api/_notifications.ts` para extração de menções, deduplicação por ID, exclusão de auto-menção e geração de alertas contextuais.
+  - Endpoint `functions/api/notifications/read.ts` para sincronização de leitura.
+- **Integração Global nas Áreas do SIX.OS**:
+  - Missões: Comentários operacionais, briefing da missão e motivo de solicitação de ajustes.
+  - Projetos: Próximo movimento (*Next Step*) no ciclo do projeto.
+  - Agenda: Contexto e descrição de compromissos.
+  - Feed: Motivo de envio de Kudos/Reconhecimento.
+- **Documentação de Design System**: Arquivo `SIXOS_DESIGN_SYSTEM.md` com diretrizes e regras fixas para campos colaborativos.
+
 ## [0.47.3] - 2026-08-17
 
 ### Changed

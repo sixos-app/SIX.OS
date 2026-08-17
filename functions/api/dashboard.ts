@@ -54,6 +54,7 @@ type ProjectRow = {
 type TeamRow = {
   id: string
   name: string
+  username: string | null
   role: string
   openMissions: number
   focus: string | null
@@ -109,7 +110,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   const scopedTeam = teamScope(scope, user)
 
   try {
-    const [profile, missionsResult, projectsResult, teamResult, xpResult, eventResult, activeTimer, workTypesResult, departmentsResult] = await Promise.all([
+    const [profile, missionsResult, projectsResult, teamResult, xpResult, eventResult, activeTimer, workTypesResult, departmentsResult, notificationsResult] = await Promise.all([
       env.DB.prepare(`
         SELECT COALESCE(xp, 0) AS xp, COALESCE(ideas, 0) AS ideas,
           COALESCE(level, 'Criador') AS level, COALESCE(streak_days, 0) AS streak
@@ -175,7 +176,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       LIMIT 100
     `).bind(user.organizationId, ...scopedProjects.binds).all<ProjectRow>(),
     env.DB.prepare(`
-      SELECT users.id, users.name, COALESCE(positions.name, access_profiles.name, users.role) AS role,
+      SELECT users.id, users.name, users.username, COALESCE(positions.name, access_profiles.name, users.role) AS role,
         departments.name AS department,
         COUNT(DISTINCT CASE WHEN missions.status IN ('open', 'in_progress') THEN missions.id END) AS openMissions,
         MIN(CASE WHEN missions.status IN ('open', 'in_progress') THEN missions.title END) AS focus,
@@ -234,6 +235,13 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       WHERE organization_id = ? AND is_active = 1
       ORDER BY name ASC
     `).bind(user.organizationId).all<{ id: string; name: string }>(),
+    env.DB.prepare(`
+      SELECT id, title, description, created_at AS createdAt, entity_type AS entityType, entity_id AS entityId, type, is_read AS isRead, metadata
+      FROM app_notifications
+      WHERE recipient_user_id = ? AND organization_id = ?
+      ORDER BY created_at DESC
+      LIMIT 50
+    `).bind(user.id, user.organizationId).all<{ id: string; title: string; description: string; createdAt: string; entityType: string; entityId: string; type: string; isRead: number; metadata: string | null }>(),
   ])
 
   const xpByDay = new Map(xpResult.results.map(row => [row.day, Number(row.xp) || 0]))
@@ -281,6 +289,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       return {
         id: member.id,
         name: member.name,
+        username: member.username ?? null,
         initials: member.name.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toLocaleUpperCase('pt-BR'),
         role: member.role,
         department: member.department,
@@ -311,7 +320,27 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     }),
     analytics: { weekly, streak: profile?.streak ?? 0, deliveryRate },
     library: [],
-    notifications: [],
+    notifications: (notificationsResult?.results ?? []).map(notif => {
+      const created = new Date(notif.createdAt)
+      const diffMinutes = Math.round((Date.now() - created.getTime()) / 60000)
+      const timeLabel = diffMinutes < 1 ? 'agora' : diffMinutes < 60 ? `há ${diffMinutes} min` : diffMinutes < 1440 ? `há ${Math.floor(diffMinutes / 60)}h` : created.toLocaleDateString('pt-BR', { dateStyle: 'short' })
+      return {
+        id: notif.id,
+        title: notif.title,
+        description: notif.description,
+        time: timeLabel,
+        category: (notif.entityType === 'mission' ? 'Projeto' : notif.entityType === 'project' ? 'Projeto' : notif.entityType === 'agenda_event' ? 'Agenda' : 'Equipe') as 'Projeto' | 'Agenda' | 'Equipe',
+        tone: 'lime' as const,
+        isRead: notif.isRead === 1,
+        destination: notif.entityType === 'mission'
+          ? { section: 'missions' as const, missionId: notif.entityId }
+          : notif.entityType === 'project'
+          ? { section: 'projects' as const, projectId: notif.entityId }
+          : notif.entityType === 'agenda_event'
+          ? { section: 'agenda' as const }
+          : undefined,
+      }
+    }),
     activeTimer: activeTimer ?? null,
   })
   } catch (err) {

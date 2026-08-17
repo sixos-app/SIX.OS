@@ -1,4 +1,5 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from './_access'
+import { notifyMentionedUsers } from './_notifications'
 
 type AgendaScope = 'mine' | 'team'
 type EventType = 'meeting' | 'deadline' | 'appointment' | 'capture' | 'vacation' | 'birthday'
@@ -170,6 +171,18 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     `).bind(id, user.organizationId, project?.id ?? null, project?.clientId ?? mission?.clientId ?? null, owner.id, mission?.id ?? null, title, startsAt, endsAt, eventType, description, location, visibility, now, now),
     ...selectedParticipants.filter((participantId) => participantId !== owner.id).map((participantId) => env.DB.prepare('INSERT INTO calendar_event_participants (event_id, user_id, organization_id, created_at) VALUES (?, ?, ?, ?)').bind(id, participantId, user.organizationId, now)),
   ])
+
+  if (description) {
+    await notifyMentionedUsers(env.DB, {
+      organizationId: user.organizationId,
+      actorUserId: user.id,
+      actorName: user.name,
+      text: description,
+      entityType: 'agenda_event',
+      entityId: id,
+      entityTitle: title,
+    })
+  }
 
   return Response.json({
     event: {
