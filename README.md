@@ -2,7 +2,7 @@
 
 MVP inicial do sistema operacional gamificado da Agência SIX.
 
-**Versão atual:** `0.48.0` (Consulte [VERSIONING.md](./VERSIONING.md) e [CHANGELOG.md](./CHANGELOG.md))
+**Versão atual:** `0.48.1` (Consulte [VERSIONING.md](./VERSIONING.md) e [CHANGELOG.md](./CHANGELOG.md))
 
 ## O que já está implementado
 

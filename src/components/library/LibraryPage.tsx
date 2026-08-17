@@ -3,7 +3,7 @@ import type { ClientIdentity } from '../../data/clientRepository'
 import type { LibraryResource, Project } from '../../data/dashboard'
 import { ClientLibraryManager } from './ClientLibraryManager'
 
-export function LibraryPage({ clients, projects, onOpenProject }: { resources?: LibraryResource[]; clients: ClientIdentity[]; projects: Project[]; onOpenProject: (projectId: string) => void }) {
+export function LibraryPage({ clients, projects, onOpenProject, userId }: { resources?: LibraryResource[]; clients: ClientIdentity[]; projects: Project[]; onOpenProject: (projectId: string) => void; userId?: string }) {
   const [selectedClientId, setSelectedClientId] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ id: string; title: string; type: string; project: string; client: string; snippet: string }[] | null>(null)
@@ -82,7 +82,7 @@ export function LibraryPage({ clients, projects, onOpenProject }: { resources?: 
         </label>
         <p>Os arquivos permanentes do cliente ficam nesta biblioteca; campanhas ficam nos projetos.</p>
       </div>
-      {selectedClient && <ClientLibraryManager client={selectedClient} />}
+      {selectedClient && <ClientLibraryManager client={selectedClient} userId={userId} />}
       <section className="client-library-index">
         <div className="client-library-index-head">
           <div>

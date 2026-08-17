@@ -45,9 +45,19 @@ export function formatElapsedTimer(startedAt: string): string {
   return [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':')
 }
 
-export function getStoredReadNotifications(): string[] {
+export function getStoredReadNotifications(userId?: string): string[] {
   try {
-    const storedNotifications = window.localStorage.getItem(readNotificationsStorageKey)
+    const key = userId ? `${readNotificationsStorageKey}:${userId}` : readNotificationsStorageKey
+    let storedNotifications = window.localStorage.getItem(key)
+    if (!storedNotifications && userId) {
+      // Safe migration: check if old un-scoped key exists and migrate it
+      const legacyStored = window.localStorage.getItem(readNotificationsStorageKey)
+      if (legacyStored) {
+        window.localStorage.setItem(key, legacyStored)
+        window.localStorage.removeItem(readNotificationsStorageKey)
+        storedNotifications = legacyStored
+      }
+    }
     if (!storedNotifications) return []
 
     const parsedNotifications = JSON.parse(storedNotifications)
@@ -57,9 +67,10 @@ export function getStoredReadNotifications(): string[] {
   }
 }
 
-export function saveReadNotifications(notificationIds: string[]): void {
+export function saveReadNotifications(notificationIds: string[], userId?: string): void {
   try {
-    window.localStorage.setItem(readNotificationsStorageKey, JSON.stringify(notificationIds))
+    const key = userId ? `${readNotificationsStorageKey}:${userId}` : readNotificationsStorageKey
+    window.localStorage.setItem(key, JSON.stringify(notificationIds))
   } catch {}
 }
 

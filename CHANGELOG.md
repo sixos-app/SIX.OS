@@ -6,6 +6,16 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.48.1] - 2026-08-17
+
+### Fixed
+- **Contabilização de Custo de Timer Unificada**: Extração da função compartilhada `closeActiveTimers` em `_missionWorkflow.ts`, garantindo que avanço de workflow, solicitação de aprovação e conclusão de missões calculem o custo financeiro (`realized_cost`) dos timers ativos com base no `hourly_rate` do usuário, prevenindo perda de dados financeiros.
+- **Sincronização em Tempo Real de Missões com o Dashboard**: Integração da prop callback `onMissionUpdated` em `MissionDetailsModal` e `MissionsPage`, disparando atualização reativa dos dados operacionais no `AppShell` após avanços de etapa, devoluções/ajustes e controle de cronômetro sem necessidade de recarregar a página (F5).
+- **Isolamento de Estado do `localStorage` por Usuário**: Aplicação de namespace dinâmico com o `userId` autenticado para as chaves `sixos_seen_feed`, `six-os:read-notifications` e `sixos:client-library-view`, incluindo migração segura e transparente de chaves legadas e prevenindo vazamento de preferências entre múltiplos usuários no mesmo navegador.
+- **Normalização de Schema de Migrations (Gap 0022)**: Criação da migration corretiva e idempotente `0043_fix_duplicate_0022_schema.sql` para documentar e assegurar a consistência de índices da tabela `auth_login_attempts` sem alterar arquivos históricos de produção.
+
+---
+
 ## [0.48.0] - 2026-08-17
 
 ### Added

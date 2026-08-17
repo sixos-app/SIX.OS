@@ -11,12 +11,21 @@ import type { ProjectLibrary } from '../../data/projectLibraryRepository'
 import { usePermission } from '../../hooks/usePermission'
 import { Icon } from '../shared/Icon'
 
-export function ClientLibraryManager({ client }: { client: ClientIdentity }) {
+export function ClientLibraryManager({ client, userId }: { client: ClientIdentity; userId?: string }) {
   const { can } = usePermission()
   const canManageClient = can('clients.manage')
   const canManageLibrary = can('library.manage')
+  const storageKey = userId ? `sixos:client-library-view:${userId}` : 'sixos:client-library-view'
   const [fileView, setFileView] = useState<'list' | 'small' | 'medium' | 'large'>(() => {
-    const savedView = window.localStorage.getItem('sixos:client-library-view')
+    let savedView = window.localStorage.getItem(storageKey)
+    if (!savedView && userId) {
+      const legacyView = window.localStorage.getItem('sixos:client-library-view')
+      if (legacyView) {
+        window.localStorage.setItem(storageKey, legacyView)
+        window.localStorage.removeItem('sixos:client-library-view')
+        savedView = legacyView
+      }
+    }
     return savedView === 'list' || savedView === 'small' || savedView === 'large' ? savedView : 'medium'
   })
   const [library, setLibrary] = useState<ProjectLibrary>({ folders: [], files: [] })
@@ -32,8 +41,8 @@ export function ClientLibraryManager({ client }: { client: ClientIdentity }) {
   }, [client.id, client.description])
 
   useEffect(() => {
-    window.localStorage.setItem('sixos:client-library-view', fileView)
-  }, [fileView])
+    window.localStorage.setItem(storageKey, fileView)
+  }, [fileView, storageKey])
 
   useEffect(() => {
     void getClientLibrary(client.id)

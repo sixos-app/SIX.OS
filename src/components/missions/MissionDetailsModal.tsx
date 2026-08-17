@@ -25,6 +25,7 @@ export function MissionDetailsModal({
   mission,
   team = [],
   onClose,
+  onMissionUpdated,
   onTimerToggle,
   isTimerPending,
   canDelete,
@@ -33,6 +34,7 @@ export function MissionDetailsModal({
   mission: Mission
   team?: TeamMember[]
   onClose: () => void
+  onMissionUpdated?: () => void
   onTimerToggle: (id: string) => Promise<void>
   isTimerPending: boolean
   canDelete?: boolean
@@ -194,6 +196,7 @@ export function MissionDetailsModal({
         setMessage('Entrega enviada para aprovação.')
       }
       await reload()
+      onMissionUpdated?.()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível avançar a etapa.')
     }
@@ -207,6 +210,7 @@ export function MissionDetailsModal({
       setIsReturnModalOpen(false)
       setReturnReason('')
       await reload()
+      onMissionUpdated?.()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível solicitar ajustes.')
     }
@@ -216,6 +220,7 @@ export function MissionDetailsModal({
     try {
       await onTimerToggle(mission.id)
       await reload()
+      onMissionUpdated?.()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o cronômetro.')
     }
@@ -238,19 +243,65 @@ export function MissionDetailsModal({
           <>
             {/* CABEÇALHO DA MISSÃO */}
             <header>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '240px' }}>
                   <p>MISSÃO</p>
                   <h2>{details.mission.title}</h2>
                   <span>{details.mission.client} · {details.mission.project}</span>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {details.mission.status !== 'completed' && (
+                    <>
+                      {completedSteps.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReturnTargetPosition(completedSteps[completedSteps.length - 1]?.position ?? 0)
+                            setIsReturnModalOpen(true)
+                          }}
+                          style={{
+                            background: '#242424',
+                            color: '#ff8585',
+                            border: '1px solid #4a2d2d',
+                            borderRadius: '6px',
+                            padding: '7px 12px',
+                            fontSize: '9.5px',
+                            fontWeight: 800,
+                            letterSpacing: '0.4px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          SOLICITAR AJUSTES ↺
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { void advanceStep() }}
+                        style={{
+                          background: '#c6ff38',
+                          color: '#111',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '7px 14px',
+                          fontSize: '10px',
+                          fontWeight: 900,
+                          letterSpacing: '0.5px',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 8px rgba(198, 255, 56, 0.25)',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        CONCLUIR ETAPA E AVANÇAR →
+                      </button>
+                    </>
+                  )}
                   {canDelete && details.mission.status !== 'completed' && onDelete && (
                     <button
                       className="mission-delete-button"
                       type="button"
                       onClick={onDelete}
-                      style={{ padding: '7px 14px', minHeight: '34px', fontSize: '8px' }}
+                      style={{ width: 'auto', margin: 0, padding: '7px 12px', minHeight: '32px', fontSize: '8px' }}
                     >
                       EXCLUIR MISSÃO
                     </button>
@@ -274,16 +325,30 @@ export function MissionDetailsModal({
                   disabled={isTimerPending}
                   onClick={() => { void toggleTimer() }}
                 >
-                  {isTimerPending ? '…' : details.activeTimer ? '⏸' : '▶'}
+                  {isTimerPending ? (
+                    '…'
+                  ) : details.activeTimer ? (
+                    <>
+                      <span>⏸</span>
+                      <MissionTimerValue startedAt={details.activeTimer.startedAt} />
+                    </>
+                  ) : (
+                    <>
+                      <span>▶</span>
+                      {totalTrackedSeconds > 0 ? trackedHoursFormatted : 'INICIAR'}
+                    </>
+                  )}
                 </button>
               )}
               <b>{details.mission.priority.toLocaleUpperCase('pt-BR')}</b>
               <span>{details.mission.assignee ?? 'Responsável a definir'}</span>
               <span>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Prazo a definir'}</span>
               {expectedHoursFormatted && <span>Estimativa: {expectedHoursFormatted}</span>}
-              <span>
-                Tempo: {details.activeTimer ? <MissionTimerValue startedAt={details.activeTimer.startedAt} /> : trackedHoursFormatted}
-              </span>
+              {!details.permissions.canTrackTime && (
+                <span>
+                  Tempo: {details.activeTimer ? <MissionTimerValue startedAt={details.activeTimer.startedAt} /> : trackedHoursFormatted}
+                </span>
+              )}
               {details.mission.realizedCost > 0 && <span>Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}</span>}
               <span>+{details.mission.xpReward} XP</span>
             </div>
@@ -386,86 +451,45 @@ export function MissionDetailsModal({
                         )
                       })}
                     </div>
-
-                    {/* AÇÕES OPERACIONAIS DO WORKFLOW */}
-                    {details.mission.status !== 'completed' && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #262626' }}>
-                        <button
-                          type="button"
-                          onClick={() => { void advanceStep() }}
-                          style={{
-                            background: '#c6ff38',
-                            color: '#111',
-                            border: 'none',
-                            borderRadius: '6px',
-                            padding: '7px 14px',
-                            fontSize: '11px',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          CONCLUIR ETAPA E AVANÇAR →
-                        </button>
-
-                        {completedSteps.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReturnTargetPosition(completedSteps[completedSteps.length - 1]?.position ?? 0)
-                              setIsReturnModalOpen(true)
-                            }}
-                            style={{
-                              background: '#242424',
-                              color: '#ff8585',
-                              border: '1px solid #4a2d2d',
-                              borderRadius: '6px',
-                              padding: '7px 14px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            SOLICITAR AJUSTES / DEVOLVER ↺
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                 )}
 
-                {/* BOX DE DESCRIÇÃO COM SCROLL */}
-                <div className="mission-description-box">
-                  <h3>DESCRIÇÃO</h3>
-                  <div className="mission-description-content">
-                    <MentionRenderer text={details.mission.description} />
+                {/* GRID: DESCRIÇÃO (MAIOR, ESQUERDA) + CHECKLIST (MENOR, DIREITA) */}
+                <div className="mission-content-grid">
+                  {/* BOX DE DESCRIÇÃO COM SCROLL */}
+                  <div className="mission-description-box">
+                    <h3>DESCRIÇÃO</h3>
+                    <div className="mission-description-content">
+                      <MentionRenderer text={details.mission.description} />
+                    </div>
                   </div>
-                </div>
 
-                {/* CHECKLIST */}
-                <section className="mission-checklist-section" style={{ padding: '14px', background: '#292926', border: '1px solid #333', borderRadius: '8px' }}>
-                  <h3 style={{ margin: '0 0 10px', color: '#c6ff38', fontSize: '8px', fontWeight: 900, letterSpacing: '1px' }}>CHECKLIST DA MISSÃO</h3>
-                  <div className="mission-checklist">
-                    {details.checklist.map((item) => (
-                      <label key={item.id} className="mission-checklist-item">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(item.isCompleted)}
-                          onChange={(event) => { void toggleChecklist(item.id, event.target.checked) }}
-                        />
-                        <span className={item.isCompleted ? 'done' : ''}>{item.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <form className="mission-checklist-form" onSubmit={addChecklist}>
-                    <input
-                      value={checklistLabel}
-                      onChange={(event) => setChecklistLabel(event.target.value)}
-                      placeholder="Adicionar item ao checklist…"
-                      maxLength={240}
-                    />
-                    <button type="submit">ADICIONAR</button>
-                  </form>
-                </section>
+                  {/* CHECKLIST DA MISSÃO */}
+                  <section className="mission-checklist-section" style={{ padding: '14px 16px', background: '#1c1c1c', border: '1px solid #2a2a27', borderRadius: '9px' }}>
+                    <h3 style={{ margin: '0 0 10px', color: '#c6ff38', fontSize: '8px', fontWeight: 900, letterSpacing: '1.1px' }}>CHECKLIST DA MISSÃO</h3>
+                    <div className="mission-checklist">
+                      {details.checklist.map((item) => (
+                        <label key={item.id} className="mission-checklist-item">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(item.isCompleted)}
+                            onChange={(event) => { void toggleChecklist(item.id, event.target.checked) }}
+                          />
+                          <span className={item.isCompleted ? 'done' : ''}>{item.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <form className="mission-checklist-form" onSubmit={addChecklist}>
+                      <input
+                        value={checklistLabel}
+                        onChange={(event) => setChecklistLabel(event.target.value)}
+                        placeholder="Adicionar item ao checklist…"
+                        maxLength={240}
+                      />
+                      <button type="submit">ADICIONAR</button>
+                    </form>
+                  </section>
+                </div>
               </div>
             )}
 

@@ -91,3 +91,65 @@ export async function getStageForType(env: Bindings, organizationId: string, boa
   const workflow = await ensureDefaultMissionWorkflow(env, organizationId)
   return workflow.stages.find((stage) => stage.type === type) ?? null
 }
+
+/**
+ * Single source of truth for closing active timers on a mission.
+ *
+ * Finds all open time_entries (entry_type='timer', ended_at IS NULL) for the
+ * given mission, calculates duration and cost using the user's hourly_rate,
+ * and returns an array of D1 prepared statements to be included in a batch.
+ *
+ * - Idempotent: returns empty array if no timers are active.
+ * - Protected against double-close: filters by ended_at IS NULL.
+ * - Cost formula: (durationSeconds / 3600) * hourly_rate
+ */
+export async function closeActiveTimers(
+  db: D1Database,
+  missionId: string,
+  organizationId: string,
+  now: Date = new Date(),
+): Promise<{ statements: D1PreparedStatement[]; totalCost: number }> {
+  const { results: activeTimers } = await db.prepare(`
+    SELECT entries.id, entries.user_id AS userId, entries.started_at AS startedAt
+    FROM time_entries entries
+    WHERE entries.mission_id = ? AND entries.organization_id = ?
+      AND entries.entry_type = 'timer' AND entries.started_at IS NOT NULL AND entries.ended_at IS NULL
+  `).bind(missionId, organizationId).all<{ id: string; userId: string; startedAt: string }>()
+
+  if (!activeTimers.length) return { statements: [], totalCost: 0 }
+
+  const nowIso = now.toISOString()
+  const nowMs = now.getTime()
+  const statements: D1PreparedStatement[] = []
+  let totalCost = 0
+
+  for (const timer of activeTimers) {
+    const durationSeconds = Math.max(0, Math.floor((nowMs - Date.parse(timer.startedAt)) / 1000))
+    const totalMinutes = Math.floor(durationSeconds / 60)
+
+    const userRow = await db.prepare('SELECT hourly_rate FROM users WHERE id = ?').bind(timer.userId).first<{ hourly_rate: number }>()
+    const hourlyRate = userRow?.hourly_rate || 0
+    const cost = (durationSeconds / 3600) * hourlyRate
+    totalCost += cost
+
+    statements.push(
+      db.prepare(`
+        UPDATE time_entries
+        SET ended_at = ?, duration_seconds = ?, hours = ?, minutes = ?, cost = ?
+        WHERE id = ? AND organization_id = ? AND ended_at IS NULL
+      `).bind(nowIso, durationSeconds, Math.floor(totalMinutes / 60), totalMinutes % 60, cost, timer.id, organizationId),
+    )
+  }
+
+  if (totalCost > 0) {
+    statements.push(
+      db.prepare(`
+        UPDATE missions
+        SET realized_cost = realized_cost + ?
+        WHERE id = ? AND project_id IN (SELECT id FROM projects WHERE organization_id = ?)
+      `).bind(totalCost, missionId, organizationId),
+    )
+  }
+
+  return { statements, totalCost }
+}

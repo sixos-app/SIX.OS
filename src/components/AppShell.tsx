@@ -85,7 +85,7 @@ export function AppShell({
   const [isCommandOpen, setIsCommandOpen] = useState(false)
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [isJourneyOpen, setIsJourneyOpen] = useState(false)
-  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(getStoredReadNotifications)
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => getStoredReadNotifications(accessSession.id))
   const [notificationMissionId, setNotificationMissionId] = useState<string | null>(null)
   const [completionMessage, setCompletionMessage] = useState('')
   const [timerPendingMissionId, setTimerPendingMissionId] = useState<string | null>(null)
@@ -147,25 +147,35 @@ export function AppShell({
 
   const [feedItemsCount, setFeedItemsCount] = useState(0)
   const [seenFeedCount, setSeenFeedCount] = useState(() => {
-    return parseInt(localStorage.getItem('sixos_seen_feed') || '0', 10) || 0
+    const key = `sixos_seen_feed:${accessSession.id}`
+    const scopedVal = localStorage.getItem(key)
+    if (scopedVal !== null) return parseInt(scopedVal, 10) || 0
+    const legacyVal = localStorage.getItem('sixos_seen_feed')
+    if (legacyVal !== null) {
+      localStorage.setItem(key, legacyVal)
+      localStorage.removeItem('sixos_seen_feed')
+      return parseInt(legacyVal, 10) || 0
+    }
+    return 0
   })
 
+  const refreshOperationalData = () => {
+    if (operationalRefreshRef.current) return operationalRefreshRef.current
+
+    const request = Promise.allSettled([getDashboard(), getClientIdentities()]).then(([dashboard, clients]) => {
+      if (dashboard.status === 'fulfilled') setDashboardData(dashboard.value)
+      else setCompletionMessage(dashboard.reason instanceof Error ? dashboard.reason.message : 'Não foi possível carregar o dashboard.')
+
+      if (clients.status === 'fulfilled') setClientIdentities(clients.value)
+      else setCompletionMessage(clients.reason instanceof Error ? clients.reason.message : 'Não foi possível carregar os clientes.')
+    }).finally(() => {
+      if (operationalRefreshRef.current === request) operationalRefreshRef.current = null
+    })
+    operationalRefreshRef.current = request
+    return request
+  }
+
   useEffect(() => {
-    const refreshOperationalData = () => {
-      if (operationalRefreshRef.current) return operationalRefreshRef.current
-
-      const request = Promise.allSettled([getDashboard(), getClientIdentities()]).then(([dashboard, clients]) => {
-        if (dashboard.status === 'fulfilled') setDashboardData(dashboard.value)
-        else setCompletionMessage(dashboard.reason instanceof Error ? dashboard.reason.message : 'Não foi possível carregar o dashboard.')
-
-        if (clients.status === 'fulfilled') setClientIdentities(clients.value)
-        else setCompletionMessage(clients.reason instanceof Error ? clients.reason.message : 'Não foi possível carregar os clientes.')
-      }).finally(() => {
-        if (operationalRefreshRef.current === request) operationalRefreshRef.current = null
-      })
-      operationalRefreshRef.current = request
-      return request
-    }
     const handleResume = () => {
       if (document.hidden || Date.now() - lastOperationalResumeRef.current < 1000) return
       lastOperationalResumeRef.current = Date.now()
@@ -329,7 +339,7 @@ export function AppShell({
 
     const next = [...readNotificationIds, id]
     setReadNotificationIds(next)
-    saveReadNotifications(next)
+    saveReadNotifications(next, accessSession.id)
     void fetch('/api/notifications/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -340,7 +350,7 @@ export function AppShell({
   function markAllNotificationsRead() {
     const next = operationalNotifications.map((notification) => notification.id)
     setReadNotificationIds(next)
-    saveReadNotifications(next)
+    saveReadNotifications(next, accessSession.id)
     void fetch('/api/notifications/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -599,7 +609,7 @@ export function AppShell({
                   setActiveSection(item.id)
                   if (item.id === 'feed') {
                     setSeenFeedCount(feedItemsCount)
-                    localStorage.setItem('sixos_seen_feed', String(feedItemsCount))
+                    localStorage.setItem(`sixos_seen_feed:${accessSession.id}`, String(feedItemsCount))
                   }
                 }}
               >
@@ -742,6 +752,7 @@ export function AppShell({
             onToggleTimer={toggleMissionTimer}
             timerPendingMissionId={timerPendingMissionId}
             initialSelectedMissionId={notificationMissionId}
+            onMissionUpdated={() => { void refreshOperationalData() }}
           />
         ) : activeSection === 'projects' ? (
           <ProjectsPage
@@ -797,6 +808,7 @@ export function AppShell({
             resources={dashboardData.library}
             clients={clientIdentities}
             projects={projectsWithMissionProgress}
+            userId={accessSession.id}
             onOpenProject={(projectId) => {
               setLibraryProjectId(projectId)
               setActiveSection('projects')
@@ -822,7 +834,7 @@ export function AppShell({
                 setActiveSection(item.id)
                 if (item.id === 'feed') {
                   setSeenFeedCount(feedItemsCount)
-                  localStorage.setItem('sixos_seen_feed', String(feedItemsCount))
+                  localStorage.setItem(`sixos_seen_feed:${accessSession.id}`, String(feedItemsCount))
                 }
               }}
               style={{ position: 'relative' }}

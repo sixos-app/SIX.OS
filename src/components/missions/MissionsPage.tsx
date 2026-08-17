@@ -27,6 +27,7 @@ export function MissionsPage({
   onToggleTimer,
   timerPendingMissionId,
   initialSelectedMissionId,
+  onMissionUpdated,
 }: {
   missions: Mission[]
   completed: string[]
@@ -46,6 +47,7 @@ export function MissionsPage({
   onToggleTimer: (id: string) => Promise<void>
   timerPendingMissionId: string | null
   initialSelectedMissionId?: string | null
+  onMissionUpdated?: () => void
 }) {
   const { can, hasScope } = usePermission()
   const canManage = can('missions.assign')
@@ -215,6 +217,7 @@ export function MissionsPage({
           mission={selectedMission}
           team={team}
           onClose={() => setIsDetailsOpen(false)}
+          onMissionUpdated={onMissionUpdated}
           onTimerToggle={onToggleTimer}
           isTimerPending={timerPendingMissionId === selectedMission.id}
           canDelete={canDelete}

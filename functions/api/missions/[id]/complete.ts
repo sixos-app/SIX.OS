@@ -1,4 +1,5 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../_access'
+import { closeActiveTimers } from '../_missionWorkflow'
 
 type MissionReward = {
   id: string
@@ -54,26 +55,23 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
     hasPermissionV2(env, request, user, 'missions.update_own'),
     user.departmentId ? env.DB.prepare('SELECT name FROM departments WHERE id = ? AND organization_id = ?').bind(user.departmentId, user.organizationId).first<{ name: string }>() : null,
   ])
-  const isAssignee = mission.assigneeId === user.id && canUpdateOwn
+  const isAssignee = mission.assigneeId === user.id
   const isCurrentResponsible = mission.currentResponsibleId === user.id
   const belongsToCurrentDepartment = Boolean(mission.currentDepartment && userDepartment?.name === mission.currentDepartment)
-  const now = new Date().toISOString()
+  const isFinalDecisionDepartment = mission.currentDepartment === 'Atendimento' || mission.currentDepartment === 'Planejamento'
+  const nowDate = new Date()
+  const now = nowDate.toISOString()
 
   if (mission.currentDepartment && mission.nextDepartment) {
-    if (!canManageWorkflow && !belongsToCurrentDepartment && !isCurrentResponsible && !isAssignee) return permissionRequiredResponse()
+    if (!canManageWorkflow && !belongsToCurrentDepartment && !isCurrentResponsible && !isAssignee && !canUpdateOwn) return permissionRequiredResponse()
     const completedById = mission.currentResponsibleId ?? user.id
+    const { statements: timerStatements } = await closeActiveTimers(env.DB, mission.id, user.organizationId, nowDate)
     const statements = [
       env.DB.prepare(`UPDATE mission_workflow_steps SET status = 'completed', completed_by_user_id = ?, completed_at = ? WHERE mission_id = ? AND position = ?`).bind(completedById, now, mission.id, mission.currentPosition),
       env.DB.prepare(`UPDATE mission_workflow_steps SET status = 'active' WHERE mission_id = ? AND position = ?`).bind(mission.id, mission.currentPosition + 1),
       env.DB.prepare(`UPDATE missions SET status = 'in_progress', approval_status = 'not_requested', current_workflow_position = current_workflow_position + 1, updated_at = ? WHERE id = ?`).bind(now, mission.id),
       env.DB.prepare(`INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, 'workflow_advanced', ?, ?)`).bind(crypto.randomUUID(), mission.id, user.id, `${mission.currentDepartment} concluiu sua etapa. Próximo setor: ${mission.nextDepartment}.`, now),
-      env.DB.prepare(`
-        UPDATE time_entries
-        SET ended_at = ?, duration_seconds = CAST((strftime('%s', ?) - strftime('%s', started_at)) AS INTEGER),
-            hours = CAST((strftime('%s', ?) - strftime('%s', started_at)) / 3600 AS INTEGER),
-            minutes = CAST(((strftime('%s', ?) - strftime('%s', started_at)) % 3600) / 60 AS INTEGER)
-        WHERE mission_id = ? AND organization_id = ? AND ended_at IS NULL AND entry_type = 'timer'
-      `).bind(now, now, now, now, now, mission.id, user.organizationId),
+      ...timerStatements,
     ]
 
     if (mission.nextResponsibleId) {
@@ -88,24 +86,18 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
     return Response.json({ missionId: mission.id, status: 'workflow_advanced', currentDepartment: mission.nextDepartment, currentResponsibleName: mission.nextResponsibleName, nextDepartment: following?.name ?? null })
   }
 
-  const isFinalDecisionDepartment = mission.currentDepartment === 'Atendimento' || mission.currentDepartment === 'Planejamento'
   if (mission.currentDepartment) {
-    if (!canApprove && !isCurrentResponsible && !(isFinalDecisionDepartment && belongsToCurrentDepartment)) return permissionRequiredResponse()
-  } else if (!canApprove && !isAssignee) {
+    if (!canApprove && !canManageWorkflow && !isCurrentResponsible && !(isFinalDecisionDepartment && belongsToCurrentDepartment) && !isAssignee && !canUpdateOwn) return permissionRequiredResponse()
+  } else if (!canApprove && !canManageWorkflow && !isAssignee && !canUpdateOwn) {
     return permissionRequiredResponse()
   }
 
   if (!mission.currentDepartment && !canApprove) {
+    const { statements: timerStatements } = await closeActiveTimers(env.DB, mission.id, user.organizationId, nowDate)
     await env.DB.batch([
       env.DB.prepare(`UPDATE missions SET status = 'in_progress', approval_status = 'pending', approval_requested_at = ?, updated_at = ? WHERE id = ?`).bind(now, now, mission.id),
       env.DB.prepare(`INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, 'approval_requested', 'Entrega enviada para aprovação.', ?)`).bind(crypto.randomUUID(), mission.id, user.id, now),
-      env.DB.prepare(`
-        UPDATE time_entries
-        SET ended_at = ?, duration_seconds = CAST((strftime('%s', ?) - strftime('%s', started_at)) AS INTEGER),
-            hours = CAST((strftime('%s', ?) - strftime('%s', started_at)) / 3600 AS INTEGER),
-            minutes = CAST(((strftime('%s', ?) - strftime('%s', started_at)) % 3600) / 60 AS INTEGER)
-        WHERE mission_id = ? AND organization_id = ? AND ended_at IS NULL AND entry_type = 'timer'
-      `).bind(now, now, now, now, now, mission.id, user.organizationId),
+      ...timerStatements,
     ])
     return Response.json({ missionId: mission.id, status: 'pending_approval' })
   }
@@ -145,14 +137,9 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
   const multiplierRow = await env.DB.prepare('SELECT xp_multiplier AS multiplier FROM organization_settings WHERE organization_id = ?').bind(user.organizationId).first<{ multiplier: number }>()
   const multiplier = Math.max(0.1, Number(multiplierRow?.multiplier ?? 1))
   const baseXp = Math.round(rule.baseXp * multiplier)
+  const { statements: timerStatements } = await closeActiveTimers(env.DB, mission.id, user.organizationId, nowDate)
   const statements = [
-    env.DB.prepare(`
-      UPDATE time_entries
-      SET ended_at = ?, duration_seconds = CAST((strftime('%s', ?) - strftime('%s', started_at)) AS INTEGER),
-          hours = CAST((strftime('%s', ?) - strftime('%s', started_at)) / 3600 AS INTEGER),
-          minutes = CAST(((strftime('%s', ?) - strftime('%s', started_at)) % 3600) / 60 AS INTEGER)
-      WHERE mission_id = ? AND organization_id = ? AND ended_at IS NULL AND entry_type = 'timer'
-    `).bind(now, now, now, now, now, mission.id, user.organizationId),
+    ...timerStatements,
   ]
   const awards: Array<{ userId: string; userName: string; xp: number; bonusXp: number }> = []
 
