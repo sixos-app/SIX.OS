@@ -49,7 +49,7 @@ export function MissionsPage({
 }) {
   const { can, hasScope } = usePermission()
   const canManage = can('missions.assign')
-  const canDelete = can('missions.delete')
+  const canDelete = can('missions.delete') || can('missions.assign') || can('projects.manage')
   const canManageWorkflow = can('missions.workflow.manage')
   const canTrackTime = can('time_entries.create')
   const [missionFilter, setMissionFilter] = useState<'today' | 'priority' | 'next' | 'review' | 'completed'>('next')
@@ -216,6 +216,8 @@ export function MissionsPage({
           onClose={() => setIsDetailsOpen(false)}
           onTimerToggle={onToggleTimer}
           isTimerPending={timerPendingMissionId === selectedMission.id}
+          canDelete={canDelete}
+          onDelete={() => { setIsDetailsOpen(false); onDeleteMission(selectedMission.id) }}
         />
       )}
     </section>

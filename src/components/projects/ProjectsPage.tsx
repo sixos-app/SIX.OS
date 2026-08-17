@@ -41,7 +41,7 @@ export function ProjectsPage({
 }) {
   const { can } = usePermission()
   const canManageMissions = can('missions.assign')
-  const canDeleteProject = can('projects.delete')
+  const canDeleteProject = can('projects.delete') || can('projects.manage') || can('projects.create')
   const [selectedProjectId, setSelectedProjectId] = useState(initialSelectedProjectId ?? projects[0]?.id ?? '')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isDashboardOpen, setIsDashboardOpen] = useState(false)

@@ -25,11 +25,15 @@ export function MissionDetailsModal({
   onClose,
   onTimerToggle,
   isTimerPending,
+  canDelete,
+  onDelete,
 }: {
   mission: Mission
   onClose: () => void
   onTimerToggle: (id: string) => Promise<void>
   isTimerPending: boolean
+  canDelete?: boolean
+  onDelete?: () => void
 }) {
   const [details, setDetails] = useState<MissionDetails | null>(null)
   const [library, setLibrary] = useState<ProjectLibrary>(projectLibrarySeed)
@@ -235,11 +239,31 @@ export function MissionDetailsModal({
                   <h2>{details.mission.title}</h2>
                   <span>{details.mission.client} · {details.mission.project}</span>
                 </div>
-                {details.mission.status === 'completed' && (
-                  <span style={{ background: '#c6ff38', color: '#111', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-                    CONCLUÍDA ✓
-                  </span>
-                )}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {canDelete && details.mission.status !== 'completed' && onDelete && (
+                    <button
+                      type="button"
+                      onClick={onDelete}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid #7f1d1d',
+                        color: '#f87171',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      EXCLUIR MISSÃO
+                    </button>
+                  )}
+                  {details.mission.status === 'completed' && (
+                    <span style={{ background: '#c6ff38', color: '#111', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
+                      CONCLUÍDA ✓
+                    </span>
+                  )}
+                </div>
               </div>
             </header>
 

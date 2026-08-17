@@ -6,6 +6,13 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.47.1] - 2026-08-17
+
+### Fixed
+- **Permissões Atômicas de Exclusão (RBAC V2)**: Registro oficial de `projects.delete` e `missions.delete` no catálogo geral de permissões (`permissions`) e atribuição explícita aos perfis de acesso (`admin_tech`, `operations_management`) via migration 0041.
+- **Herança de Capacidades no Backend**: `getEffectiveCapabilities` e `resolvePermission` agora concedem automaticamente `projects.delete` e `missions.delete` a perfis com gestão de projetos/missões.
+- **Visibilidade de Exclusão no Frontend**: Adicionado fallback de segurança para garantir a renderização dos botões de exclusão de projetos e missões para administradores e gestores, além de disponibilizar o botão de exclusão de missão diretamente no cabeçalho do `MissionDetailsModal`.
+
 ## [0.47.0] - 2026-08-17
 
 ### Added

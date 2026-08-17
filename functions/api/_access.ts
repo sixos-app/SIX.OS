@@ -310,14 +310,26 @@ export async function resolvePermission(
     return finalize({ granted: true, scope: profilePerm.scope, source: 'profile' })
   }
 
-  // 4. Legacy fallback is limited to users that have not been migrated to an
+  // 4. Bundle inheritances
+  if (permissionCode === 'projects.delete') {
+    const managePerm = await resolvePermission(env, request, user, 'projects.manage')
+    if (managePerm.granted) return finalize({ granted: true, scope: managePerm.scope, source: managePerm.source })
+  }
+  if (permissionCode === 'missions.delete') {
+    const managePerm = await resolvePermission(env, request, user, 'projects.manage')
+    if (managePerm.granted) return finalize({ granted: true, scope: managePerm.scope, source: managePerm.source })
+    const approvePerm = await resolvePermission(env, request, user, 'missions.approve')
+    if (approvePerm.granted) return finalize({ granted: true, scope: approvePerm.scope, source: approvePerm.source })
+  }
+
+  // 5. Legacy fallback is limited to users that have not been migrated to an
   // access profile. A configured V2 profile is deny-by-default.
   if (!user.accessProfileId) {
     const v1Granted = hasPermission(user, permissionCode)
     if (v1Granted) return finalize({ granted: true, scope: 'all', source: 'fallback' })
   }
 
-  // 5. Deny by Default
+  // 6. Deny by Default
   return finalize({ granted: false, scope: null, source: 'fallback' })
 }
 
@@ -446,8 +458,14 @@ export async function getEffectiveCapabilities(
   }
 
   if (capabilities['projects.manage']?.includes('all')) {
+    if (!capabilities['projects.delete']) capabilities['projects.delete'] = ['all']
     if (!capabilities['library.view']) capabilities['library.view'] = ['all']
     if (!capabilities['missions.view']) capabilities['missions.view'] = ['all']
+    if (!capabilities['missions.delete']) capabilities['missions.delete'] = ['all']
+  }
+
+  if (capabilities['missions.assign']?.includes('all') || capabilities['missions.approve']?.includes('all')) {
+    if (!capabilities['missions.delete']) capabilities['missions.delete'] = ['all']
   }
 
   return capabilities
