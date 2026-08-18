@@ -6,6 +6,35 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.49.0] - 2026-08-17
+
+### Added
+- **Módulo Completo de Colaboradores / RH**:
+  - Separação arquitetural entre a entidade de autenticação/acesso (`users`) e a entidade de vínculo funcional e de pessoas (`employees`).
+  - Cadastro estruturado com Dados Pessoais (CPF, RG, Órgão Emissor, Data de Nascimento, Estado Civil, Telefone, E-mail Pessoal, Contatos de Emergência e Endereço Completo).
+  - Dados Profissionais (Matrícula Interna, Departamento, Cargo Profissional, Nível/Senioridade, Liderança Direta, Data de Admissão, Tipo de Contratação CLT/PJ/Estágio/Freelancer e Modalidade Híbrido/Remoto/Presencial).
+  - Estados operacionais e de vínculo: Ativo, Em Férias, Afastado (Licença), Inativo e Desligado (com retenção de data, motivo e preservação histórica).
+- **Remuneração & Histórico Salarial Imutável (`employee_compensation_history`)**:
+  - Linha do tempo de vigências salariais com data de início e fim, salário base, jornada mensal em horas e cálculo determinístico do custo salarial por hora (`hourly_cost = salary / monthly_hours`).
+  - Proteção contra reescrita: cada reajuste encerra a vigência anterior e inicia uma nova, mantendo a rastreabilidade completa.
+- **Snapshot Financeiro nos Apontamentos de Tempo (`time_entries`)**:
+  - Persistência imutável de `hourly_cost_snapshot` e `compensation_history_id` em cada apontamento no momento do encerramento (`closeActiveTimers`).
+  - Garantia de que aumentos ou alterações salariais futuras não alterem retroativamente o custo de mão de obra de missões já realizadas.
+- **Biblioteca Privada de Documentos do Colaborador (`employee_documents`)**:
+  - Armazenamento em Cloudflare R2 com metadados no D1 categorizados por pastas padrão (Contratos, Holerites, Atestados Médicos, Férias, Benefícios, Advertências/Termos, Avaliações e Outros).
+  - Upload, download com streaming autenticado e exclusão com verificação estrita de permissões no backend.
+- **Perfil de Acesso e Permissões do "Financeiro"**:
+  - Criação do perfil nativo `finance` (`prof-finance`) e matriz granular de permissões: `employees.view`, `employees.create`, `employees.edit`, `employees.view_sensitive`, `employees.edit_sensitive`, `employees.salary.view`, `employees.salary.edit`, `employees.documents.view`, `employees.documents.upload`, `employees.documents.delete`, `employees.history.view`, `finance.manage` e `mission_costs.view`.
+  - **Isolamento de Acesso**: Usuários do setor Financeiro/RH têm acesso total à gestão de colaboradores e finanças sem necessidade de possuir permissões de visualização ou edição de missões e projetos operacionais.
+- **Trilha de Auditoria Sensível (`employee_audit_logs`)**:
+  - Rastreamento e log de todas as mutações cadastrais, reajustes salariais, alterações de CPF/dados sensíveis, upload/exclusão de documentos e desligamentos.
+
+### Fixed
+- **Unificação do Fechamento de Timers e Custo**:
+  - Centralização de todo o cálculo financeiro de mão de obra em `closeActiveTimers`, consultando a vigência de remuneração ativa do colaborador com fallback seguro para `users.hourly_rate`.
+
+---
+
 ## [0.48.2] - 2026-08-17
 
 ### Fixed

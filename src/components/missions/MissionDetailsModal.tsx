@@ -17,6 +17,7 @@ import {
   type ProjectLibrary,
 } from '../../data/projectLibraryRepository'
 import { deadlineToMissionDate } from '../../utils/formatters'
+import { usePermission } from '../../hooks/usePermission'
 import { MissionTimerValue } from '../shared/MissionTimerValue'
 import { MentionRenderer } from '../shared/MentionRenderer'
 import { MentionTextarea } from '../shared/MentionTextarea'
@@ -40,6 +41,7 @@ export function MissionDetailsModal({
   canDelete?: boolean
   onDelete?: () => void
 }) {
+  const { can } = usePermission()
   const [details, setDetails] = useState<MissionDetails | null>(null)
   const [library, setLibrary] = useState<ProjectLibrary>(projectLibrarySeed)
   const [activeTab, setActiveTab] = useState<'mission' | 'attachments' | 'comments' | 'history'>('mission')
@@ -349,7 +351,11 @@ export function MissionDetailsModal({
                   Tempo: {details.activeTimer ? <MissionTimerValue startedAt={details.activeTimer.startedAt} /> : trackedHoursFormatted}
                 </span>
               )}
-              {details.mission.realizedCost > 0 && <span>Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}</span>}
+              {(can('mission_costs.view') || can('finance.view') || can('finance.manage')) && details.mission.realizedCost > 0 && (
+                <span title="Custo de mão de obra acumulado">
+                  Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}
+                </span>
+              )}
               <span>+{details.mission.xpReward} XP</span>
             </div>
 

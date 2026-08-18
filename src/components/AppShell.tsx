@@ -48,6 +48,7 @@ import { AgendaPage } from './agenda/AgendaPage'
 import { AnalyticsPage } from './analytics/AnalyticsPage'
 import { ChangePasswordModal } from './auth/ChangePasswordModal'
 import { Dashboard } from './dashboard/DashboardPage'
+import { EmployeesPage } from './employees/EmployeesPage'
 import { EvolutionPage } from './evolution/EvolutionPage'
 import { FeedPage } from './feed/FeedPage'
 import { LibraryPage } from './library/LibraryPage'
@@ -627,13 +628,21 @@ export function AppShell({
               <span>{item.label}</span>
             </button>
           ))}
-          {(can('users.manage') || can('roles.manage')) && (
+          {(can('users.manage') || can('roles.manage') || can('employees.view') || can('finance.view')) && (
             <>
               <p className="nav-caption nav-caption-lower">GESTÃO</p>
-              <button className={`nav-item ${activeSection === 'admin' ? 'active' : ''}`} onClick={() => setActiveSection('admin')}>
-                <Icon name="people" />
-                <span>Administração</span>
-              </button>
+              {(can('employees.view') || can('finance.view')) && (
+                <button className={`nav-item ${activeSection === 'employees' ? 'active' : ''}`} onClick={() => setActiveSection('employees')}>
+                  <Icon name="people" />
+                  <span>Colaboradores & RH</span>
+                </button>
+              )}
+              {(can('users.manage') || can('roles.manage')) && (
+                <button className={`nav-item ${activeSection === 'admin' ? 'active' : ''}`} onClick={() => setActiveSection('admin')}>
+                  <Icon name="folder" />
+                  <span>Administração</span>
+                </button>
+              )}
             </>
           )}
           {(can('evaluations.view') || can('evaluations.respond') || can('evaluations.cycles.manage')) && (
@@ -834,6 +843,8 @@ export function AppShell({
               setActiveSection('projects')
             }}
           />
+        ) : activeSection === 'employees' && (can('employees.view') || can('finance.view')) ? (
+          <EmployeesPage />
         ) : activeSection === 'admin' && (can('users.manage') || can('roles.manage')) ? (
           <AdminPage onClientCreated={(client) => setClientIdentities((current) => [...current.filter((item) => item.id !== client.id), client])} />
         ) : activeSection === 'evolution' && (can('evaluations.view') || can('evaluations.respond') || can('evaluations.cycles.manage')) ? (

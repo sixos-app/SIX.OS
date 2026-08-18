@@ -96,12 +96,13 @@ export async function getStageForType(env: Bindings, organizationId: string, boa
  * Single source of truth for closing active timers on a mission.
  *
  * Finds all open time_entries (entry_type='timer', ended_at IS NULL) for the
- * given mission, calculates duration and cost using the user's hourly_rate,
- * and returns an array of D1 prepared statements to be included in a batch.
+ * given mission, calculates duration and cost using the employee's active
+ * compensation history (or users.hourly_rate fallback), persists an immutable
+ * financial snapshot on the time_entry, and aggregates to missions.realized_cost.
  *
  * - Idempotent: returns empty array if no timers are active.
  * - Protected against double-close: filters by ended_at IS NULL.
- * - Cost formula: (durationSeconds / 3600) * hourly_rate
+ * - Cost formula: (durationSeconds / 3600) * hourlyRate
  */
 export async function closeActiveTimers(
   db: D1Database,
@@ -127,17 +128,45 @@ export async function closeActiveTimers(
     const durationSeconds = Math.max(0, Math.floor((nowMs - Date.parse(timer.startedAt)) / 1000))
     const totalMinutes = Math.floor(durationSeconds / 60)
 
-    const userRow = await db.prepare('SELECT hourly_rate FROM users WHERE id = ?').bind(timer.userId).first<{ hourly_rate: number }>()
-    const hourlyRate = userRow?.hourly_rate || 0
+    // Lookup compensation history for employee linked to this user
+    const compRow = await db.prepare(`
+      SELECT comp.id, comp.hourly_cost AS hourlyCost
+      FROM employee_compensation_history comp
+      JOIN employees emp ON emp.id = comp.employee_id
+      WHERE emp.user_id = ? AND emp.organization_id = ?
+        AND (comp.valid_until IS NULL OR comp.valid_until >= ?)
+      ORDER BY comp.valid_from DESC
+      LIMIT 1
+    `).bind(timer.userId, organizationId, timer.startedAt).first<{ id: string; hourlyCost: number }>()
+
+    let hourlyRate = compRow?.hourlyCost ?? 0
+    let compensationHistoryId: string | null = compRow?.id ?? null
+
+    if (hourlyRate <= 0) {
+      const userRow = await db.prepare('SELECT hourly_rate FROM users WHERE id = ?').bind(timer.userId).first<{ hourly_rate: number }>()
+      hourlyRate = userRow?.hourly_rate || 0
+    }
+
     const cost = (durationSeconds / 3600) * hourlyRate
     totalCost += cost
 
     statements.push(
       db.prepare(`
         UPDATE time_entries
-        SET ended_at = ?, duration_seconds = ?, hours = ?, minutes = ?, cost = ?
+        SET ended_at = ?, duration_seconds = ?, hours = ?, minutes = ?, cost = ?,
+            hourly_cost_snapshot = ?, compensation_history_id = ?
         WHERE id = ? AND organization_id = ? AND ended_at IS NULL
-      `).bind(nowIso, durationSeconds, Math.floor(totalMinutes / 60), totalMinutes % 60, cost, timer.id, organizationId),
+      `).bind(
+        nowIso,
+        durationSeconds,
+        Math.floor(totalMinutes / 60),
+        totalMinutes % 60,
+        cost,
+        hourlyRate,
+        compensationHistoryId,
+        timer.id,
+        organizationId,
+      ),
     )
   }
 
