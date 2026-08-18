@@ -6,6 +6,14 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.50.0] - 2026-08-18
+### Changed
+- **Redesign UX/UI do MissionDetailsModal**: Modal consideravelmente ampliado para uso como workspace (até 1540px), comportando mais dados com melhor leitura.
+- **Nova aba de Gestão**: Separação clara entre a operação (aba Missão) e o tracking administrativo da missão (Detalhes, Tempo, Equipe e Progresso), movendo o botão Excluir para reduzir risco de cliques acidentais.
+- **Reorganização Tab Missão**: Grid balanceado entre a Descrição (extensa) e Checklist de operação (compacto), promovendo maior protagonismo à leitura e formatação.
+- **Novo Pipeline de Etapas**: Adaptado para scroll horizontal limpo com overflow dinâmico, suportando workflows alongados sem quebra de tela.
+- Melhorias gerais de responsividade, transformando o modal em um painel fullscreen (100vh) no uso via celular (<768px).
+
 ## [0.49.2] - 2026-08-18
 ### Fixed
 - Correção da ação de clique nos cards de missões na Home/Dashboard, que agora abrem corretamente o modal de detalhes da missão já existente.

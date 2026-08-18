@@ -44,7 +44,7 @@ export function MissionDetailsModal({
   const { can } = usePermission()
   const [details, setDetails] = useState<MissionDetails | null>(null)
   const [library, setLibrary] = useState<ProjectLibrary>(projectLibrarySeed)
-  const [activeTab, setActiveTab] = useState<'mission' | 'attachments' | 'comments' | 'history'>('mission')
+  const [activeTab, setActiveTab] = useState<'mission' | 'management' | 'attachments' | 'comments' | 'history'>('mission')
   const [checklistLabel, setChecklistLabel] = useState('')
   const [commentBody, setCommentBody] = useState('')
   const [selectedFileId, setSelectedFileId] = useState('')
@@ -298,15 +298,6 @@ export function MissionDetailsModal({
                       </button>
                     </>
                   )}
-                  {canDelete && details.mission.status !== 'completed' && onDelete && (
-                    <button
-                      className="mission-delete-button"
-                      type="button"
-                      onClick={onDelete}
-                    >
-                      EXCLUIR
-                    </button>
-                  )}
                   {details.mission.status === 'completed' && (
                     <span style={{ background: '#c6ff38', color: '#111', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
                       CONCLUÍDA ✓
@@ -368,6 +359,13 @@ export function MissionDetailsModal({
                 MISSÃO
               </button>
               <button
+                className={`mission-tab-button ${activeTab === 'management' ? 'active' : ''}`}
+                type="button"
+                onClick={() => setActiveTab('management')}
+              >
+                GESTÃO
+              </button>
+              <button
                 className={`mission-tab-button ${activeTab === 'attachments' ? 'active' : ''}`}
                 type="button"
                 onClick={() => setActiveTab('attachments')}
@@ -413,7 +411,7 @@ export function MissionDetailsModal({
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '8px', alignItems: 'center' }}>
                       {steps.map((step, idx) => {
                         const isDone = step.status === 'completed'
                         const isActive = step.status === 'active' || step.status === 'returned'
@@ -495,6 +493,86 @@ export function MissionDetailsModal({
                     </form>
                   </section>
                 </div>
+              </div>
+            )}
+
+            {/* CONTEÚDO DA ABA 1.5 — GESTÃO */}
+            {activeTab === 'management' && (
+              <div className="mission-tab-panel">
+                <div className="mission-management-grid">
+                  <div className="mission-management-card">
+                    <h3>DETALHES DA MISSÃO</h3>
+                    <div className="mission-management-info"><span>Cliente</span><strong>{details.mission.client}</strong></div>
+                    <div className="mission-management-info"><span>Projeto</span><strong>{details.mission.project}</strong></div>
+                    <div className="mission-management-info"><span>Prioridade</span><strong style={{ color: details.mission.priority === 'urgent' ? '#ff6b6b' : '#e2e1dc' }}>{details.mission.priority.toUpperCase()}</strong></div>
+                    <div className="mission-management-info"><span>Status</span><strong>{details.mission.status.toUpperCase()}</strong></div>
+                    {details.mission.createdAt && <div className="mission-management-info"><span>Data de criação</span><strong>{new Date(details.mission.createdAt).toLocaleDateString('pt-BR')}</strong></div>}
+                  </div>
+
+                  <div className="mission-management-card">
+                    <h3>TEMPO & PRAZOS</h3>
+                    <div className="mission-management-info"><span>Estimativa</span><strong>{expectedHoursFormatted ?? 'Não definida'}</strong></div>
+                    <div className="mission-management-info"><span>Tempo realizado</span><strong>{trackedHoursFormatted}</strong></div>
+                    <div className="mission-management-info"><span>Prazo</span><strong>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Não definido'}</strong></div>
+                    {(can('mission_costs.view') || can('finance.view') || can('finance.manage')) && details.mission.realizedCost > 0 && (
+                      <div className="mission-management-info"><span>Custo acumulado</span><strong>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}</strong></div>
+                    )}
+                  </div>
+
+                  <div className="mission-management-card">
+                    <h3>EQUIPE ENVOLVIDA</h3>
+                    {steps.length > 0 ? steps.map((step, idx) => (
+                      <div key={step.id} className="mission-management-info" style={{ alignItems: 'center' }}>
+                        <span style={{ display: 'flex', flexDirection: 'column' }}>
+                          <small style={{ fontSize: '9px', color: '#888' }}>{step.departmentName}</small>
+                          <strong style={{ color: step.status === 'active' ? '#c6ff38' : '#e2e1dc' }}>{step.responsibleName ?? 'A definir'}</strong>
+                        </span>
+                        <strong style={{ fontSize: '10px' }}>
+                          {step.status === 'completed' ? 'Concluído' : step.status === 'active' ? 'Ativo' : step.status === 'returned' ? 'Ajustes' : 'Aguardando'}
+                        </strong>
+                      </div>
+                    )) : (
+                      <div className="mission-management-info"><span>Nenhum setor designado</span></div>
+                    )}
+                  </div>
+
+                  <div className="mission-management-card">
+                    <h3>PROGRESSO DA MISSÃO</h3>
+                    <div className="mission-management-info" style={{ flexDirection: 'column', gap: '8px', border: 'none' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                        <span>{completedSteps.length} de {steps.length || 1} etapas concluídas</span>
+                        <strong style={{ color: '#c6ff38' }}>{Math.round((completedSteps.length / (steps.length || 1)) * 100)}%</strong>
+                      </div>
+                      <div style={{ width: '100%', height: '6px', background: '#333', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ width: `${Math.round((completedSteps.length / (steps.length || 1)) * 100)}%`, height: '100%', background: '#c6ff38', borderRadius: '3px' }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* BOTÃO EXCLUIR MOVIDO PARA GESTÃO */}
+                {canDelete && details.mission.status !== 'completed' && onDelete && (
+                  <div style={{ marginTop: '24px', textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={onDelete}
+                      style={{
+                        background: 'transparent',
+                        color: '#ff6b6b',
+                        border: '1px solid #4a2d2d',
+                        borderRadius: '6px',
+                        padding: '10px 16px',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        letterSpacing: '0.5px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      EXCLUIR MISSÃO
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

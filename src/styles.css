@@ -1516,3 +1516,181 @@ button { border: 0; cursor: pointer; }
 .notification-item.tone-pink .notification-dot, .notifications-activity article.tone-pink > i { background: #ff5fa2; }
 .notification-item.tone-coral .notification-dot, .notifications-activity article.tone-coral > i { background: #ff4f5e; }
 .notification-item.tone-magenta .notification-dot, .notifications-activity article.tone-magenta > i { background: #d85cff; }
+
+/* === REDESIGN MODAL DE DETALHES DA MISSÃO (UX/UI EVOLUTION) === */
+
+/* Overlay e Dialog Base */
+.mission-details-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(92vw, 1540px) !important;
+  height: min(88dvh, 940px) !important;
+  max-width: 1540px;
+  max-height: 940px;
+  padding: 34px 38px 24px !important;
+  overflow: hidden !important; /* Previne scroll no modal inteiro */
+}
+
+/* Header e Navegação Fixos */
+.mission-details-dialog > header,
+.mission-details-meta,
+.mission-tabs {
+  flex-shrink: 0;
+}
+
+/* Área de Tab Panel (Conteúdo rolável) */
+.mission-tab-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px; /* Espaço para scrollbar */
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom Scrollbar interna */
+.mission-tab-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.mission-tab-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.mission-tab-panel::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+/* Workflow Pipeline Horizontal */
+.mission-workflow-pipeline {
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 8px;
+}
+.mission-workflow-pipeline > div:last-child {
+  flex-wrap: nowrap !important;
+}
+
+/* Grid Descrição e Checklist (Tab Missão) */
+.mission-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(360px, 1fr);
+  gap: 24px;
+  flex: 1;
+}
+
+.mission-description-box {
+  background: #1c1c1c;
+  border: 1px solid #2a2a27;
+  border-radius: 9px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+.mission-description-box h3 {
+  margin: 0 0 16px;
+  color: #c6ff38;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+}
+.mission-description-content {
+  color: #e2e1dc;
+  font-size: 13.5px;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Tab Gestão Grid */
+.mission-management-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.mission-management-card {
+  background: #1c1c1c;
+  border: 1px solid #2a2a27;
+  border-radius: 9px;
+  padding: 20px;
+}
+.mission-management-card h3 {
+  margin: 0 0 16px;
+  color: #c6ff38;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+}
+.mission-management-info {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #2a2a27;
+  font-size: 12px;
+}
+.mission-management-info:last-child {
+  border-bottom: none;
+}
+.mission-management-info span {
+  color: #888;
+}
+.mission-management-info strong {
+  color: #e2e1dc;
+  font-weight: 500;
+}
+
+/* Responsividade Notebook/Desktop Menor (1024px - 1439px) */
+@media (max-width: 1439px) and (min-width: 1024px) {
+  .mission-details-dialog {
+    width: 94vw !important;
+    height: 90dvh !important;
+    padding: 28px 30px 20px !important;
+  }
+}
+
+/* Responsividade Tablet (768px - 1023px) */
+@media (max-width: 1023px) and (min-width: 768px) {
+  .mission-details-dialog {
+    width: 96vw !important;
+    height: 94dvh !important;
+    padding: 24px 24px 20px !important;
+  }
+  .mission-content-grid {
+    grid-template-columns: 1fr; /* Quebra para 1 coluna */
+  }
+  .mission-management-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Responsividade Mobile (< 768px) */
+@media (max-width: 767px) {
+  .mission-details-overlay {
+    padding: 0 !important;
+  }
+  .mission-details-dialog {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    padding: 20px 16px !important;
+    margin: 0 !important;
+  }
+  .mission-content-grid, .mission-management-grid {
+    grid-template-columns: 1fr;
+  }
+  .mission-tabs {
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 4px;
+  }
+  .mission-details-dialog header > div {
+    flex-direction: column;
+    align-items: flex-start !important;
+  }
+  .mission-details-dialog header > div > div:last-child {
+    width: 100%;
+    justify-content: flex-start !important;
+    margin-top: 12px;
+  }
+}
