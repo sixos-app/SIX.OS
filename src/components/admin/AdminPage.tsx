@@ -50,11 +50,6 @@ export function AdminPage({ onClientCreated = () => undefined }: { onClientCreat
 
   const data = overview ?? { team: [], roles: [], clientCount: 0 }
 
-  async function handleCreateUser(input: CreateAdminUserInput) {
-    const member = await createAdminUser(input)
-    setOverview((current) => current ? { ...current, team: [...current.team, member] } : current)
-  }
-
   async function handleCreateClient(input: { name: string; shortCode: string; imageDataUrl: string | null }) {
     const client = await createAdminClient(input)
     setOverview((current) => current ? { ...current, clientCount: current.clientCount + 1 } : current)
@@ -116,7 +111,6 @@ export function AdminPage({ onClientCreated = () => undefined }: { onClientCreat
             <b>Permissões verificadas</b>
           </div>
           <div className="admin-actions">
-            <button onClick={() => setDialog('user')}>NOVO COLABORADOR <span>+</span></button>
             <button onClick={() => setDialog('client')}>NOVO CLIENTE <span>+</span></button>
           </div>
         </div>
@@ -233,7 +227,6 @@ export function AdminPage({ onClientCreated = () => undefined }: { onClientCreat
           </>
         )
       )}
-      {dialog === 'user' && <AdminUserDialog roles={data.roles} onClose={() => setDialog(null)} onCreate={handleCreateUser} />}
       {dialog === 'client' && <AdminClientDialog onClose={() => setDialog(null)} onCreate={handleCreateClient} />}
     </div>
   )

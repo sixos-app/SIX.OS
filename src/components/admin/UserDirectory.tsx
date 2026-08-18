@@ -161,9 +161,9 @@ export function UserDirectory() {
                     </td>
                     
                     <td style={{ padding: '16px' }}>
-                      {u.status === 'active' && <span style={{ color: '#4CAF50', fontSize: '13px' }}>🟢 Ativo</span>}
-                      {u.status === 'inactive' && <span style={{ color: '#888', fontSize: '13px' }}>⚪️ Inativo</span>}
-                      {u.status === 'blocked' && <span style={{ color: '#ff5252', fontSize: '13px' }}>🔴 Bloqueado</span>}
+                      {u.status === 'active' && <span style={{ color: '#4CAF50', fontSize: '13px' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#4CAF50', marginRight: '6px' }} />Ativo</span>}
+                      {u.status === 'inactive' && <span style={{ color: '#888', fontSize: '13px' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#888', marginRight: '6px' }} />Inativo</span>}
+                      {u.status === 'blocked' && <span style={{ color: '#ff5252', fontSize: '13px' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#ff5252', marginRight: '6px' }} />Bloqueado</span>}
                     </td>
                     
                     <td style={{ padding: '16px', textAlign: 'right' }}>

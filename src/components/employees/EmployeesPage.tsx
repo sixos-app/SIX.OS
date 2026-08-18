@@ -119,107 +119,108 @@ export function EmployeesPage() {
   const canViewSalary = can('employees.salary.view')
 
   return (
-    <main className="content-area" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      
-      {/* Header com Ações */}
-      <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#fff', margin: 0 }}>Colaboradores & RH</h2>
-          <p style={{ color: '#85857e', fontSize: '13px', margin: '4px 0 0' }}>
-            Gestão profissional, dados cadastrais, remuneração e histórico funcional.
-          </p>
-        </div>
-        {can('employees.create') && (
-          <button className="primary-button" onClick={() => setIsCreateModalOpen(true)}>
-            + Novo Colaborador
-          </button>
-        )}
+    <main className="content-area">
+      <div className="admin-page">
+        <section className="admin-intro">
+          <div>
+            <span>GESTÃO DE PESSOAS</span>
+            <h1>Colaboradores & <em>RH.</em></h1>
+            <p>Gestão de pessoas, remuneração e documentos de forma centralizada.</p>
+          </div>
+          <div className="admin-intro-side">
+            <div className="admin-actions">
+              {can('employees.create') && (
+                <button onClick={() => setIsCreateModalOpen(true)}>NOVO COLABORADOR <span>+</span></button>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Filtros em uma "admin-card" ou container similar */}
+        <section className="admin-card" style={{ marginTop: '24px', padding: '16px 20px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            className="input"
+            placeholder="Buscar por nome ou matrícula..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ flex: '1 1 260px' }}
+          />
+          <select className="input" value={filterDept} onChange={(e) => setFilterDept(e.target.value)} style={{ flex: '1 1 160px' }}>
+            <option value="">Todos os Departamentos</option>
+            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+          <select className="input" value={filterContract} onChange={(e) => setFilterContract(e.target.value)} style={{ flex: '1 1 140px' }}>
+            <option value="">Todas as Contratações</option>
+            <option value="CLT">CLT</option>
+            <option value="PJ">PJ</option>
+            <option value="estagio">Estágio</option>
+            <option value="freelancer">Freelancer</option>
+          </select>
+          <select className="input" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ flex: '1 1 140px' }}>
+            {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </section>
       </div>
 
       {error && (
-        <div style={{ background: 'rgba(255, 107, 107, 0.15)', color: '#ff6b6b', padding: '10px 16px', borderRadius: '8px', fontSize: '13px' }}>
+        <div style={{ background: 'rgba(255, 107, 107, 0.15)', color: '#ff6b6b', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', margin: '20px 0' }}>
           {error}
         </div>
       )}
 
-      {/* Barra de Filtros */}
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-        <input
-          className="input"
-          placeholder="Buscar por nome, cargo ou departamento..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ flex: '1 1 260px' }}
-        />
-        <select className="input" value={filterDept} onChange={(e) => setFilterDept(e.target.value)} style={{ flex: '1 1 160px' }}>
-          <option value="">Todos os Departamentos</option>
-          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-        <select className="input" value={filterContract} onChange={(e) => setFilterContract(e.target.value)} style={{ flex: '1 1 140px' }}>
-          <option value="">Todas as Contratações</option>
-          <option value="CLT">CLT</option>
-          <option value="PJ">PJ</option>
-          <option value="estagio">Estágio</option>
-          <option value="freelancer">Freelancer</option>
-        </select>
-        <select className="input" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ flex: '1 1 140px' }}>
-          {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-      </div>
-
       {/* Lista de Colaboradores */}
-      {loading ? (
-        <div style={{ color: '#888', padding: '40px 0', textAlign: 'center' }}>Carregando colaboradores do SIX.OS...</div>
-      ) : filtered.length === 0 ? (
-        <div style={{ color: '#666', padding: '40px 0', textAlign: 'center', background: '#171717', borderRadius: '8px', border: '1px solid #282825' }}>
-          Nenhum colaborador encontrado com os filtros selecionados.
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-          {filtered.map((emp) => (
-            <div
-              key={emp.id}
-              onClick={() => setSelectedEmployeeId(emp.id)}
-              style={{
-                background: '#191919',
-                border: '1px solid #282825',
-                borderRadius: '8px',
-                padding: '16px',
-                cursor: 'pointer',
-                transition: 'border-color .15s ease',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#c6ff38')}
-              onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#282825')}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <Avatar initials={getInitials(emp.name)} tone="lime" />
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#fff' }}>{emp.name}</h4>
-                    <span style={{ fontSize: '12px', color: '#85857e' }}>{emp.positionName || 'Sem cargo'}</span>
+      <div className="admin-page" style={{ paddingTop: 0 }}>
+        {loading ? (
+          <div style={{ color: '#888', padding: '40px 0', textAlign: 'center' }}>Carregando colaboradores do SIX.OS...</div>
+        ) : filtered.length === 0 ? (
+          <div className="admin-card" style={{ padding: '40px 0', textAlign: 'center' }}>
+            Nenhum colaborador encontrado com os filtros selecionados.
+          </div>
+        ) : (
+          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', marginTop: '24px' }}>
+            {filtered.map((emp) => (
+              <article
+                key={emp.id}
+                className="admin-card"
+                onClick={() => setSelectedEmployeeId(emp.id)}
+                style={{
+                  cursor: 'pointer',
+                  transition: 'border-color .15s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  padding: '16px'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#c6ff38')}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <Avatar initials={getInitials(emp.name)} tone="lime" />
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#171717' }}>{emp.name}</h4>
+                      <span style={{ fontSize: '12px', color: '#777771' }}>{emp.positionName || 'Sem cargo'}</span>
+                    </div>
                   </div>
-                </div>
-                <span className={`badge badge-${emp.status === 'active' ? 'lime' : emp.status === 'terminated' ? 'red' : 'gray'}`} style={{ fontSize: '9px' }}>
-                  {emp.status}
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#777', borderTop: '1px solid #242421', paddingTop: '10px' }}>
-                <span>📁 {emp.departmentName || 'Geral'}</span>
-                <span>📋 {emp.contractType}</span>
-                {canViewSalary && emp.hourlyCost !== undefined && (
-                  <span style={{ color: '#c6ff38', fontWeight: 700 }}>
-                    {emp.hourlyCost ? `R$ ${emp.hourlyCost.toFixed(2)}/h` : 'R$ 0,00/h'}
+                  <span className={`badge badge-${emp.status === 'active' ? 'lime' : emp.status === 'terminated' ? 'red' : 'gray'}`} style={{ fontSize: '9px' }}>
+                    {emp.status}
                   </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#777771', borderTop: '1px solid #e1e1da', paddingTop: '10px' }}>
+                  <span><strong style={{ fontWeight: 600 }}>Depto:</strong> {emp.departmentName || 'Geral'}</span>
+                  <span><strong style={{ fontWeight: 600 }}>Vínculo:</strong> {emp.contractType}</span>
+                  {canViewSalary && emp.hourlyCost !== undefined && (
+                    <span style={{ color: '#171717', fontWeight: 700 }}>
+                      {emp.hourlyCost ? `R$ ${emp.hourlyCost.toFixed(2)}/h` : 'R$ 0,00/h'}
+                    </span>
+                  )}
+                </div>
+              </article>
+            ))}
+          </section>
+        )}
+      </div>
 
       {/* Modal de Criação Rápida */}
       {isCreateModalOpen && (

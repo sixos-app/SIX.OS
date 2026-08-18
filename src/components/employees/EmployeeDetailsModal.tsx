@@ -234,13 +234,13 @@ export function EmployeeDetailsModal({
         {error && <div style={{ background: 'rgba(255, 107, 107, 0.15)', color: '#ff6b6b', padding: '8px 24px', fontSize: '12px', borderBottom: '1px solid #31312e' }}>{error}</div>}
 
         {/* Tabs Bar */}
-        <nav className="mission-details-tabs" style={{ display: 'flex', borderBottom: '1px solid #282825', padding: '0 24px', background: '#141414' }}>
-          <button className={`mission-details-tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Visão Geral</button>
-          <button className={`mission-details-tab ${activeTab === 'personal' ? 'active' : ''}`} onClick={() => setActiveTab('personal')}>Dados Pessoais</button>
-          <button className={`mission-details-tab ${activeTab === 'professional' ? 'active' : ''}`} onClick={() => setActiveTab('professional')}>Profissional & Vínculo</button>
-          {can('employees.salary.view') && <button className={`mission-details-tab ${activeTab === 'compensation' ? 'active' : ''}`} onClick={() => setActiveTab('compensation')}>Remuneração & Histórico</button>}
-          {can('employees.documents.view') && <button className={`mission-details-tab ${activeTab === 'documents' ? 'active' : ''}`} onClick={() => setActiveTab('documents')}>Documentos ({documents.length})</button>}
-          {can('employees.history.view') && <button className={`mission-details-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>Trilha de Auditoria</button>}
+        <nav className="mission-tabs" aria-label="Navegação do detalhe do colaborador" style={{ padding: '0 24px', background: '#111' }}>
+          <button className={`mission-tab-button ${activeTab === 'overview' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('overview')}>VISÃO GERAL</button>
+          <button className={`mission-tab-button ${activeTab === 'personal' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('personal')}>DADOS PESSOAIS</button>
+          <button className={`mission-tab-button ${activeTab === 'professional' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('professional')}>VÍNCULO</button>
+          {can('employees.salary.view') && <button className={`mission-tab-button ${activeTab === 'compensation' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('compensation')}>REMUNERAÇÃO</button>}
+          {can('employees.documents.view') && <button className={`mission-tab-button ${activeTab === 'documents' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('documents')}>DOCUMENTOS {documents.length > 0 && <span className="mission-tab-badge">{documents.length}</span>}</button>}
+          {can('employees.history.view') && <button className={`mission-tab-button ${activeTab === 'history' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('history')}>AUDITORIA</button>}
         </nav>
 
         {/* Scrollable Content Body */}
@@ -529,56 +529,65 @@ export function EmployeeDetailsModal({
 
           {/* TAB 5: DOCUMENTOS PRIVADOS */}
           {activeTab === 'documents' && can('employees.documents.view') && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              
-              {can('employees.documents.upload') && (
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#191919', border: '1px solid #282825', borderRadius: '8px', padding: '14px 18px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '12px', color: '#888' }}>Enviar para pasta:</span>
-                  <select className="input" style={{ width: 'auto', flex: 1 }} value={selectedDocCategory} onChange={(e) => setSelectedDocCategory(e.target.value)}>
-                    {Object.entries(DOCUMENT_CATEGORIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-                  </select>
-                  <label className="primary-button" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    {uploadingDoc ? 'Enviando...' : '📁 Escolher Arquivo'}
-                    <input type="file" style={{ display: 'none' }} disabled={uploadingDoc} onChange={handleUploadDoc} />
-                  </label>
+            <div className="project-library-layout" style={{ margin: '-24px', height: 'calc(100% + 48px)' }}>
+              <div className="project-library-folders" style={{ borderRight: '1px solid #282825', background: '#111' }}>
+                <div className="project-library-folders-head">
+                  <span>PASTAS DO COLABORADOR</span>
                 </div>
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                {Object.entries(DOCUMENT_CATEGORIES).map(([categoryKey, categoryName]) => {
-                  const categoryDocs = documents.filter((d) => d.folderCategory === categoryKey)
-                  return (
-                    <div key={categoryKey} style={{ background: '#171717', border: '1px solid #282825', borderRadius: '8px', overflow: 'hidden' }}>
-                      <div style={{ padding: '10px 16px', background: '#1f1f1d', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#fff' }}>📁 {categoryName}</span>
-                        <span style={{ fontSize: '11px', color: '#888' }}>{categoryDocs.length} arquivo(s)</span>
-                      </div>
-                      <div style={{ padding: categoryDocs.length ? '8px 16px' : '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {categoryDocs.length === 0 ? (
-                          <span style={{ fontSize: '12px', color: '#555' }}>Nenhum documento nesta pasta.</span>
-                        ) : (
-                          categoryDocs.map((doc) => (
-                            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #232320' }}>
-                              <div>
-                                <a href={`/api/employees/${employeeId}/documents/${doc.id}`} target="_blank" rel="noreferrer" style={{ color: '#c6ff38', fontSize: '13px', textDecoration: 'none', fontWeight: 600 }}>
-                                  📄 {doc.fileName}
-                                </a>
-                                <span style={{ marginLeft: '10px', fontSize: '11px', color: '#777' }}>
-                                  ({Math.round(doc.sizeBytes / 1024)} KB) • Enviado por {doc.uploadedByName || 'Sistema'} em {new Date(doc.createdAt).toLocaleDateString('pt-BR')}
-                                </span>
-                              </div>
-                              {can('employees.documents.delete') && (
-                                <button className="icon-button" style={{ color: '#ff6b6b', fontSize: '12px' }} onClick={() => handleDeleteDoc(doc.id)} title="Excluir documento">
-                                  🗑
-                                </button>
-                              )}
-                            </div>
-                          ))
+                <div>
+                  {Object.entries(DOCUMENT_CATEGORIES).map(([categoryKey, categoryName]) => {
+                    const count = documents.filter((d) => d.folderCategory === categoryKey).length
+                    return (
+                      <button 
+                        key={categoryKey}
+                        className={selectedDocCategory === categoryKey ? 'selected' : ''} 
+                        onClick={() => setSelectedDocCategory(categoryKey)} 
+                        aria-pressed={selectedDocCategory === categoryKey}
+                      >
+                        <i>⌁</i>
+                        <b>{categoryName}</b>
+                        <small>{count} arquivo{count === 1 ? '' : 's'}</small>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="project-library-files">
+                <div className="project-library-files-head">
+                  <div>
+                    <span>{DOCUMENT_CATEGORIES[selectedDocCategory]}</span>
+                    <b>{documents.filter((d) => d.folderCategory === selectedDocCategory).length} arquivo(s)</b>
+                  </div>
+                  {can('employees.documents.upload') && (
+                    <label className={`project-library-upload ${uploadingDoc ? 'uploading' : ''}`}>
+                      <input type="file" onChange={handleUploadDoc} disabled={uploadingDoc} />
+                      {uploadingDoc ? 'ENVIANDO…' : 'ADICIONAR ARQUIVO +'}
+                    </label>
+                  )}
+                </div>
+                
+                {documents.filter((d) => d.folderCategory === selectedDocCategory).length > 0 ? (
+                  <div className="project-library-file-list">
+                    {documents.filter((d) => d.folderCategory === selectedDocCategory).map((doc) => (
+                      <article key={doc.id} style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) auto auto', gap: '15px', alignItems: 'center' }}>
+                        <i>{doc.fileType || 'DOC'}</i>
+                        <div>
+                          <b>{doc.fileName}</b>
+                          <small>({Math.round(doc.sizeBytes / 1024)} KB) · Enviado por {doc.uploadedByName || 'Sistema'}</small>
+                        </div>
+                        <a href={`/api/employees/${employeeId}/documents/${doc.id}`} target="_blank" rel="noreferrer" style={{ padding: '8px 14px', fontSize: '10px', background: '#191919', color: '#c6ff38', borderRadius: '6px', textDecoration: 'none', fontWeight: 900 }}>BAIXAR</a>
+                        {can('employees.documents.delete') && (
+                          <button onClick={() => handleDeleteDoc(doc.id)} title="Excluir documento" style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '14px', padding: '8px' }}>✕</button>
                         )}
-                      </div>
-                    </div>
-                  )
-                })}
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="project-library-empty">
+                    <b>Nenhum arquivo nesta pasta</b>
+                    <p>Selecione ADICIONAR ARQUIVO para fazer upload.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

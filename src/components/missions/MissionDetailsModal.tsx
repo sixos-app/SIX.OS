@@ -303,9 +303,8 @@ export function MissionDetailsModal({
                       className="mission-delete-button"
                       type="button"
                       onClick={onDelete}
-                      style={{ width: 'auto', margin: 0, padding: '7px 12px', minHeight: '32px', fontSize: '8px' }}
                     >
-                      EXCLUIR MISSÃO
+                      EXCLUIR
                     </button>
                   )}
                   {details.mission.status === 'completed' && (

@@ -6,6 +6,14 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.49.1] - 2026-08-17
+### Fixed
+- Refatoração visual do módulo Colaboradores & RH para adequação ao Design System oficial do SIX.OS.
+- Correção do modal de Colaborador (remoção de fundo preto genérico, uso de abas no padrão da biblioteca).
+- Remoção do botão de Novo Colaborador da tela Administração.
+- Correção da estilização do botão de Excluir Missão.
+- Remoção de emojis incompatíveis em listagens.
+
 ## [0.49.0] - 2026-08-17
 
 ### Added
