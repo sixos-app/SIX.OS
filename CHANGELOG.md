@@ -6,6 +6,20 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.48.2] - 2026-08-17
+
+### Fixed
+- **Eliminação e Prevenção de Timers Órfãos no Topbar**:
+  - Correção na consulta do `activeTimer` em `functions/api/dashboard.ts` para restringir estritamente a missões em status ativo (`open`, `in_progress`) e projetos não arquivados, impedindo que missões canceladas/arquivadas permaneçam presas na barra superior como "MISSÃO ATIVA".
+  - Encerramento atômico de cronômetros abertos no cancelamento/exclusão de missões (`functions/api/missions/[id].ts`) e arquivamento de projetos (`functions/api/projects/[id].ts`).
+  - Recuperação resiliente no endpoint de timer (`functions/api/missions/[id]/timer.ts`): ação `stop` e início de nova missão agora encerram e limpam automaticamente quaisquer timers órfãos pertencentes a missões encerradas, prevenindo bloqueio de novos timers pelo erro 409.
+  - Adição de botão de parada direta (`⏹`) no widget de Missão Ativa da barra superior (`AppShell.tsx`), permitindo ao colaborador pausar ou limpar o próprio cronômetro em 1 clique sem travar a navegação.
+- **Migration Corretiva de Dados (`0044_close_orphan_active_timers.sql`)**:
+  - Encerramento idempotente de timers órfãos em `time_entries` preservando início, histórico e duração com base no `updated_at` da missão.
+  - Criação do índice parcial `idx_time_entries_active_user_timer` para otimizar a resolução do timer ativo por usuário.
+
+---
+
 ## [0.48.1] - 2026-08-17
 
 ### Fixed

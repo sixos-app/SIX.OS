@@ -700,11 +700,31 @@ export function AppShell({
           </div>
           <div className="topbar-actions">
             {dashboardData.activeTimer && (
-              <button className="active-mission-timer" type="button" onClick={() => setActiveSection('missions')}>
-                <span>● MISSÃO ATIVA</span>
-                <b>{dashboardData.activeTimer.missionTitle}</b>
-                <strong><MissionTimerValue startedAt={dashboardData.activeTimer.startedAt} /></strong>
-              </button>
+              <div className="active-mission-timer-container">
+                <button
+                  className="active-mission-timer"
+                  type="button"
+                  onClick={() => {
+                    if (dashboardData.activeTimer) setNotificationMissionId(dashboardData.activeTimer.missionId)
+                    setActiveSection('missions')
+                  }}
+                >
+                  <span>● MISSÃO ATIVA</span>
+                  <b>{dashboardData.activeTimer.missionTitle}</b>
+                  <strong><MissionTimerValue startedAt={dashboardData.activeTimer.startedAt} /></strong>
+                </button>
+                <button
+                  className="active-mission-timer-stop"
+                  type="button"
+                  title="Pausar cronômetro"
+                  aria-label="Pausar cronômetro"
+                  onClick={() => {
+                    if (dashboardData.activeTimer) void toggleMissionTimer(dashboardData.activeTimer.missionId)
+                  }}
+                >
+                  ⏹
+                </button>
+              </div>
             )}
             <button className="icon-button" onClick={() => setIsCommandOpen(true)} aria-label="Pesquisar">⌘ K</button>
             <button className="round-button" onClick={() => setIsNotificationsOpen(true)} aria-label="Notificações">⌁{unreadNotificationCount > 0 && <span />}</button>

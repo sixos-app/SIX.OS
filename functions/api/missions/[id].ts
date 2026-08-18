@@ -1,5 +1,6 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
 import { canAccessMission, canManageMission, getMissionAccess } from './_missionAccess'
+import { closeActiveTimers } from './_missionWorkflow'
 
 type DetailRow = {
   id: string
@@ -239,10 +240,13 @@ export const onRequestDelete: PagesFunction<Bindings, 'id'> = async ({ env, para
   if (!mission) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
   if (mission.status === 'completed') return Response.json({ error: 'Missões concluídas não podem ser excluídas porque já possuem histórico e XP. Cancele antes da conclusão.' }, { status: 409 })
   if (mission.status === 'cancelled') return new Response(null, { status: 204 })
-  const now = new Date().toISOString()
+  const nowDate = new Date()
+  const now = nowDate.toISOString()
+  const { statements: timerStatements } = await closeActiveTimers(env.DB, mission.id, user.organizationId, nowDate)
   await env.DB.batch([
     env.DB.prepare(`UPDATE missions SET status = 'cancelled', updated_at = ? WHERE id = ?`).bind(now, mission.id),
     env.DB.prepare(`INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, 'cancelled', 'Missão cancelada e removida das visões operacionais.', ?)`).bind(crypto.randomUUID(), mission.id, user.id, now),
+    ...timerStatements,
   ])
   return new Response(null, { status: 204 })
 }

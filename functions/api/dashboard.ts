@@ -221,6 +221,8 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       WHERE entries.organization_id = ? AND entries.user_id = ?
         AND projects.organization_id = ? AND entries.entry_type = 'timer'
         AND entries.started_at IS NOT NULL AND entries.ended_at IS NULL
+        AND missions.status IN ('open', 'in_progress')
+        AND projects.status != 'archived'
       LIMIT 1
     `).bind(user.organizationId, user.id, user.organizationId).first<{ id: string; missionId: string; missionTitle: string; startedAt: string }>(),
     env.DB.prepare(`

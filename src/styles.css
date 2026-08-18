@@ -790,11 +790,14 @@ button { border: 0; cursor: pointer; }
 }
 
 /* Missions V2 — workflow and execution, preserving the current SIX.OS visual language */
+.active-mission-timer-container { display: inline-flex; align-items: center; gap: 4px; }
 .active-mission-timer { display: grid; grid-template-columns: auto minmax(90px, 190px) auto; align-items: center; gap: 9px; height: 34px; padding: 0 11px; overflow: hidden; background: #171717; border: 1px solid #31312e; border-radius: 8px; color: #fff; text-align: left; }
 .active-mission-timer:hover, .active-mission-timer:focus-visible { outline: 0; border-color: #c6ff38; }
 .active-mission-timer span { color: #c6ff38; font-size: 7px; font-weight: 900; letter-spacing: .8px; white-space: nowrap; }
 .active-mission-timer b { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .active-mission-timer strong { color: #c6ff38; font-variant-numeric: tabular-nums; font-size: 10px; }
+.active-mission-timer-stop { display: inline-grid; place-items: center; width: 34px; height: 34px; background: #171717; border: 1px solid #31312e; border-radius: 8px; color: #ff6b6b; font-size: 12px; cursor: pointer; transition: all .15s ease; }
+.active-mission-timer-stop:hover { background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fca5a5; }
 .missions-filter-controls .segmented-control { flex-wrap: wrap; }
 .mission-stage-badge { display: inline-flex; width: fit-content; margin: 6px 0 0 7px; padding: 3px 6px; border: 1px solid #d8d7d0; border-radius: 4px; background: #efeee9; color: #66665f; font-size: 7px; font-weight: 900; letter-spacing: .55px; text-transform: uppercase; }
 .mission-stage-badge.stage-doing { border-color: #aace4f; background: #effbd0; color: #536d10; }

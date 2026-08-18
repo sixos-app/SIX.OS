@@ -1,5 +1,6 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
 import { notifyMentionedUsers } from '../_notifications'
+import { closeActiveTimers } from '../missions/_missionWorkflow'
 
 const statuses: Record<string, string> = {
   'EM CONCEPÇÃO': 'planning',
@@ -140,8 +141,22 @@ export const onRequestDelete: PagesFunction<Bindings, 'id'> = async ({ env, para
   if (!project) return Response.json({ error: 'Projeto não encontrado' }, { status: 404 })
   if (project.status === 'archived') return new Response(null, { status: 204 })
 
-  // Soft delete
-  await env.DB.prepare(`UPDATE projects SET status = 'archived', updated_at = ? WHERE id = ?`).bind(new Date().toISOString(), projectId).run()
+  const nowDate = new Date()
+  const now = nowDate.toISOString()
+
+  // Buscar missões do projeto com timers ativos para encerrar
+  const projectMissions = await env.DB.prepare('SELECT id FROM missions WHERE project_id = ?').bind(projectId).all<{ id: string }>()
+  const timerStatements: D1PreparedStatement[] = []
+  for (const m of projectMissions.results) {
+    const { statements } = await closeActiveTimers(env.DB, m.id, user.organizationId, nowDate)
+    timerStatements.push(...statements)
+  }
+
+  // Soft delete do projeto e encerramento em lote
+  await env.DB.batch([
+    env.DB.prepare(`UPDATE projects SET status = 'archived', updated_at = ? WHERE id = ?`).bind(now, projectId),
+    ...timerStatements,
+  ])
   
   return new Response(null, { status: 204 })
 }

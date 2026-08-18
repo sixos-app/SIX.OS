@@ -35,6 +35,41 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
   const action = body?.action === 'stop' ? 'stop' : body?.action === 'start' ? 'start' : null
   if (!action) return Response.json({ error: 'Ação de timer inválida' }, { status: 400 })
 
+  const active = await env.DB.prepare(`
+    SELECT entries.id, entries.mission_id AS missionId, COALESCE(missions.title, 'Missão') AS missionTitle,
+      entries.started_at AS startedAt, missions.status AS missionStatus
+    FROM time_entries entries
+    LEFT JOIN missions ON missions.id = entries.mission_id
+    WHERE entries.organization_id = ? AND entries.user_id = ?
+      AND entries.entry_type = 'timer' AND entries.started_at IS NOT NULL AND entries.ended_at IS NULL
+    LIMIT 1
+  `).bind(user.organizationId, user.id).first<TimerRow & { missionStatus: string | null }>()
+
+  if (action === 'stop') {
+    if (!active || active.missionId !== missionAccess.id) {
+      // Se não há timer ativo correspondente para esta missão, mas há timer órfão do próprio usuário sendo encerrado
+      if (active && (active.missionStatus === 'cancelled' || active.missionStatus === 'completed' || !active.missionStatus)) {
+        const now = new Date()
+        const { statements } = await closeActiveTimers(env.DB, active.missionId, user.organizationId, now)
+        if (statements.length) await env.DB.batch(statements)
+      }
+      return Response.json({ active: false, missionId: missionAccess.id })
+    }
+    const now = new Date()
+    const durationSeconds = Math.max(0, Math.floor((now.getTime() - Date.parse(active.startedAt)) / 1000))
+
+    const { statements } = await closeActiveTimers(env.DB, missionAccess.id, user.organizationId, now)
+    statements.push(
+      env.DB.prepare(`
+        INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at)
+        VALUES (?, ?, ?, 'timer_stopped', 'Cronômetro pausado.', ?)
+      `).bind(crypto.randomUUID(), missionAccess.id, user.id, now.toISOString()),
+    )
+
+    await env.DB.batch(statements)
+    return Response.json({ active: false, missionId: missionAccess.id, elapsedSeconds: durationSeconds })
+  }
+
   const mission = await env.DB.prepare(`
     SELECT missions.id, missions.title, missions.client_id AS clientId, missions.board_id AS boardId,
       missions.stage_id AS stageId, missions.status, stages.type AS stageType
@@ -54,33 +89,6 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
   }>()
   if (!mission || mission.status === 'cancelled') return Response.json({ error: 'Missão não encontrada ou cancelada' }, { status: 404 })
 
-  const active = await env.DB.prepare(`
-    SELECT entries.id, entries.mission_id AS missionId, missions.title AS missionTitle,
-      entries.started_at AS startedAt
-    FROM time_entries entries
-    JOIN missions ON missions.id = entries.mission_id
-    WHERE entries.organization_id = ? AND entries.user_id = ?
-      AND entries.entry_type = 'timer' AND entries.started_at IS NOT NULL AND entries.ended_at IS NULL
-    LIMIT 1
-  `).bind(user.organizationId, user.id).first<TimerRow>()
-
-  if (action === 'stop') {
-    if (!active || active.missionId !== mission.id) return Response.json({ active: false, missionId: mission.id })
-    const now = new Date()
-    const durationSeconds = Math.max(0, Math.floor((now.getTime() - Date.parse(active.startedAt)) / 1000))
-
-    const { statements } = await closeActiveTimers(env.DB, mission.id, user.organizationId, now)
-    statements.push(
-      env.DB.prepare(`
-        INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at)
-        VALUES (?, ?, ?, 'timer_stopped', 'Cronômetro pausado.', ?)
-      `).bind(crypto.randomUUID(), mission.id, user.id, now.toISOString()),
-    )
-
-    await env.DB.batch(statements)
-    return Response.json({ active: false, missionId: mission.id, elapsedSeconds: durationSeconds })
-  }
-
   if (mission.status === 'completed' || mission.stageType === 'done') {
     return Response.json({ error: 'Missões concluídas não podem ser iniciadas' }, { status: 409 })
   }
@@ -89,7 +97,14 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
   }
   if (active) {
     if (active.missionId === mission.id) return Response.json(activeTimerResponse(active))
-    return Response.json({ error: `Pause “${active.missionTitle}” antes de iniciar outra missão`, activeTimer: activeTimerResponse(active) }, { status: 409 })
+    // Se o timer anterior pertence a uma missão cancelada, arquivada ou inexistente, encerra automaticamente
+    if (active.missionStatus === 'cancelled' || active.missionStatus === 'completed' || !active.missionStatus) {
+      const now = new Date()
+      const { statements: orphanStatements } = await closeActiveTimers(env.DB, active.missionId, user.organizationId, now)
+      if (orphanStatements.length) await env.DB.batch(orphanStatements)
+    } else {
+      return Response.json({ error: `Pause “${active.missionTitle}” antes de iniciar outra missão`, activeTimer: activeTimerResponse(active) }, { status: 409 })
+    }
   }
 
   const doingStage = await getStageForType(env, user.organizationId, mission.boardId, 'doing')
