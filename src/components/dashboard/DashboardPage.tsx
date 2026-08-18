@@ -3,6 +3,7 @@ import type { AgendaEvent, Mission, Project, TeamMember } from '../../data/dashb
 import { AgendaItem } from '../agenda/AgendaItem'
 import { ProjectCard } from '../projects/ProjectCard'
 import { Avatar } from '../shared/Avatar'
+import { MissionDetailsModal } from '../missions/MissionDetailsModal'
 
 export function Dashboard({
   userName,
@@ -22,6 +23,11 @@ export function Dashboard({
   onViewAgenda,
   onOpenJourney,
   onViewFeed,
+  onMissionUpdated,
+  onToggleTimer,
+  timerPendingMissionId,
+  canDeleteMission,
+  onDeleteMission,
 }: {
   userName: string
   profileLevel: string
@@ -40,10 +46,19 @@ export function Dashboard({
   onViewAgenda: () => void
   onOpenJourney: () => void
   onViewFeed: () => void
+  onMissionUpdated?: () => void
+  onToggleTimer: (id: string) => Promise<void>
+  timerPendingMissionId: string | null
+  canDeleteMission?: boolean
+  onDeleteMission?: (id: string) => void
 }) {
   const [feedItems, setFeedItems] = useState<any[]>([])
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [selectedMissionId, setSelectedMissionId] = useState<string>('')
   const openMissionCount = projectMissions.filter((mission) => mission.status !== 'completed').length
   const completionRate = projectMissions.length ? Math.round(((projectMissions.length - openMissionCount) / projectMissions.length) * 100) : 0
+
+  const selectedMission = visibleMissions.find((mission) => mission.id === selectedMissionId) || projectMissions.find((mission) => mission.id === selectedMissionId)
 
   useEffect(() => {
     fetch('/api/feed')
@@ -101,7 +116,12 @@ export function Dashboard({
               const isComplete = completed.includes(mission.id)
               const isAwaitingApproval = mission.approvalStatus === 'pending'
               return (
-                <article className={`mission-card tone-${mission.tone} ${isComplete ? 'completed' : ''}`} key={mission.id}>
+                <article 
+                  className={`mission-card tone-${mission.tone} ${isComplete ? 'completed' : ''}`} 
+                  key={mission.id}
+                  onClick={() => { setSelectedMissionId(mission.id); setIsDetailsOpen(true) }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <span className="mission-number">0{index + 1}</span>
                   <div className="mission-info">
                     <p>{mission.client}</p>
@@ -114,7 +134,11 @@ export function Dashboard({
                     <b>+{mission.xp} XP</b>
                     <small>+{mission.ideas} ideias</small>
                   </div>
-                  <button className="complete-button" disabled={isComplete || isAwaitingApproval} onClick={() => onComplete(mission.id)}>
+                  <button 
+                    className="complete-button" 
+                    disabled={isComplete || isAwaitingApproval} 
+                    onClick={(e) => { e.stopPropagation(); onComplete(mission.id); }}
+                  >
                     {isComplete ? 'Feita!' : isAwaitingApproval ? 'Em aprovação' : 'Concluir'} <span>{isComplete ? '✓' : '→'}</span>
                   </button>
                 </article>
@@ -173,6 +197,19 @@ export function Dashboard({
           </div>
         </aside>
       </section>
+
+      {isDetailsOpen && selectedMission && (
+        <MissionDetailsModal
+          mission={selectedMission}
+          team={team}
+          onClose={() => setIsDetailsOpen(false)}
+          onMissionUpdated={onMissionUpdated}
+          onTimerToggle={onToggleTimer}
+          isTimerPending={timerPendingMissionId === selectedMission.id}
+          canDelete={canDeleteMission}
+          onDelete={() => { setIsDetailsOpen(false); if (onDeleteMission) onDeleteMission(selectedMission.id) }}
+        />
+      )}
     </div>
   )
 }

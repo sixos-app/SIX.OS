@@ -6,6 +6,11 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [0.49.2] - 2026-08-18
+### Fixed
+- Correção da ação de clique nos cards de missões na Home/Dashboard, que agora abrem corretamente o modal de detalhes da missão já existente.
+- Propagação do clique no botão "Concluir" dos cards de missões na Home ajustada para não abrir o modal acidentalmente.
+
 ## [0.49.1] - 2026-08-17
 ### Fixed
 - Refatoração visual do módulo Colaboradores & RH para adequação ao Design System oficial do SIX.OS.

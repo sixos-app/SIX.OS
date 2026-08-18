@@ -760,6 +760,11 @@ export function AppShell({
             onViewAgenda={() => setActiveSection('agenda')}
             onOpenJourney={() => setIsJourneyOpen(true)}
             onViewFeed={() => setActiveSection('feed')}
+            onMissionUpdated={() => { void refreshOperationalData() }}
+            onToggleTimer={toggleMissionTimer}
+            timerPendingMissionId={timerPendingMissionId}
+            canDeleteMission={can('missions.delete') || can('missions.assign') || can('projects.manage')}
+            onDeleteMission={requestDeleteMission}
           />
         ) : activeSection === 'missions' ? (
           <MissionsPage
