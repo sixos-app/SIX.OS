@@ -16,6 +16,7 @@ import {
 import { usePermission } from '../../hooks/usePermission'
 import { getInitials } from '../../utils/formatters'
 import { Avatar } from '../shared/Avatar'
+import { getEmployeeLibrary, createEmployeeLibraryFolder, uploadEmployeeLibraryFile, deleteEmployeeLibraryFile, type EmployeeLibrary, employeeLibrarySeed } from '../../data/employeeLibraryRepository'
 
 type TabType = 'overview' | 'personal' | 'professional' | 'compensation' | 'documents' | 'history'
 
@@ -73,9 +74,14 @@ export function EmployeeDetailsModal({
   const [savingCompensation, setSavingCompensation] = useState(false)
 
   // Documents state
-  const [documents, setDocuments] = useState<EmployeeDocumentItem[]>([])
-  const [selectedDocCategory, setSelectedDocCategory] = useState('contracts')
-  const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [library, setLibrary] = useState<EmployeeLibrary>(employeeLibrarySeed)
+  const [selectedFolderSlug, setSelectedFolderSlug] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState('')
+  const [isFolderFormOpen, setIsFolderFormOpen] = useState(false)
+  const [folderName, setFolderName] = useState('')
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+  const [isLibraryLoading, setIsLibraryLoading] = useState(true)
 
   // Audit state
   const [auditLogs, setAuditLogs] = useState<EmployeeAuditLogItem[]>([])
@@ -99,7 +105,11 @@ export function EmployeeDetailsModal({
         void getEmployeeCompensationHistory(employeeId).then(setCompensationHistory).catch(() => undefined)
       }
       if (can('employees.documents.view')) {
-        void getEmployeeDocuments(employeeId).then(setDocuments).catch(() => undefined)
+        setIsLibraryLoading(true)
+        void getEmployeeLibrary(employeeId).then((lib) => {
+          setLibrary(lib)
+          setSelectedFolderSlug(lib.folders[0]?.slug ?? '')
+        }).catch(() => undefined).finally(() => setIsLibraryLoading(false))
       }
       if (can('employees.history.view')) {
         void getEmployeeAuditLogs(employeeId).then(setAuditLogs).catch(() => undefined)
@@ -158,32 +168,61 @@ export function EmployeeDetailsModal({
     }
   }
 
-  async function handleUploadDoc(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploadingDoc(true)
-    setError('')
+  const selectedFolder = library.folders.find((folder) => folder.slug === selectedFolderSlug) ?? library.folders[0]
+  const visibleFiles = library.files.filter((file) => file.folderId === selectedFolder?.id)
+
+  async function handleFileSelection(file: File | undefined) {
+    if (!file || !selectedFolder || isUploading) return
+
+    setIsUploading(true)
+    setUploadMessage('')
     try {
-      const fd = new FormData()
-      fd.append('folderCategory', selectedDocCategory)
-      fd.append('file', file)
-      const created = await uploadEmployeeDocument(employeeId, fd)
-      setDocuments((prev) => [created, ...prev])
-      setFeedback(`Documento "${file.name}" enviado com sucesso!`)
-      setTimeout(() => setFeedback(''), 3000)
-    } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : 'Falha ao enviar documento.')
+      const uploadedFile = await uploadEmployeeLibraryFile({ employeeId, folderId: selectedFolder.id, file })
+      setLibrary((current) => {
+        const previousFile = current.files.find((item) => item.id === uploadedFile.id)
+        return {
+          files: previousFile ? current.files.map((item) => item.id === uploadedFile.id ? uploadedFile : item) : [uploadedFile, ...current.files],
+          folders: previousFile ? current.folders : current.folders.map((folder) => folder.id === selectedFolder.id ? { ...folder, fileCount: folder.fileCount + 1 } : folder),
+        }
+      })
+      setUploadMessage(uploadedFile.version === 1 ? 'Arquivo enviado para o colaborador.' : `Nova versão ${uploadedFile.version} enviada.`)
+    } catch (error) {
+      setUploadMessage(error instanceof Error ? error.message : 'Não foi possível enviar o arquivo')
     } finally {
-      setUploadingDoc(false)
-      e.target.value = ''
+      setIsUploading(false)
     }
   }
 
-  async function handleDeleteDoc(docId: string) {
+  async function handleFolderCreation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const name = folderName.trim()
+    if (!name || isCreatingFolder) return
+
+    setIsCreatingFolder(true)
+    setUploadMessage('')
+    try {
+      const folder = await createEmployeeLibraryFolder(employeeId, name)
+      setLibrary((current) => ({ ...current, folders: [...current.folders, folder] }))
+      setSelectedFolderSlug(folder.slug)
+      setFolderName('')
+      setIsFolderFormOpen(false)
+      setUploadMessage('Pasta criada para este colaborador.')
+    } catch (error) {
+      setUploadMessage(error instanceof Error ? error.message : 'Não foi possível criar a pasta')
+    } finally {
+      setIsCreatingFolder(false)
+    }
+  }
+
+  async function handleDeleteFile(fileId: string) {
     if (!confirm('Deseja realmente excluir este documento?')) return
     try {
-      await deleteEmployeeDocument(employeeId, docId)
-      setDocuments((prev) => prev.filter((d) => d.id !== docId))
+      await deleteEmployeeLibraryFile(employeeId, fileId)
+      setLibrary((current) => ({
+        ...current,
+        files: current.files.filter((f) => f.id !== fileId),
+        folders: current.folders.map((folder) => folder.id === selectedFolder.id ? { ...folder, fileCount: Math.max(0, folder.fileCount - 1) } : folder),
+      }))
       setFeedback('Documento excluído.')
       setTimeout(() => setFeedback(''), 3000)
     } catch (reason: unknown) {
@@ -239,7 +278,7 @@ export function EmployeeDetailsModal({
           <button className={`mission-tab-button ${activeTab === 'personal' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('personal')}>DADOS PESSOAIS</button>
           <button className={`mission-tab-button ${activeTab === 'professional' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('professional')}>VÍNCULO</button>
           {can('employees.salary.view') && <button className={`mission-tab-button ${activeTab === 'compensation' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('compensation')}>REMUNERAÇÃO</button>}
-          {can('employees.documents.view') && <button className={`mission-tab-button ${activeTab === 'documents' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('documents')}>DOCUMENTOS {documents.length > 0 && <span className="mission-tab-badge">{documents.length}</span>}</button>}
+          {can('employees.documents.view') && <button className={`mission-tab-button ${activeTab === 'documents' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('documents')}>DOCUMENTOS {library.files.length > 0 && <span className="mission-tab-badge">{library.files.length}</span>}</button>}
           {can('employees.history.view') && <button className={`mission-tab-button ${activeTab === 'history' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('history')}>AUDITORIA</button>}
         </nav>
 
@@ -533,59 +572,63 @@ export function EmployeeDetailsModal({
               <div className="project-library-folders" style={{ borderRight: '1px solid #282825', background: '#111' }}>
                 <div className="project-library-folders-head">
                   <span>PASTAS DO COLABORADOR</span>
+                  <button onClick={() => setIsFolderFormOpen((current) => !current)}>NOVA +</button>
                 </div>
+                {isFolderFormOpen && (
+                  <form className="project-library-folder-form" onSubmit={handleFolderCreation}>
+                    <input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} placeholder="Ex.: Contratos" maxLength={48} required />
+                    <button type="submit" disabled={isCreatingFolder}>{isCreatingFolder ? '…' : 'CRIAR'}</button>
+                  </form>
+                )}
                 <div>
-                  {Object.entries(DOCUMENT_CATEGORIES).map(([categoryKey, categoryName]) => {
-                    const count = documents.filter((d) => d.folderCategory === categoryKey).length
-                    return (
-                      <button 
-                        key={categoryKey}
-                        className={selectedDocCategory === categoryKey ? 'selected' : ''} 
-                        onClick={() => setSelectedDocCategory(categoryKey)} 
-                        aria-pressed={selectedDocCategory === categoryKey}
-                      >
-                        <i>⌁</i>
-                        <b>{categoryName}</b>
-                        <small>{count} arquivo{count === 1 ? '' : 's'}</small>
-                      </button>
-                    )
-                  })}
+                  {library.folders.map((folder) => (
+                    <button className={folder.slug === selectedFolder?.slug ? 'selected' : ''} onClick={() => setSelectedFolderSlug(folder.slug)} aria-pressed={folder.slug === selectedFolder?.slug} key={folder.id}>
+                      <i>⌁</i>
+                      <b>{folder.name}</b>
+                      <small>{folder.fileCount} arquivo{folder.fileCount === 1 ? '' : 's'}</small>
+                    </button>
+                  ))}
                 </div>
               </div>
               <div className="project-library-files">
                 <div className="project-library-files-head">
                   <div>
-                    <span>{DOCUMENT_CATEGORIES[selectedDocCategory]}</span>
-                    <b>{documents.filter((d) => d.folderCategory === selectedDocCategory).length} arquivo(s)</b>
+                    <span>{selectedFolder?.name ?? 'Pasta'}</span>
+                    <b>{visibleFiles.length} arquivo{visibleFiles.length === 1 ? '' : 's'}</b>
                   </div>
                   {can('employees.documents.upload') && (
-                    <label className={`project-library-upload ${uploadingDoc ? 'uploading' : ''}`}>
-                      <input type="file" onChange={handleUploadDoc} disabled={uploadingDoc} />
-                      {uploadingDoc ? 'ENVIANDO…' : 'ADICIONAR ARQUIVO +'}
+                    <label className={`project-library-upload ${isUploading ? 'uploading' : ''}`}>
+                      <input type="file" onChange={(event) => { void handleFileSelection(event.target.files?.[0]); event.currentTarget.value = '' }} disabled={isUploading} />
+                      {isUploading ? 'ENVIANDO…' : 'ADICIONAR ARQUIVO +'}
                     </label>
                   )}
                 </div>
                 
-                {documents.filter((d) => d.folderCategory === selectedDocCategory).length > 0 ? (
+                {uploadMessage && <p className="project-library-message" role="status" style={{ margin: '0 24px', fontSize: '12px', color: '#888' }}>{uploadMessage}</p>}
+                {isLibraryLoading && <small className="project-library-loading" style={{ margin: '0 24px', fontSize: '11px', color: '#888' }}>Sincronizando estrutura…</small>}
+                
+                {visibleFiles.length > 0 ? (
                   <div className="project-library-file-list">
-                    {documents.filter((d) => d.folderCategory === selectedDocCategory).map((doc) => (
-                      <article key={doc.id} style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) auto auto', gap: '15px', alignItems: 'center' }}>
-                        <i>{doc.fileType || 'DOC'}</i>
+                    {visibleFiles.map((file) => (
+                      <article key={file.id}>
+                        <i>{file.fileType}</i>
                         <div>
-                          <b>{doc.fileName}</b>
-                          <small>({Math.round(doc.sizeBytes / 1024)} KB) · Enviado por {doc.uploadedByName || 'Sistema'}</small>
+                          <b>{file.name}</b>
+                          <small>Versão {file.version} · {file.historyCount} registro{file.historyCount === 1 ? '' : 's'} no histórico</small>
                         </div>
-                        <a href={`/api/employees/${employeeId}/documents/${doc.id}`} target="_blank" rel="noreferrer" style={{ padding: '8px 14px', fontSize: '10px', background: '#191919', color: '#c6ff38', borderRadius: '6px', textDecoration: 'none', fontWeight: 900 }}>BAIXAR</a>
-                        {can('employees.documents.delete') && (
-                          <button onClick={() => handleDeleteDoc(doc.id)} title="Excluir documento" style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '14px', padding: '8px' }}>✕</button>
-                        )}
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <a href={`/api/employees/${encodeURIComponent(employeeId)}/library/files/${encodeURIComponent(file.id)}`} target="_blank" rel="noreferrer" style={{ padding: '8px 14px', fontSize: '10px', background: '#191919', color: '#c6ff38', borderRadius: '6px', textDecoration: 'none', fontWeight: 900 }}>BAIXAR</a>
+                          {can('employees.documents.delete') && (
+                            <button onClick={() => handleDeleteFile(file.id)} title="Excluir documento" style={{ background: '#191919', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '10px', padding: '8px 14px', borderRadius: '6px', fontWeight: 900 }}>EXCLUIR</button>
+                          )}
+                        </div>
                       </article>
                     ))}
                   </div>
                 ) : (
                   <div className="project-library-empty">
                     <b>Nenhum arquivo nesta pasta</b>
-                    <p>Selecione ADICIONAR ARQUIVO para fazer upload.</p>
+                    <p>Selecione ADICIONAR ARQUIVO para fazer upload de um documento para o colaborador.</p>
                   </div>
                 )}
               </div>

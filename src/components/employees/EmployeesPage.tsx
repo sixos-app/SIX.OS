@@ -7,6 +7,8 @@ import {
 import { usePermission } from '../../hooks/usePermission'
 import { getInitials } from '../../utils/formatters'
 import { Avatar } from '../shared/Avatar'
+import { AdminUserDialog } from '../admin/AdminUserDialog'
+import { createAdminUser, getAdminOverview, type AdminOverview } from '../../data/adminRepository'
 import { EmployeeDetailsModal } from './EmployeeDetailsModal'
 
 const STATUS_OPTIONS = [
@@ -44,6 +46,7 @@ export function EmployeesPage() {
   const [filterContract, setFilterContract] = useState('')
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null)
 
   // Create form state
   const [createName, setCreateName] = useState('')
@@ -63,18 +66,20 @@ export function EmployeesPage() {
     setLoading(true)
     setError('')
     try {
-      const [empList, dRes, posRes, lRes, uRes] = await Promise.all([
+      const [empList, dRes, posRes, lRes, uRes, overview] = await Promise.all([
         getEmployees(),
-        fetch('/api/admin/departments').then((r) => r.ok ? r.json() : []),
-        fetch('/api/admin/positions').then((r) => r.ok ? r.json() : []),
-        fetch('/api/admin/professional-levels').then((r) => r.ok ? r.json() : []),
-        fetch('/api/admin/users').then((r) => r.ok ? r.json() : []),
+        fetch('/api/admin/departments').then((r) => r.json() as Promise<any[]>),
+        fetch('/api/admin/professional-positions').then((r) => r.json() as Promise<any[]>),
+        fetch('/api/admin/professional-levels').then((r) => r.json() as Promise<any[]>),
+        fetch('/api/admin/users').then((r) => r.json() as Promise<any[]>),
+        getAdminOverview().catch(() => null),
       ])
       setEmployees(empList)
       setDepartments(dRes)
       setPositions(posRes)
       setLevels(lRes)
       setUsers(uRes)
+      setAdminOverview(overview)
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : 'Erro ao carregar colaboradores.')
     } finally {
@@ -82,35 +87,6 @@ export function EmployeesPage() {
     }
   }
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    setCreating(true)
-    setError('')
-    try {
-      const payload: Record<string, unknown> = {
-        name: createName,
-        personalEmail: createEmail || null,
-        departmentId: createDeptId || null,
-        positionId: createPositionId || null,
-        contractType: createContractType,
-      }
-      if (createSalary && can('employees.salary.edit')) {
-        payload.salary = Number(createSalary.replace(/\./g, '').replace(',', '.')) || 0
-        payload.monthlyHours = Number(createMonthlyHours) || 220
-      }
-      const created = await createEmployee(payload)
-      setIsCreateModalOpen(false)
-      setCreateName('')
-      setCreateEmail('')
-      setCreateSalary('')
-      await loadData()
-      setSelectedEmployeeId(created.id)
-    } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : 'Falha ao cadastrar colaborador.')
-    } finally {
-      setCreating(false)
-    }
-  }
 
   const filtered = employees.filter((emp) => {
     if (filterStatus && emp.status !== filterStatus) return false
@@ -235,69 +211,16 @@ export function EmployeesPage() {
         </section>
       )}
 
-      {/* Modal de Criação Rápida */}
-      {isCreateModalOpen && (
-        <div className="mission-details-overlay" onClick={() => setIsCreateModalOpen(false)}>
-          <div className="mission-details-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '560px', padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', color: '#fff' }}>Cadastrar Novo Colaborador</h3>
-              <button className="icon-button" onClick={() => setIsCreateModalOpen(false)}>✕</button>
-            </div>
-            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Nome Completo *</label>
-                <input className="admin-input" value={createName} onChange={(e) => setCreateName(e.target.value)} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>E-mail Pessoal</label>
-                <input className="admin-input" type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Departamento</label>
-                  <select className="admin-input" value={createDeptId} onChange={(e) => setCreateDeptId(e.target.value)}>
-                    <option value="">Selecione...</option>
-                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Cargo</label>
-                  <select className="admin-input" value={createPositionId} onChange={(e) => setCreatePositionId(e.target.value)}>
-                    <option value="">Selecione...</option>
-                    {positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Tipo de Contratação</label>
-                <select className="admin-input" value={createContractType} onChange={(e) => setCreateContractType(e.target.value)}>
-                  <option value="CLT">CLT</option>
-                  <option value="PJ">PJ</option>
-                  <option value="estagio">Estágio</option>
-                  <option value="freelancer">Freelancer</option>
-                </select>
-              </div>
-
-              {can('employees.salary.edit') && (
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Salário Base Inicial (R$)</label>
-                    <input className="admin-input" placeholder="Ex: 4400.00" value={createSalary} onChange={(e) => setCreateSalary(e.target.value)} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Jornada Mensal (h)</label>
-                    <input className="admin-input" type="number" value={createMonthlyHours} onChange={(e) => setCreateMonthlyHours(e.target.value)} />
-                  </div>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" className="dialog-cancel-button" onClick={() => setIsCreateModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="mission-create-submit" disabled={creating}>{creating ? 'Cadastrando...' : 'Cadastrar'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Modal de Criação via AdminUserDialog (Antigo padrão) */}
+      {isCreateModalOpen && adminOverview && (
+        <AdminUserDialog
+          roles={adminOverview.roles}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreate={async (input) => {
+            await createAdminUser(input)
+            await loadData()
+          }}
+        />
       )}
 
       {/* Modal de Detalhes Completo */}

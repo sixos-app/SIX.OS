@@ -1,3 +1,13 @@
+## [0.51.0] - 2026-08-18
+
+### Changed
+- Unificação do fluxo de cadastro de RH com a Administração (AdminUserDialog).
+- Implementação completa do motor de Biblioteca de Documentos para Colaboradores (pastas, versions, file upload).
+
+### Fixed
+- Correção da divergência de provisionamento de usuários vs employees.
+
+
 ## [0.50.1] - 2026-08-18
 
 ### Changed
