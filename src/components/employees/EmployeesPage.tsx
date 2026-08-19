@@ -18,6 +18,17 @@ const STATUS_OPTIONS = [
   { value: 'terminated', label: 'Desligados' },
 ]
 
+function formatStatus(status: string) {
+  switch (status) {
+    case 'active': return 'ATIVO'
+    case 'inactive': return 'INATIVO'
+    case 'vacation': return 'FÉRIAS'
+    case 'leave': return 'AFASTADO'
+    case 'terminated': return 'DESLIGADO'
+    default: return status.toUpperCase()
+  }
+}
+
 export function EmployeesPage() {
   const { can } = usePermission()
   const [employees, setEmployees] = useState<EmployeeListItem[]>([])
@@ -116,51 +127,46 @@ export function EmployeesPage() {
     return true
   })
 
-  const canViewSalary = can('employees.salary.view')
-
   return (
-    <main className="content-area">
-      <div className="admin-page">
-        <section className="admin-intro">
-          <div>
-            <span>GESTÃO DE PESSOAS</span>
-            <h1>Colaboradores & <em>RH.</em></h1>
-            <p>Gestão de pessoas, remuneração e documentos de forma centralizada.</p>
+    <div className="admin-page">
+      <section className="admin-intro">
+        <div>
+          <span>GESTÃO DE PESSOAS</span>
+          <h1>Colaboradores & <em>RH.</em></h1>
+          <p>Gestão de pessoas, remuneração e documentos de forma centralizada.</p>
+        </div>
+        <div className="admin-intro-side">
+          <div className="admin-actions">
+            {can('employees.create') && (
+              <button onClick={() => setIsCreateModalOpen(true)}>NOVO COLABORADOR <span>+</span></button>
+            )}
           </div>
-          <div className="admin-intro-side">
-            <div className="admin-actions">
-              {can('employees.create') && (
-                <button onClick={() => setIsCreateModalOpen(true)}>NOVO COLABORADOR <span>+</span></button>
-              )}
-            </div>
-          </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Filtros em uma "admin-card" ou container similar */}
-        <section className="admin-card" style={{ marginTop: '24px', padding: '16px 20px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            className="input"
-            placeholder="Buscar por nome ou matrícula..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ flex: '1 1 260px' }}
-          />
-          <select className="input" value={filterDept} onChange={(e) => setFilterDept(e.target.value)} style={{ flex: '1 1 160px' }}>
-            <option value="">Todos os Departamentos</option>
-            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          <select className="input" value={filterContract} onChange={(e) => setFilterContract(e.target.value)} style={{ flex: '1 1 140px' }}>
-            <option value="">Todas as Contratações</option>
-            <option value="CLT">CLT</option>
-            <option value="PJ">PJ</option>
-            <option value="estagio">Estágio</option>
-            <option value="freelancer">Freelancer</option>
-          </select>
-          <select className="input" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ flex: '1 1 140px' }}>
-            {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-          </select>
-        </section>
-      </div>
+      {/* Filtros */}
+      <section className="admin-card employees-filters">
+        <input
+          className="admin-input"
+          placeholder="Buscar por nome ou matrícula..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select className="admin-input" value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
+          <option value="">Todos os Departamentos</option>
+          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+        <select className="admin-input" value={filterContract} onChange={(e) => setFilterContract(e.target.value)}>
+          <option value="">Todas as Contratações</option>
+          <option value="CLT">CLT</option>
+          <option value="PJ">PJ</option>
+          <option value="estagio">Estágio</option>
+          <option value="freelancer">Freelancer</option>
+        </select>
+        <select className="admin-input" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+      </section>
 
       {error && (
         <div style={{ background: 'rgba(255, 107, 107, 0.15)', color: '#ff6b6b', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', margin: '20px 0' }}>
@@ -169,58 +175,65 @@ export function EmployeesPage() {
       )}
 
       {/* Lista de Colaboradores */}
-      <div className="admin-page" style={{ paddingTop: 0 }}>
-        {loading ? (
-          <div style={{ color: '#888', padding: '40px 0', textAlign: 'center' }}>Carregando colaboradores do SIX.OS...</div>
-        ) : filtered.length === 0 ? (
-          <div className="admin-card" style={{ padding: '40px 0', textAlign: 'center' }}>
-            Nenhum colaborador encontrado com os filtros selecionados.
-          </div>
-        ) : (
-          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', marginTop: '24px' }}>
-            {filtered.map((emp) => (
-              <article
-                key={emp.id}
-                className="admin-card"
-                onClick={() => setSelectedEmployeeId(emp.id)}
-                style={{
-                  cursor: 'pointer',
-                  transition: 'border-color .15s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  padding: '16px'
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#c6ff38')}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Avatar initials={getInitials(emp.name)} tone="lime" />
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#171717' }}>{emp.name}</h4>
-                      <span style={{ fontSize: '12px', color: '#777771' }}>{emp.positionName || 'Sem cargo'}</span>
-                    </div>
+      {loading ? (
+        <div style={{ color: '#888', padding: '40px 0', textAlign: 'center', marginTop: '24px' }}>Carregando colaboradores do SIX.OS...</div>
+      ) : filtered.length === 0 ? (
+        <div className="admin-card" style={{ padding: '40px 0', textAlign: 'center', marginTop: '32px' }}>
+          Nenhum colaborador encontrado com os filtros selecionados.
+        </div>
+      ) : (
+        <section className="employees-grid">
+          {filtered.map((emp) => (
+            <article
+              key={emp.id}
+              className="admin-card"
+              onClick={() => setSelectedEmployeeId(emp.id)}
+              style={{
+                cursor: 'pointer',
+                transition: 'border-color .15s ease, box-shadow .15s ease, transform .15s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                padding: '20px'
+              }}
+              onMouseEnter={(e) => { 
+                e.currentTarget.style.borderColor = '#c6ff38';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(198,255,56,0.08)';
+              }}
+              onMouseLeave={(e) => { 
+                e.currentTarget.style.borderColor = '';
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <Avatar initials={getInitials(emp.name)} tone="dark" />
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#171717', letterSpacing: '-0.3px' }}>{emp.name}</h4>
+                    <span style={{ fontSize: '12px', color: '#777771' }}>{emp.positionName || 'Cargo não informado'}</span>
                   </div>
-                  <span className={`badge badge-${emp.status === 'active' ? 'lime' : emp.status === 'terminated' ? 'red' : 'gray'}`} style={{ fontSize: '9px' }}>
-                    {emp.status}
-                  </span>
                 </div>
+                <span className={`badge badge-${emp.status === 'active' ? 'lime' : emp.status === 'terminated' ? 'red' : 'gray'}`} style={{ fontSize: '9px', fontWeight: 800, padding: '4px 8px' }}>
+                  {formatStatus(emp.status)}
+                </span>
+              </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#777771', borderTop: '1px solid #e1e1da', paddingTop: '10px' }}>
-                  <span><strong style={{ fontWeight: 600 }}>Depto:</strong> {emp.departmentName || 'Geral'}</span>
-                  <span><strong style={{ fontWeight: 600 }}>Vínculo:</strong> {emp.contractType}</span>
-                  {canViewSalary && emp.hourlyCost !== undefined && (
-                    <span style={{ color: '#171717', fontWeight: 700 }}>
-                      {emp.hourlyCost ? `R$ ${emp.hourlyCost.toFixed(2)}/h` : 'R$ 0,00/h'}
-                    </span>
-                  )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '4px', borderTop: '1px solid #e1e1da', paddingTop: '16px' }}>
+                <div>
+                  <span style={{ display: 'block', fontSize: '9px', color: '#85857e', fontWeight: 900, letterSpacing: '1px', marginBottom: '4px' }}>DEPARTAMENTO</span>
+                  <span style={{ fontSize: '13px', color: '#171717', fontWeight: 500 }}>{emp.departmentName || 'Geral'}</span>
                 </div>
-              </article>
-            ))}
-          </section>
-        )}
-      </div>
+                <div>
+                  <span style={{ display: 'block', fontSize: '9px', color: '#85857e', fontWeight: 900, letterSpacing: '1px', marginBottom: '4px' }}>VÍNCULO</span>
+                  <span style={{ fontSize: '13px', color: '#171717', fontWeight: 500, textTransform: 'uppercase' }}>{emp.contractType || '-'}</span>
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
 
       {/* Modal de Criação Rápida */}
       {isCreateModalOpen && (
@@ -233,23 +246,23 @@ export function EmployeesPage() {
             <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Nome Completo *</label>
-                <input className="input" value={createName} onChange={(e) => setCreateName(e.target.value)} required />
+                <input className="admin-input" value={createName} onChange={(e) => setCreateName(e.target.value)} required />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>E-mail Pessoal</label>
-                <input className="input" type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} />
+                <input className="admin-input" type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Departamento</label>
-                  <select className="input" value={createDeptId} onChange={(e) => setCreateDeptId(e.target.value)}>
+                  <select className="admin-input" value={createDeptId} onChange={(e) => setCreateDeptId(e.target.value)}>
                     <option value="">Selecione...</option>
                     {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Cargo</label>
-                  <select className="input" value={createPositionId} onChange={(e) => setCreatePositionId(e.target.value)}>
+                  <select className="admin-input" value={createPositionId} onChange={(e) => setCreatePositionId(e.target.value)}>
                     <option value="">Selecione...</option>
                     {positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -257,7 +270,7 @@ export function EmployeesPage() {
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Tipo de Contratação</label>
-                <select className="input" value={createContractType} onChange={(e) => setCreateContractType(e.target.value)}>
+                <select className="admin-input" value={createContractType} onChange={(e) => setCreateContractType(e.target.value)}>
                   <option value="CLT">CLT</option>
                   <option value="PJ">PJ</option>
                   <option value="estagio">Estágio</option>
@@ -269,18 +282,18 @@ export function EmployeesPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Salário Base Inicial (R$)</label>
-                    <input className="input" placeholder="Ex: 4400.00" value={createSalary} onChange={(e) => setCreateSalary(e.target.value)} />
+                    <input className="admin-input" placeholder="Ex: 4400.00" value={createSalary} onChange={(e) => setCreateSalary(e.target.value)} />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px' }}>Jornada Mensal (h)</label>
-                    <input className="input" type="number" value={createMonthlyHours} onChange={(e) => setCreateMonthlyHours(e.target.value)} />
+                    <input className="admin-input" type="number" value={createMonthlyHours} onChange={(e) => setCreateMonthlyHours(e.target.value)} />
                   </div>
                 </div>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button type="button" className="ghost-button" onClick={() => setIsCreateModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="primary-button" disabled={creating}>{creating ? 'Cadastrando...' : 'Cadastrar'}</button>
+                <button type="button" className="dialog-cancel-button" onClick={() => setIsCreateModalOpen(false)}>Cancelar</button>
+                <button type="submit" className="mission-create-submit" disabled={creating}>{creating ? 'Cadastrando...' : 'Cadastrar'}</button>
               </div>
             </form>
           </div>
@@ -300,6 +313,6 @@ export function EmployeesPage() {
         />
       )}
 
-    </main>
+    </div>
   )
 }

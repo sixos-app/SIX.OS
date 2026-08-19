@@ -1,3 +1,13 @@
+## [0.50.1] - 2026-08-18
+
+### Changed
+- Auditoria UX/UI da página de Colaboradores & RH concluída com sucesso.
+- Correção de deslocamento horizontal e padding excessivo resolvendo o aninhamento indevido da classe `content-area`.
+- Implementação de um grid responsivo de 2 colunas para exibição dos cards de colaboradores.
+- Refatoração da barra de filtros com suporte a grid flexível e adoção de inputs/selects nativos padronizados (`.admin-input`).
+- Atualização visual e semântica do card de colaborador, adicionando badges corretos, efeitos de hover consistentes e hierarquia visual de cargo/departamento.
+- Ajuste no botão de ação primária "NOVO COLABORADOR" usando estilo padronizado no sistema.
+
 # Changelog
 
 Todas as alterações notáveis no projeto **SIX.OS** serão documentadas neste arquivo.

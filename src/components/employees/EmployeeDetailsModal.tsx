@@ -287,30 +287,30 @@ export function EmployeeDetailsModal({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Nome Completo *</label>
-                  <input className="input" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                  <input className="admin-input" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Nome Social</label>
-                  <input className="input" value={form.socialName || ''} onChange={(e) => setForm({ ...form, socialName: e.target.value })} />
+                  <input className="admin-input" value={form.socialName || ''} onChange={(e) => setForm({ ...form, socialName: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>CPF</label>
-                  <input className="input" placeholder="000.000.000-00" value={form.cpf || ''} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
+                  <input className="admin-input" placeholder="000.000.000-00" value={form.cpf || ''} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>RG / Órgão</label>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <input className="input" style={{ flex: 2 }} placeholder="RG" value={form.rg || ''} onChange={(e) => setForm({ ...form, rg: e.target.value })} />
-                    <input className="input" style={{ flex: 1 }} placeholder="SSP/SP" value={form.emitterOrgan || ''} onChange={(e) => setForm({ ...form, emitterOrgan: e.target.value })} />
+                    <input className="admin-input" style={{ flex: 2 }} placeholder="RG" value={form.rg || ''} onChange={(e) => setForm({ ...form, rg: e.target.value })} />
+                    <input className="admin-input" style={{ flex: 1 }} placeholder="SSP/SP" value={form.emitterOrgan || ''} onChange={(e) => setForm({ ...form, emitterOrgan: e.target.value })} />
                   </div>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Data de Nascimento</label>
-                  <input className="input" type="date" value={form.birthDate || ''} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} />
+                  <input className="admin-input" type="date" value={form.birthDate || ''} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Estado Civil</label>
-                  <select className="input" value={form.maritalStatus || ''} onChange={(e) => setForm({ ...form, maritalStatus: e.target.value })}>
+                  <select className="admin-input" value={form.maritalStatus || ''} onChange={(e) => setForm({ ...form, maritalStatus: e.target.value })}>
                     <option value="">Selecione...</option>
                     <option value="solteiro">Solteiro(a)</option>
                     <option value="casado">Casado(a)</option>
@@ -321,11 +321,11 @@ export function EmployeeDetailsModal({
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Telefone / WhatsApp</label>
-                  <input className="input" placeholder="(11) 90000-0000" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                  <input className="admin-input" placeholder="(11) 90000-0000" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>E-mail Pessoal</label>
-                  <input className="input" type="email" value={form.personalEmail || ''} onChange={(e) => setForm({ ...form, personalEmail: e.target.value })} />
+                  <input className="admin-input" type="email" value={form.personalEmail || ''} onChange={(e) => setForm({ ...form, personalEmail: e.target.value })} />
                 </div>
               </div>
 
@@ -333,35 +333,35 @@ export function EmployeeDetailsModal({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>CEP</label>
-                  <input className="input" placeholder="00000-000" value={form.zipCode || ''} onChange={(e) => setForm({ ...form, zipCode: e.target.value })} />
+                  <input className="admin-input" placeholder="00000-000" value={form.zipCode || ''} onChange={(e) => setForm({ ...form, zipCode: e.target.value })} />
                 </div>
                 <div style={{ gridColumn: 'span 2' }}>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Logradouro & Número</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <input className="input" style={{ flex: 3 }} placeholder="Rua / Avenida" value={form.street || ''} onChange={(e) => setForm({ ...form, street: e.target.value })} />
-                    <input className="input" style={{ flex: 1 }} placeholder="Nº" value={form.number || ''} onChange={(e) => setForm({ ...form, number: e.target.value })} />
+                    <input className="admin-input" style={{ flex: 3 }} placeholder="Rua / Avenida" value={form.street || ''} onChange={(e) => setForm({ ...form, street: e.target.value })} />
+                    <input className="admin-input" style={{ flex: 1 }} placeholder="Nº" value={form.number || ''} onChange={(e) => setForm({ ...form, number: e.target.value })} />
                   </div>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Complemento</label>
-                  <input className="input" placeholder="Apto, Bloco..." value={form.complement || ''} onChange={(e) => setForm({ ...form, complement: e.target.value })} />
+                  <input className="admin-input" placeholder="Apto, Bloco..." value={form.complement || ''} onChange={(e) => setForm({ ...form, complement: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Bairro</label>
-                  <input className="input" value={form.neighborhood || ''} onChange={(e) => setForm({ ...form, neighborhood: e.target.value })} />
+                  <input className="admin-input" value={form.neighborhood || ''} onChange={(e) => setForm({ ...form, neighborhood: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Cidade & UF</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <input className="input" style={{ flex: 3 }} placeholder="Cidade" value={form.city || ''} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-                    <input className="input" style={{ flex: 1 }} placeholder="UF" maxLength={2} value={form.state || ''} onChange={(e) => setForm({ ...form, state: e.target.value })} />
+                    <input className="admin-input" style={{ flex: 3 }} placeholder="Cidade" value={form.city || ''} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+                    <input className="admin-input" style={{ flex: 1 }} placeholder="UF" maxLength={2} value={form.state || ''} onChange={(e) => setForm({ ...form, state: e.target.value })} />
                   </div>
                 </div>
               </div>
 
               {can('employees.edit') && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar Dados Pessoais'}</button>
+                  <button className="mission-create-submit" type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar Dados Pessoais'}</button>
                 </div>
               )}
             </form>
@@ -373,11 +373,11 @@ export function EmployeeDetailsModal({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Matrícula Interna</label>
-                  <input className="input" placeholder="Ex: SIX-042" value={form.registrationNumber || ''} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })} />
+                  <input className="admin-input" placeholder="Ex: SIX-042" value={form.registrationNumber || ''} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Status Atual</label>
-                  <select className="input" value={form.status || 'active'} onChange={(e) => setForm({ ...form, status: e.target.value as any })}>
+                  <select className="admin-input" value={form.status || 'active'} onChange={(e) => setForm({ ...form, status: e.target.value as any })}>
                     <option value="active">Ativo</option>
                     <option value="vacation">Em Férias</option>
                     <option value="leave">Afastado (Licença)</option>
@@ -387,39 +387,39 @@ export function EmployeeDetailsModal({
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Departamento</label>
-                  <select className="input" value={form.departmentId || ''} onChange={(e) => setForm({ ...form, departmentId: e.target.value || null })}>
+                  <select className="admin-input" value={form.departmentId || ''} onChange={(e) => setForm({ ...form, departmentId: e.target.value || null })}>
                     <option value="">Selecione...</option>
                     {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Cargo Profissional</label>
-                  <select className="input" value={form.positionId || ''} onChange={(e) => setForm({ ...form, positionId: e.target.value || null })}>
+                  <select className="admin-input" value={form.positionId || ''} onChange={(e) => setForm({ ...form, positionId: e.target.value || null })}>
                     <option value="">Selecione...</option>
                     {positions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Nível / Senioridade</label>
-                  <select className="input" value={form.professionalLevelId || ''} onChange={(e) => setForm({ ...form, professionalLevelId: e.target.value || null })}>
+                  <select className="admin-input" value={form.professionalLevelId || ''} onChange={(e) => setForm({ ...form, professionalLevelId: e.target.value || null })}>
                     <option value="">Selecione...</option>
                     {levels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Gestor / Liderança Direta</label>
-                  <select className="input" value={form.managerId || ''} onChange={(e) => setForm({ ...form, managerId: e.target.value || null })}>
+                  <select className="admin-input" value={form.managerId || ''} onChange={(e) => setForm({ ...form, managerId: e.target.value || null })}>
                     <option value="">Selecione...</option>
                     {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Data de Admissão</label>
-                  <input className="input" type="date" value={form.admissionDate || ''} onChange={(e) => setForm({ ...form, admissionDate: e.target.value })} />
+                  <input className="admin-input" type="date" value={form.admissionDate || ''} onChange={(e) => setForm({ ...form, admissionDate: e.target.value })} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Tipo de Contratação</label>
-                  <select className="input" value={form.contractType || 'CLT'} onChange={(e) => setForm({ ...form, contractType: e.target.value })}>
+                  <select className="admin-input" value={form.contractType || 'CLT'} onChange={(e) => setForm({ ...form, contractType: e.target.value })}>
                     <option value="CLT">CLT (Efetivo)</option>
                     <option value="PJ">PJ (Pessoa Jurídica)</option>
                     <option value="estagio">Estágio</option>
@@ -429,7 +429,7 @@ export function EmployeeDetailsModal({
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Modalidade de Trabalho</label>
-                  <select className="input" value={form.workModality || 'hibrido'} onChange={(e) => setForm({ ...form, workModality: e.target.value })}>
+                  <select className="admin-input" value={form.workModality || 'hibrido'} onChange={(e) => setForm({ ...form, workModality: e.target.value })}>
                     <option value="hibrido">Híbrido</option>
                     <option value="remoto">Remoto</option>
                     <option value="presencial">Presencial</option>
@@ -443,11 +443,11 @@ export function EmployeeDetailsModal({
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Data do Desligamento</label>
-                      <input className="input" type="date" value={form.terminationDate || ''} onChange={(e) => setForm({ ...form, terminationDate: e.target.value })} />
+                      <input className="admin-input" type="date" value={form.terminationDate || ''} onChange={(e) => setForm({ ...form, terminationDate: e.target.value })} />
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Motivo / Termos</label>
-                      <input className="input" placeholder="Motivo do encerramento do contrato" value={form.terminationReason || ''} onChange={(e) => setForm({ ...form, terminationReason: e.target.value })} />
+                      <input className="admin-input" placeholder="Motivo do encerramento do contrato" value={form.terminationReason || ''} onChange={(e) => setForm({ ...form, terminationReason: e.target.value })} />
                     </div>
                   </div>
                 </div>
@@ -455,12 +455,12 @@ export function EmployeeDetailsModal({
 
               <div>
                 <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Notas & Observações Administrativas</label>
-                <textarea className="input" style={{ minHeight: '70px', width: '100%' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                <textarea className="admin-input" style={{ minHeight: '70px', width: '100%' }} value={form.notes || ''} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </div>
 
               {can('employees.edit') && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar Dados Profissionais'}</button>
+                  <button className="mission-create-submit" type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar Dados Profissionais'}</button>
                 </div>
               )}
             </form>
@@ -476,23 +476,23 @@ export function EmployeeDetailsModal({
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Salário Base (R$) *</label>
-                      <input className="input" placeholder="Ex: 5000.00" value={newSalary} onChange={(e) => setNewSalary(e.target.value)} required />
+                      <input className="admin-input" placeholder="Ex: 5000.00" value={newSalary} onChange={(e) => setNewSalary(e.target.value)} required />
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Jornada Mensal (Horas)</label>
-                      <input className="input" type="number" value={newMonthlyHours} onChange={(e) => setNewMonthlyHours(e.target.value)} />
+                      <input className="admin-input" type="number" value={newMonthlyHours} onChange={(e) => setNewMonthlyHours(e.target.value)} />
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Início da Vigência</label>
-                      <input className="input" type="date" value={newSalaryValidFrom} onChange={(e) => setNewSalaryValidFrom(e.target.value)} />
+                      <input className="admin-input" type="date" value={newSalaryValidFrom} onChange={(e) => setNewSalaryValidFrom(e.target.value)} />
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Motivo / Justificativa</label>
-                      <input className="input" placeholder="Ex: Promoção / Dissídio anual" value={newSalaryReason} onChange={(e) => setNewSalaryReason(e.target.value)} />
+                      <input className="admin-input" placeholder="Ex: Promoção / Dissídio anual" value={newSalaryReason} onChange={(e) => setNewSalaryReason(e.target.value)} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
-                    <button className="primary-button" type="submit" disabled={savingCompensation}>{savingCompensation ? 'Registrando...' : 'Conceder Reajuste Salarial'}</button>
+                    <button className="mission-create-submit" type="submit" disabled={savingCompensation}>{savingCompensation ? 'Registrando...' : 'Conceder Reajuste Salarial'}</button>
                   </div>
                 </form>
               )}
