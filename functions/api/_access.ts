@@ -363,9 +363,12 @@ export const SYSTEM_PERMISSIONS = [
   'missions.view', 'missions.create', 'missions.edit', 'missions.assign', 'missions.complete', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'missions.update_own',
   'clients.view', 'clients.create', 'clients.edit', 'clients.manage',
   'library.view', 'library.manage',
-  'finance.view', 'contracts.view', 'contracts.create',
+  'finance.view', 'finance.manage', 'contracts.view', 'contracts.create', 'mission_costs.view',
   'demands.view', 'demands.create',
   'time_entries.view', 'time_entries.create', 'time_entries.manage',
+  'employees.view', 'employees.create', 'employees.edit', 'employees.view_sensitive', 'employees.edit_sensitive',
+  'employees.salary.view', 'employees.salary.edit', 'employees.documents.view', 'employees.documents.upload', 'employees.documents.delete', 'employees.history.view',
+  'work_types.view', 'work_types.manage',
   'ai.use', 'reports.view', 'agenda.team.view',
   'evaluations.view', 'evaluations.respond', 'evaluations.results.view_own', 'evaluations.results.view_team', 'evaluations.cycles.view', 'evaluations.cycles.manage', 'evaluations.competencies.manage', 'evaluations.assign_reviewers', 'evaluations.monitor', 'evaluations.close_cycle', 'evaluations.confidential.view',
   'development.plans.view', 'development.plans.create', 'development.plans.edit', 'development.plans.manage', 'development.monitor', 'development.debriefs.view', 'development.debriefs.edit'
