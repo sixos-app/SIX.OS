@@ -68,10 +68,10 @@ export function EmployeesPage() {
     try {
       const [empList, dRes, posRes, lRes, uRes, overview] = await Promise.all([
         getEmployees(),
-        fetch('/api/admin/departments').then((r) => r.json() as Promise<any[]>),
-        fetch('/api/admin/professional-positions').then((r) => r.json() as Promise<any[]>),
-        fetch('/api/admin/professional-levels').then((r) => r.json() as Promise<any[]>),
-        fetch('/api/admin/users').then((r) => r.json() as Promise<any[]>),
+        fetch('/api/admin/departments').then(async (r) => r.ok ? r.json() : []),
+        fetch('/api/admin/positions').then(async (r) => r.ok ? r.json() : []),
+        fetch('/api/admin/professional-levels').then(async (r) => r.ok ? r.json() : []),
+        fetch('/api/admin/users').then(async (r) => r.ok ? r.json() : []),
         getAdminOverview().catch(() => null),
       ])
       setEmployees(empList)
