@@ -41,22 +41,30 @@ ON employee_library_files(employee_id, folder_id, name);
 
 -- Inicializa pastas para funcionários já existentes
 INSERT OR IGNORE INTO employee_library_folders (id, employee_id, name, slug, position)
-SELECT 'folder-' || id || '-pessoais', id, 'Documentos Pessoais', 'documentos-pessoais', 1 FROM employees
-UNION ALL
-SELECT 'folder-' || id || '-contratos', id, 'Contratos', 'contratos', 2 FROM employees
-UNION ALL
-SELECT 'folder-' || id || '-holerites', id, 'Holerites', 'holerites', 3 FROM employees
-UNION ALL
-SELECT 'folder-' || id || '-atestados', id, 'Atestados', 'atestados', 4 FROM employees
-UNION ALL
-SELECT 'folder-' || id || '-ferias', id, 'Férias', 'ferias', 5 FROM employees
-UNION ALL
-SELECT 'folder-' || id || '-beneficios', id, 'Benefícios', 'beneficios', 6 FROM employees
-UNION ALL
-SELECT 'folder-' || id || '-advertencias', id, 'Advertências e Termos', 'advertencias-termos', 7 FROM employees
-UNION ALL
-SELECT 'folder-' || id || '-avaliacoes', id, 'Avaliações', 'avaliacoes', 8 FROM employees
-UNION ALL
+SELECT 'folder-' || id || '-pessoais', id, 'Documentos Pessoais', 'documentos-pessoais', 1 FROM employees;
+
+INSERT OR IGNORE INTO employee_library_folders (id, employee_id, name, slug, position)
+SELECT 'folder-' || id || '-contratos', id, 'Contratos', 'contratos', 2 FROM employees;
+
+INSERT OR IGNORE INTO employee_library_folders (id, employee_id, name, slug, position)
+SELECT 'folder-' || id || '-holerites', id, 'Holerites', 'holerites', 3 FROM employees;
+
+INSERT OR IGNORE INTO employee_library_folders (id, employee_id, name, slug, position)
+SELECT 'folder-' || id || '-atestados', id, 'Atestados', 'atestados', 4 FROM employees;
+
+INSERT OR IGNORE INTO employee_library_folders (id, employee_id, name, slug, position)
+SELECT 'folder-' || id || '-ferias', id, 'Férias', 'ferias', 5 FROM employees;
+
+INSERT OR IGNORE INTO employee_library_folders (id, employee_id, name, slug, position)
+SELECT 'folder-' || id || '-beneficios', id, 'Benefícios', 'beneficios', 6 FROM employees;
+
+INSERT OR IGNORE INTO employee_library_folders (id, employee_id, name, slug, position)
+SELECT 'folder-' || id || '-advertencias', id, 'Advertências e Termos', 'advertencias-termos', 7 FROM employees;
+
+INSERT OR IGNORE INTO employee_library_folders (id, employee_id, name, slug, position)
+SELECT 'folder-' || id || '-avaliacoes', id, 'Avaliações', 'avaliacoes', 8 FROM employees;
+
+INSERT OR IGNORE INTO employee_library_folders (id, employee_id, name, slug, position)
 SELECT 'folder-' || id || '-outros', id, 'Outros', 'outros', 9 FROM employees;
 
 -- Migra dados da tabela employee_documents (se houver algum inserido)
