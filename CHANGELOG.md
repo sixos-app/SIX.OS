@@ -1,3 +1,12 @@
+## [0.51.1] - 2026-08-19
+
+### Changed
+- Correções de responsividade e padding nos formulários "Novo Colaborador" (AdminUserDialog) e "Perfil do Colaborador" (EmployeeDetailsModal) garantindo suporte a overflow-y.
+- Inclusão do scroll-lock no body durante a exibição dos modais para impedir a rolagem simultânea da página de fundo.
+- Padronização do componente de botão de fechar (`.close-button`) nos dois modais, para alinhamento completo com a identidade visual (UX/UI) oficial do SIX.OS.
+- Correção nos botões de ação primária (submit) para utilizarem largura proporcional ao contexto (`width: auto`), evitando a criação indesejada de botões esticados que quebravam a hierarquia visual.
+- Restruturação do layout do campo "Departamento" no cadastro, agora acomodado no grid de duas colunas, evitando componentes isolados de largura total (100%).
+
 ## [0.51.0] - 2026-08-18
 
 ### Changed

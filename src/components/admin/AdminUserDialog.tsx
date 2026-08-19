@@ -15,6 +15,13 @@ export function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOver
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
+
+  useEffect(() => {
     void fetch('/api/admin/departments', { headers: { Accept: 'application/json' } })
       .then(async (response) => {
         if (!response.ok) throw new Error('Não foi possível carregar os departamentos.')
@@ -61,10 +68,13 @@ export function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOver
   return (
     <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo colaborador">
       <form className="mission-create-dialog admin-create-dialog" onSubmit={submit}>
-        <button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de colaborador">×</button>
-        <span className="mission-create-icon"><Icon name="people" size={21} /></span>
-        <p>CADASTRO COMPLETO DE COLABORADOR</p>
-        <h2>Quem vai tornar<br /><em>possível?</em></h2>
+        <div className="admin-create-header">
+          <button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de colaborador">×</button>
+          <span className="mission-create-icon"><Icon name="people" size={21} /></span>
+          <p>CADASTRO COMPLETO DE COLABORADOR</p>
+          <h2>Quem vai tornar<br /><em>possível?</em></h2>
+        </div>
+        <div className="admin-create-content mission-create-scroll">
         <label>
           <span>NOME COMPLETO</span>
           <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex: Lucas Mendes" required />
@@ -108,19 +118,25 @@ export function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOver
             </select>
           </label>
         </div>
-        <label>
-          <span>DEPARTAMENTO</span>
-          <select value={department} onChange={(event) => setDepartment(event.target.value)} required>
-            <option value="">Selecione um departamento</option>
-            {departments.map((item) => (
-              <option key={item.id} value={item.id}>{item.name}</option>
-            ))}
-          </select>
-        </label>
-        {error && <p className="admin-dialog-error">{error}</p>}
-        <button className="mission-create-submit" type="submit" disabled={isSaving || departments.length === 0}>
-          {isSaving ? 'SALVANDO…' : <>CRIAR COLABORADOR <span>→</span></>}
-        </button>
+        <div className="mission-create-row">
+          <label>
+            <span>DEPARTAMENTO</span>
+            <select value={department} onChange={(event) => setDepartment(event.target.value)} required>
+              <option value="">Selecione um departamento</option>
+              {departments.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </label>
+          <div />
+        </div>
+        </div>
+        <div className="admin-create-footer mission-create-footer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          {error && <p className="admin-dialog-error" style={{ margin: '0 0 12px 0' }}>{error}</p>}
+          <button className="mission-create-submit" type="submit" disabled={isSaving || departments.length === 0} style={{ width: 'auto', padding: '13px 24px', marginTop: error ? 0 : '23px' }}>
+            {isSaving ? 'SALVANDO…' : <>CRIAR COLABORADOR <span>→</span></>}
+          </button>
+        </div>
       </form>
     </div>
   )

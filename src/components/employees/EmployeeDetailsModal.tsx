@@ -59,6 +59,13 @@ export function EmployeeDetailsModal({
 }) {
   const { can } = usePermission()
   const [activeTab, setActiveTab] = useState<TabType>('overview')
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
   const [loading, setLoading] = useState(true)
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null)
   const [saving, setSaving] = useState(false)
@@ -265,7 +272,7 @@ export function EmployeeDetailsModal({
               </p>
             </div>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Fechar modal">✕</button>
+          <button className="close-button" type="button" onClick={onClose} aria-label="Fechar modal">×</button>
         </header>
 
         {/* Feedback / Error Alerts */}
@@ -400,7 +407,7 @@ export function EmployeeDetailsModal({
 
               {can('employees.edit') && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button className="mission-create-submit" type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar Dados Pessoais'}</button>
+                  <button className="mission-create-submit" type="submit" disabled={saving} style={{ width: 'auto', padding: '11px 24px' }}>{saving ? 'Salvando...' : 'Salvar Dados Pessoais'}</button>
                 </div>
               )}
             </form>
@@ -499,7 +506,7 @@ export function EmployeeDetailsModal({
 
               {can('employees.edit') && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button className="mission-create-submit" type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Salvar Dados Profissionais'}</button>
+                  <button className="mission-create-submit" type="submit" disabled={saving} style={{ width: 'auto', padding: '11px 24px' }}>{saving ? 'Salvando...' : 'Salvar Dados Profissionais'}</button>
                 </div>
               )}
             </form>
@@ -531,7 +538,7 @@ export function EmployeeDetailsModal({
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
-                    <button className="mission-create-submit" type="submit" disabled={savingCompensation}>{savingCompensation ? 'Registrando...' : 'Conceder Reajuste Salarial'}</button>
+                    <button className="mission-create-submit" type="submit" disabled={savingCompensation} style={{ width: 'auto', padding: '11px 24px' }}>{savingCompensation ? 'Registrando...' : 'Conceder Reajuste Salarial'}</button>
                   </div>
                 </form>
               )}
