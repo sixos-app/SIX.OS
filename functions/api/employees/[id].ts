@@ -5,6 +5,7 @@ import {
   permissionRequiredResponse,
   type Bindings,
 } from '../_access'
+import { relationId, validateEmployeeRelations, type EmployeeRelationValues } from '../_employeeRelations'
 
 type EmployeeDetailRow = {
   id: string
@@ -175,6 +176,15 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null
   if (!body) return Response.json({ error: 'Dados inválidos.' }, { status: 400 })
+
+  const relationsToValidate: EmployeeRelationValues = {}
+  if (body.departmentId !== undefined) relationsToValidate.departmentId = relationId(body.departmentId)
+  if (body.positionId !== undefined) relationsToValidate.positionId = relationId(body.positionId)
+  if (body.professionalLevelId !== undefined) relationsToValidate.professionalLevelId = relationId(body.professionalLevelId)
+  if (body.managerId !== undefined) relationsToValidate.managerId = relationId(body.managerId)
+  if (!await validateEmployeeRelations(env, user.organizationId, relationsToValidate)) {
+    return Response.json({ error: 'Uma ou mais relações do colaborador são inválidas.' }, { status: 400 })
+  }
 
   const canEditSensitive = await hasPermissionV2(env, request, user, 'employees.edit_sensitive')
   const now = new Date().toISOString()

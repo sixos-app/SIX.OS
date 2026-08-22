@@ -22,13 +22,24 @@ function d1(args: string[], json = false) {
   return JSON.parse(output.slice(start, end + 1)) as Array<{ results?: Array<Record<string, unknown>> }>
 }
 
+function migrationNumber(name: string) {
+  return Number(name.slice(0, 4))
+}
+
+function compareMigrationNames(a: string, b: string) {
+  const numberDifference = migrationNumber(a) - migrationNumber(b)
+  if (numberDifference !== 0) return numberDifference
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
 try {
-  for (let migration = 1; migration <= 20; migration += 1) {
-    const prefix = String(migration).padStart(4, '0')
-    const fileName = readdirSync(join(repository, 'migrations')).find(name => name.startsWith(`${prefix}_`) && name.endsWith('.sql'))
-    assert.ok(fileName, `Migration ${prefix} was not found`)
-    const file = join('migrations', fileName)
-    d1(['--file', file])
+  const migrationNames = readdirSync(join(repository, 'migrations'))
+    .filter((name) => name.endsWith('.sql'))
+    .sort(compareMigrationNames)
+  assert.ok(migrationNames.length > 0, 'No numbered migrations were found')
+
+  for (const name of migrationNames) {
+    assert.match(name, /^\d{4}_[a-z0-9_]+\.sql$/, `Invalid migration filename: ${name}`)
   }
 
   const seedFile = join(seedDirectory, 'seed.sql')
@@ -41,39 +52,34 @@ try {
     INSERT INTO development_checkins (id, organization_id, plan_id, author_user_id, meeting_date) VALUES ('audit-checkin', 'org-six', 'audit-plan', 'user-agsix-admin', '2026-08-09');
     INSERT INTO development_checkin_entries (id, organization_id, checkin_id, author_user_id, entry_text) VALUES ('audit-entry', 'org-six', 'audit-checkin', 'user-agsix-admin', 'Audit entry');
   `)
-  d1(['--file', seedFile])
-  d1(['--file', 'migrations/0021_fix_evolution_cascades.sql'])
 
   const tables = [
     'evaluation_debriefs', 'development_plans', 'development_goals', 'development_actions',
     'development_evidence', 'development_checkins', 'development_checkin_entries',
   ]
-  for (const table of tables) {
-    const rows = d1(['--command', `SELECT COUNT(*) AS count FROM ${table};`], true)?.[0]?.results ?? []
-    assert.equal(Number(rows[0]?.count), 1, `${table} was not preserved`)
-  }
+  for (const name of migrationNames) {
+    const migration = migrationNumber(name)
 
-  const foreignKeys = d1(['--command', 'PRAGMA foreign_key_check;'], true)?.[0]?.results ?? []
-  assert.deepEqual(foreignKeys, [], 'migration must leave no foreign-key violations')
+    if (migration === 21) d1(['--file', seedFile])
+    if (migration === 35) {
+      d1(['--command', `
+        INSERT INTO clients (id, organization_id, name) VALUES ('workflow-upgrade-client', 'org-six', 'Workflow Upgrade Client');
+        INSERT INTO projects (id, organization_id, client_id, name, status) VALUES ('workflow-upgrade-project', 'org-six', 'workflow-upgrade-client', 'Workflow Upgrade Project', 'active');
+        INSERT INTO missions (id, project_id, client_id, title, status, priority, approval_status) VALUES ('workflow-upgrade-mission', 'workflow-upgrade-project', 'workflow-upgrade-client', 'Workflow Upgrade Mission', 'in_progress', 'normal', 'not_requested');
+      `])
+    }
 
-  for (let migration = 22; migration <= 34; migration += 1) {
-    const prefix = String(migration).padStart(4, '0')
-    const fileName = readdirSync(join(repository, 'migrations')).find(name => name.startsWith(`${prefix}_`) && name.endsWith('.sql'))
-    assert.ok(fileName, `Migration ${prefix} was not found`)
-    d1(['--file', join('migrations', fileName)])
-  }
+    d1(['--file', join('migrations', name)])
 
-  d1(['--command', `
-    INSERT INTO clients (id, organization_id, name) VALUES ('workflow-upgrade-client', 'org-six', 'Workflow Upgrade Client');
-    INSERT INTO projects (id, organization_id, client_id, name, status) VALUES ('workflow-upgrade-project', 'org-six', 'workflow-upgrade-client', 'Workflow Upgrade Project', 'active');
-    INSERT INTO missions (id, project_id, client_id, title, status, priority, approval_status) VALUES ('workflow-upgrade-mission', 'workflow-upgrade-project', 'workflow-upgrade-client', 'Workflow Upgrade Mission', 'in_progress', 'normal', 'not_requested');
-  `])
+    if (migration === 21) {
+      for (const table of tables) {
+        const rows = d1(['--command', `SELECT COUNT(*) AS count FROM ${table};`], true)?.[0]?.results ?? []
+        assert.equal(Number(rows[0]?.count), 1, `${table} was not preserved`)
+      }
 
-  for (let migration = 35; migration <= 36; migration += 1) {
-    const prefix = String(migration).padStart(4, '0')
-    const fileName = readdirSync(join(repository, 'migrations')).find(name => name.startsWith(`${prefix}_`) && name.endsWith('.sql'))
-    assert.ok(fileName, `Migration ${prefix} was not found`)
-    d1(['--file', join('migrations', fileName)])
+      const foreignKeys = d1(['--command', 'PRAGMA foreign_key_check;'], true)?.[0]?.results ?? []
+      assert.deepEqual(foreignKeys, [], 'migration must leave no foreign-key violations')
+    }
   }
 
   const historicalCredential = d1([

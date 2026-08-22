@@ -5,6 +5,7 @@ import {
   permissionRequiredResponse,
   type Bindings,
 } from './_access'
+import { relationId, validateEmployeeRelations } from './_employeeRelations'
 
 type EmployeeListRow = {
   id: string
@@ -124,16 +125,26 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const state = typeof body.state === 'string' ? body.state.trim() : null
   const country = typeof body.country === 'string' && body.country.trim() ? body.country.trim() : 'Brasil'
   const registrationNumber = typeof body.registrationNumber === 'string' ? body.registrationNumber.trim() : null
-  const departmentId = typeof body.departmentId === 'string' && body.departmentId ? body.departmentId : null
-  const positionId = typeof body.positionId === 'string' && body.positionId ? body.positionId : null
-  const professionalLevelId = typeof body.professionalLevelId === 'string' && body.professionalLevelId ? body.professionalLevelId : null
-  const managerId = typeof body.managerId === 'string' && body.managerId ? body.managerId : null
+  const departmentId = relationId(body.departmentId)
+  const positionId = relationId(body.positionId)
+  const professionalLevelId = relationId(body.professionalLevelId)
+  const managerId = relationId(body.managerId)
   const admissionDate = typeof body.admissionDate === 'string' && body.admissionDate ? body.admissionDate : null
   const contractType = typeof body.contractType === 'string' && ['CLT', 'PJ', 'estagio', 'freelancer', 'temporario', 'outro'].includes(body.contractType) ? body.contractType : 'CLT'
   const workModality = typeof body.workModality === 'string' && ['presencial', 'remoto', 'hibrido'].includes(body.workModality) ? body.workModality : 'hibrido'
   const status = typeof body.status === 'string' && ['active', 'inactive', 'vacation', 'leave', 'terminated'].includes(body.status) ? body.status : 'active'
   const notes = typeof body.notes === 'string' ? body.notes.trim() : null
-  const userId = typeof body.userId === 'string' && body.userId ? body.userId : null
+  const userId = relationId(body.userId)
+
+  if (!await validateEmployeeRelations(env, user.organizationId, {
+    userId,
+    managerId,
+    departmentId,
+    positionId,
+    professionalLevelId,
+  })) {
+    return Response.json({ error: 'Uma ou mais relações do colaborador são inválidas.' }, { status: 400 })
+  }
 
   const salary = typeof body.salary === 'number' && body.salary >= 0 ? body.salary : Number(body.salary) || 0
   const monthlyHours = typeof body.monthlyHours === 'number' && body.monthlyHours > 0 ? body.monthlyHours : Number(body.monthlyHours) || 220

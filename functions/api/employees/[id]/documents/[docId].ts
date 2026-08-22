@@ -5,6 +5,7 @@ import {
   permissionRequiredResponse,
   type Bindings,
 } from '../../../_access'
+import { getEmployeeWithinScope } from '../../_documentAccess'
 
 type DocumentBindings = Bindings & { FILES: R2Bucket }
 
@@ -29,6 +30,8 @@ export const onRequestGet: PagesFunction<DocumentBindings, 'id' | 'docId'> = asy
 
   const employeeId = params.id as string
   const docId = params.docId as string
+  const employee = await getEmployeeWithinScope(env, request, user, employeeId, 'employees.documents.view')
+  if (!employee) return Response.json({ error: 'Documento não encontrado.' }, { status: 404 })
 
   const doc = await env.DB.prepare(`
     SELECT id, organization_id AS organizationId, employee_id AS employeeId,
@@ -63,6 +66,8 @@ export const onRequestDelete: PagesFunction<DocumentBindings, 'id' | 'docId'> = 
 
   const employeeId = params.id as string
   const docId = params.docId as string
+  const employee = await getEmployeeWithinScope(env, request, user, employeeId, 'employees.documents.delete')
+  if (!employee) return Response.json({ error: 'Documento não encontrado.' }, { status: 404 })
 
   const doc = await env.DB.prepare(`
     SELECT id, file_name AS fileName, storage_key AS storageKey

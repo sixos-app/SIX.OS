@@ -1,4 +1,4 @@
-import { getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
+import { getAccessUser, getPermissionScope, permissionRequiredResponse, type Bindings } from '../_access'
 
 type LibrarySearchResult = {
   id: string
@@ -13,7 +13,31 @@ type LibrarySearchResult = {
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 })
-  if (!(await hasPermissionV2(env, request, user, 'library.view'))) return permissionRequiredResponse()
+  const scope = await getPermissionScope(env, request, user, 'library.view')
+  if (!scope) return permissionRequiredResponse()
+
+  let projectScopeFilter = ''
+  let projectScopeBinds: string[] = []
+  let clientScopeFilter = ''
+  let clientScopeBinds: string[] = []
+
+  if (scope === 'assigned_clients') {
+    projectScopeFilter = ' AND clients.account_manager_id = ?'
+    projectScopeBinds = [user.id]
+    clientScopeFilter = ' AND clients.account_manager_id = ?'
+    clientScopeBinds = [user.id]
+  } else if (scope === 'participating_projects') {
+    projectScopeFilter = ' AND projects.id IN (SELECT missions.project_id FROM missions JOIN mission_assignees ON mission_assignees.mission_id = missions.id WHERE mission_assignees.user_id = ?)'
+    projectScopeBinds = [user.id]
+    clientScopeFilter = ' AND clients.id IN (SELECT missions.client_id FROM missions JOIN mission_assignees ON mission_assignees.mission_id = missions.id WHERE mission_assignees.user_id = ?)'
+    clientScopeBinds = [user.id]
+  } else if (scope !== 'all') {
+    // Project-library access treats the remaining restricted scopes as
+    // participation-based; client-library access has no equivalent scope.
+    projectScopeFilter = ' AND projects.id IN (SELECT missions.project_id FROM missions JOIN mission_assignees ON mission_assignees.mission_id = missions.id WHERE mission_assignees.user_id = ?)'
+    projectScopeBinds = [user.id]
+    clientScopeFilter = ' AND 1 = 0'
+  }
 
   const query = (new URL(request.url).searchParams.get('q') || '').trim()
   if (query.length < 2 || query.length > 120) {
@@ -35,7 +59,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       JOIN projects ON projects.id = files.project_id
       JOIN clients ON clients.id = projects.client_id
       LEFT JOIN project_library_folders folders ON folders.id = files.folder_id
-      WHERE projects.organization_id = ?
+      WHERE projects.organization_id = ?${projectScopeFilter}
         AND (files.name LIKE ? OR files.file_type LIKE ? OR projects.name LIKE ? OR clients.name LIKE ? OR folders.name LIKE ?)
 
       UNION ALL
@@ -51,14 +75,14 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       FROM client_library_files files
       JOIN clients ON clients.id = files.client_id
       LEFT JOIN client_library_folders folders ON folders.id = files.folder_id
-      WHERE clients.organization_id = ?
+      WHERE clients.organization_id = ?${clientScopeFilter}
         AND (files.name LIKE ? OR files.file_type LIKE ? OR clients.name LIKE ? OR folders.name LIKE ?)
     )
     ORDER BY updatedAt DESC
     LIMIT 50
   `).bind(
-    user.organizationId, term, term, term, term, term,
-    user.organizationId, term, term, term, term,
+    user.organizationId, ...projectScopeBinds, term, term, term, term, term,
+    user.organizationId, ...clientScopeBinds, term, term, term, term,
   ).all<LibrarySearchResult>()
 
   return Response.json({ query, results })

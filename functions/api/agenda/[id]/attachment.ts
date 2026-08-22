@@ -82,7 +82,19 @@ export const onRequestPost: PagesFunction<AgendaBindings, 'id'> = async ({ env, 
     await env.FILES.delete(storageKey)
     throw error
   }
-  if (event.attachmentKey) await env.FILES.delete(event.attachmentKey)
+  if (event.attachmentKey) {
+    try {
+      await env.FILES.delete(event.attachmentKey)
+    } catch (error) {
+      console.error('[files] agenda previous attachment cleanup failed', {
+        operation: 'agenda_attachment_replace',
+        organizationId: user.organizationId,
+        eventId,
+        error: error instanceof Error ? error.name : 'UnknownError',
+      })
+      throw error
+    }
+  }
   return Response.json({ attachment: { name, size: file.size } }, { status: 201 })
 }
 
@@ -95,6 +107,18 @@ export const onRequestDelete: PagesFunction<AgendaBindings, 'id'> = async ({ env
   const canManage = event.ownerUserId === user.id || await hasPermissionV2(env, request, user, 'agenda.team.view')
   if (!canManage) return permissionRequiredResponse()
   await env.DB.prepare('UPDATE calendar_events SET attachment_name = NULL, attachment_key = NULL, attachment_content_type = NULL, attachment_size = NULL, updated_at = ? WHERE id = ? AND organization_id = ?').bind(new Date().toISOString(), eventId, user.organizationId).run()
-  if (event.attachmentKey) await env.FILES.delete(event.attachmentKey)
+  if (event.attachmentKey) {
+    try {
+      await env.FILES.delete(event.attachmentKey)
+    } catch (error) {
+      console.error('[files] agenda attachment cleanup failed', {
+        operation: 'agenda_attachment_delete',
+        organizationId: user.organizationId,
+        eventId,
+        error: error instanceof Error ? error.name : 'UnknownError',
+      })
+      throw error
+    }
+  }
   return new Response(null, { status: 204 })
 }

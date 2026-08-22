@@ -1,3 +1,19 @@
+## [0.51.2] - 2026-08-22
+
+### Security
+
+- Reforço de autorização, escopos e isolamento por organização na biblioteca de clientes, documentos de colaboradores e busca global de arquivos.
+- Validação cross-tenant das relações de colaboradores e compatibilidade server-side de missões com os campos opcionais de centro de custo e faturamento.
+
+### Fixed
+
+- Compensação de falhas D1/R2 e limpeza de versões em fluxos de arquivos auditados.
+- Teste histórico de migrations agora percorre dinamicamente toda a sequência, incluindo a migration 0047.
+
+### Changed
+
+- Inclusão no histórico versionado da migration `0047_cost_centers_and_billing.sql`, já aplicada e validada em produção.
+
 ## [0.51.1] - 2026-08-19
 
 ### Changed

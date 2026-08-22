@@ -5,6 +5,7 @@ import {
   permissionRequiredResponse,
   type Bindings,
 } from '../../_access'
+import { getEmployeeWithinScope } from '../_documentAccess'
 
 type DocumentBindings = Bindings & { FILES: R2Bucket }
 
@@ -29,6 +30,8 @@ export const onRequestGet: PagesFunction<DocumentBindings, 'id'> = async ({ env,
   }
 
   const employeeId = params.id as string
+  const employee = await getEmployeeWithinScope(env, request, user, employeeId, 'employees.documents.view')
+  if (!employee) return Response.json({ error: 'Colaborador não encontrado' }, { status: 404 })
 
   const docs = await env.DB.prepare(`
     SELECT
@@ -59,9 +62,7 @@ export const onRequestPost: PagesFunction<DocumentBindings, 'id'> = async ({ env
   }
 
   const employeeId = params.id as string
-  const employee = await env.DB.prepare('SELECT id, name FROM employees WHERE id = ? AND organization_id = ? LIMIT 1')
-    .bind(employeeId, user.organizationId)
-    .first<{ id: string; name: string }>()
+  const employee = await getEmployeeWithinScope(env, request, user, employeeId, 'employees.documents.upload')
 
   if (!employee) return Response.json({ error: 'Colaborador não encontrado.' }, { status: 404 })
 
@@ -91,37 +92,52 @@ export const onRequestPost: PagesFunction<DocumentBindings, 'id'> = async ({ env
     customMetadata: { employeeId: employee.id, organizationId: user.organizationId, docId, folderCategory },
   })
 
-  await env.DB.batch([
-    env.DB.prepare(`
-      INSERT INTO employee_documents (
-        id, organization_id, employee_id, folder_category, file_name, storage_key, file_type, size_bytes, uploaded_by_user_id, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      docId,
-      user.organizationId,
-      employee.id,
-      folderCategory,
-      rawName,
-      storageKey,
-      file.type || 'application/octet-stream',
-      file.size,
-      user.id,
-      now,
-    ),
-    env.DB.prepare(`
-      INSERT INTO employee_audit_logs (
-        id, organization_id, employee_id, actor_user_id, action, field_name, old_value, new_value, details, created_at
-      ) VALUES (?, ?, ?, ?, 'document_uploaded', 'document', NULL, ?, ?, ?)
-    `).bind(
-      crypto.randomUUID(),
-      user.organizationId,
-      employee.id,
-      user.id,
-      rawName,
-      `Upload do documento '${rawName}' na pasta '${folderCategory}' (${Math.round(file.size / 1024)} KB)`,
-      now,
-    ),
-  ])
+  try {
+    await env.DB.batch([
+      env.DB.prepare(`
+        INSERT INTO employee_documents (
+          id, organization_id, employee_id, folder_category, file_name, storage_key, file_type, size_bytes, uploaded_by_user_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        docId,
+        user.organizationId,
+        employee.id,
+        folderCategory,
+        rawName,
+        storageKey,
+        file.type || 'application/octet-stream',
+        file.size,
+        user.id,
+        now,
+      ),
+      env.DB.prepare(`
+        INSERT INTO employee_audit_logs (
+          id, organization_id, employee_id, actor_user_id, action, field_name, old_value, new_value, details, created_at
+        ) VALUES (?, ?, ?, ?, 'document_uploaded', 'document', NULL, ?, ?, ?)
+      `).bind(
+        crypto.randomUUID(),
+        user.organizationId,
+        employee.id,
+        user.id,
+        rawName,
+        `Upload do documento '${rawName}' na pasta '${folderCategory}' (${Math.round(file.size / 1024)} KB)`,
+        now,
+      ),
+    ])
+  } catch (error) {
+    try {
+      await env.FILES.delete(storageKey)
+    } catch (cleanupError) {
+      console.error('[files] document upload compensation failed', {
+        operation: 'employee_document_upload',
+        organizationId: user.organizationId,
+        employeeId: employee.id,
+        documentId: docId,
+        error: cleanupError instanceof Error ? cleanupError.name : 'UnknownError',
+      })
+    }
+    throw error
+  }
 
   return Response.json({
     id: docId,

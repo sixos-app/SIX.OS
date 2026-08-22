@@ -1,6 +1,5 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../_access'
-
-type EmployeeRow = { id: string }
+import { getEmployeeWithinScope } from '../_documentAccess'
 
 type FolderRow = {
   id: string
@@ -29,9 +28,7 @@ export const onRequestGet: PagesFunction<Bindings, 'id'> = async ({ env, params,
     return permissionRequiredResponse()
   }
 
-  const employee = await env.DB.prepare('SELECT id FROM employees WHERE id = ? AND organization_id = ? LIMIT 1')
-    .bind(params.id, user.organizationId)
-    .first<EmployeeRow>()
+  const employee = await getEmployeeWithinScope(env, request, user, params.id as string, 'employees.documents.view')
 
   if (!employee) return Response.json({ error: 'Colaborador não encontrado' }, { status: 404 })
 

@@ -1,4 +1,5 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../../../_access'
+import { getEmployeeWithinScope } from '../../../_documentAccess'
 
 type LibraryBindings = Bindings & { FILES: R2Bucket }
 
@@ -7,6 +8,8 @@ type FileRow = {
   storageKey: string | null
 }
 
+type VersionRow = { storageKey: string | null }
+
 export const onRequestGet: PagesFunction<LibraryBindings, 'id' | 'fileId'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
@@ -14,6 +17,8 @@ export const onRequestGet: PagesFunction<LibraryBindings, 'id' | 'fileId'> = asy
   if (!(await hasPermissionV2(env, request, user, 'employees.documents.view'))) {
     return permissionRequiredResponse()
   }
+  const employee = await getEmployeeWithinScope(env, request, user, params.id as string, 'employees.documents.view')
+  if (!employee) return Response.json({ error: 'Arquivo não encontrado' }, { status: 404 })
 
   const file = await env.DB.prepare(`
     SELECT files.name, files.storage_key AS storageKey
@@ -51,6 +56,8 @@ export const onRequestDelete: PagesFunction<LibraryBindings, 'id' | 'fileId'> = 
   if (!(await hasPermissionV2(env, request, user, 'employees.documents.delete'))) {
     return permissionRequiredResponse()
   }
+  const employee = await getEmployeeWithinScope(env, request, user, params.id as string, 'employees.documents.delete')
+  if (!employee) return Response.json({ error: 'Arquivo não encontrado' }, { status: 404 })
 
   const file = await env.DB.prepare(`
     SELECT files.name, files.storage_key AS storageKey
@@ -62,9 +69,13 @@ export const onRequestDelete: PagesFunction<LibraryBindings, 'id' | 'fileId'> = 
   
   if (!file) return Response.json({ error: 'Arquivo não encontrado' }, { status: 404 })
 
-  if (file.storageKey) {
-    await env.FILES.delete(file.storageKey)
-  }
+  const versions = await env.DB.prepare(
+    'SELECT storage_key AS storageKey FROM employee_library_file_versions WHERE file_id = ?',
+  ).bind(params.fileId).all<VersionRow>()
+  const storageKeys = [...new Set([
+    file.storageKey,
+    ...(versions.results ?? []).map((version) => version.storageKey),
+  ].filter((key): key is string => Boolean(key)))]
 
   await env.DB.batch([
     env.DB.prepare('DELETE FROM employee_library_files WHERE id = ?').bind(params.fileId),
@@ -74,6 +85,22 @@ export const onRequestDelete: PagesFunction<LibraryBindings, 'id' | 'fileId'> = 
       ) VALUES (?, ?, ?, ?, 'file_deleted', 'document', ?, NULL, ?, ?)
     `).bind(crypto.randomUUID(), user.organizationId, params.id as string, user.id, file.name, `Arquivo excluído: ${file.name}`, new Date().toISOString())
   ])
+
+  if (storageKeys.length) {
+    try {
+      await env.FILES.delete(storageKeys)
+    } catch (error) {
+      console.error('[files] employee library cleanup failed', {
+        operation: 'employee_library_delete',
+        organizationId: user.organizationId,
+        employeeId: params.id,
+        fileId: params.fileId,
+        keyCount: storageKeys.length,
+        error: error instanceof Error ? error.name : 'UnknownError',
+      })
+      throw error
+    }
+  }
 
   return new Response(null, { status: 204 })
 }
