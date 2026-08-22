@@ -7,6 +7,7 @@ type Visibility = 'personal' | 'team'
 
 type CalendarRow = {
   id: string
+  revision: number
   title: string
   startsAt: string
   endsAt: string | null
@@ -75,6 +76,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   const statement = env.DB.prepare(`
     SELECT
       calendar_events.id,
+      calendar_events.revision,
       calendar_events.title,
       calendar_events.starts_at AS startsAt,
       calendar_events.ends_at AS endsAt,
@@ -187,6 +189,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   return Response.json({
     event: {
       id, title, startsAt, endsAt, eventType, visibility, description, location,
+      revision: 0,
       projectId: project?.id ?? null,
       clientId: project?.clientId ?? mission?.clientId ?? null,
       ownerUserId: owner.id,

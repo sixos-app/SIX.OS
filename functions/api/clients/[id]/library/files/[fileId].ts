@@ -27,21 +27,22 @@ export const onRequestDelete: PagesFunction<Env, 'id' | 'fileId'> = async ({ env
   if (!(await hasPermissionV2(env, request, user, 'library.manage'))) return permissionRequiredResponse()
 
   const file = await env.DB.prepare(`
-    SELECT files.id, files.storage_key AS storageKey
+    SELECT files.id, files.storage_key AS storageKey, files.version
     FROM client_library_files files
     JOIN clients ON clients.id = files.client_id
     WHERE files.id = ? AND files.client_id = ? AND clients.organization_id = ?
     LIMIT 1
-  `).bind(params.fileId, params.id, user.organizationId).first<{ id: string; storageKey: string | null }>()
+  `).bind(params.fileId, params.id, user.organizationId).first<{ id: string; storageKey: string | null; version: number }>()
   if (!file) return Response.json({ error: 'Arquivo não encontrado' }, { status: 404 })
 
   const versions = await env.DB.prepare('SELECT storage_key AS storageKey FROM client_library_file_versions WHERE file_id = ?').bind(file.id).all<{ storageKey: string | null }>()
   const storageKeys = [...new Set([file.storageKey, ...(versions.results ?? []).map((item) => item.storageKey)].filter((key): key is string => Boolean(key)))]
 
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM client_library_file_versions WHERE file_id = ?').bind(file.id),
-    env.DB.prepare('DELETE FROM client_library_files WHERE id = ? AND client_id = ?').bind(file.id, params.id),
-  ])
+  const deletion = await env.DB.prepare(`
+    DELETE FROM client_library_files
+    WHERE id = ? AND client_id = ? AND version = ? AND storage_key IS ?
+  `).bind(file.id, params.id, file.version, file.storageKey).run()
+  if (!deletion.meta.changes) return Response.json({ error: 'O arquivo foi alterado por outra solicitação' }, { status: 409 })
   if (storageKeys.length) {
     try {
       await env.FILES.delete(storageKeys)

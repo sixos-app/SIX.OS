@@ -77,7 +77,15 @@ export const onRequestPost: PagesFunction<AgendaBindings, 'id'> = async ({ env, 
   })
 
   try {
-    await env.DB.prepare('UPDATE calendar_events SET attachment_name = ?, attachment_key = ?, attachment_content_type = ?, attachment_size = ?, updated_at = ? WHERE id = ? AND organization_id = ?').bind(name, storageKey, contentType, file.size, new Date().toISOString(), eventId, user.organizationId).run()
+    const replacement = await env.DB.prepare(`
+      UPDATE calendar_events
+      SET attachment_name = ?, attachment_key = ?, attachment_content_type = ?, attachment_size = ?, updated_at = ?, revision = revision + 1
+      WHERE id = ? AND organization_id = ? AND attachment_key IS ?
+    `).bind(name, storageKey, contentType, file.size, new Date().toISOString(), eventId, user.organizationId, event.attachmentKey).run()
+    if (!replacement.meta.changes) {
+      await env.FILES.delete(storageKey)
+      return Response.json({ error: 'O documento foi alterado por outra solicitação' }, { status: 409 })
+    }
   } catch (error) {
     await env.FILES.delete(storageKey)
     throw error
@@ -106,7 +114,12 @@ export const onRequestDelete: PagesFunction<AgendaBindings, 'id'> = async ({ env
   if (!event) return Response.json({ error: 'Evento não encontrado' }, { status: 404 })
   const canManage = event.ownerUserId === user.id || await hasPermissionV2(env, request, user, 'agenda.team.view')
   if (!canManage) return permissionRequiredResponse()
-  await env.DB.prepare('UPDATE calendar_events SET attachment_name = NULL, attachment_key = NULL, attachment_content_type = NULL, attachment_size = NULL, updated_at = ? WHERE id = ? AND organization_id = ?').bind(new Date().toISOString(), eventId, user.organizationId).run()
+  const deletion = await env.DB.prepare(`
+    UPDATE calendar_events
+    SET attachment_name = NULL, attachment_key = NULL, attachment_content_type = NULL, attachment_size = NULL, updated_at = ?, revision = revision + 1
+    WHERE id = ? AND organization_id = ? AND attachment_key IS ?
+  `).bind(new Date().toISOString(), eventId, user.organizationId, event.attachmentKey).run()
+  if (!deletion.meta.changes) return Response.json({ error: 'O documento foi alterado por outra solicitação' }, { status: 409 })
   if (event.attachmentKey) {
     try {
       await env.FILES.delete(event.attachmentKey)

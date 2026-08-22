@@ -65,24 +65,56 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
   if (mission.currentDepartment && mission.nextDepartment) {
     if (!canManageWorkflow && !belongsToCurrentDepartment && !isCurrentResponsible && !isAssignee && !canUpdateOwn) return permissionRequiredResponse()
     const completedById = mission.currentResponsibleId ?? user.id
-    const { statements: timerStatements } = await closeActiveTimers(env.DB, mission.id, user.organizationId, nowDate)
+    const nextPosition = mission.currentPosition + 1
+    const transitionHistoryId = crypto.randomUUID()
+    const transitionGuard = `EXISTS (
+      SELECT 1 FROM mission_history transition_marker
+      WHERE transition_marker.id = ? AND transition_marker.mission_id = ?
+    )`
+    const { statements: timerStatements } = await closeActiveTimers(env.DB, mission.id, user.organizationId, nowDate, {
+      transitionHistoryId,
+    })
     const statements = [
-      env.DB.prepare(`UPDATE mission_workflow_steps SET status = 'completed', completed_by_user_id = ?, completed_at = ? WHERE mission_id = ? AND position = ?`).bind(completedById, now, mission.id, mission.currentPosition),
-      env.DB.prepare(`UPDATE mission_workflow_steps SET status = 'active' WHERE mission_id = ? AND position = ?`).bind(mission.id, mission.currentPosition + 1),
-      env.DB.prepare(`UPDATE missions SET status = 'in_progress', approval_status = 'not_requested', current_workflow_position = current_workflow_position + 1, updated_at = ? WHERE id = ?`).bind(now, mission.id),
-      env.DB.prepare(`INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, 'workflow_advanced', ?, ?)`).bind(crypto.randomUUID(), mission.id, user.id, `${mission.currentDepartment} concluiu sua etapa. Próximo setor: ${mission.nextDepartment}.`, now),
+      env.DB.prepare(`
+        UPDATE missions
+        SET status = 'in_progress', approval_status = 'not_requested', current_workflow_position = ?, updated_at = ?
+        WHERE id = ? AND current_workflow_position = ? AND status IN ('open', 'in_progress')
+          AND EXISTS (
+            SELECT 1 FROM mission_workflow_steps current_step
+            WHERE current_step.mission_id = missions.id AND current_step.position = ? AND current_step.status = 'active'
+          )
+          AND EXISTS (
+            SELECT 1 FROM mission_workflow_steps next_step
+            WHERE next_step.mission_id = missions.id AND next_step.position = ? AND next_step.status = 'pending'
+          )
+      `).bind(nextPosition, now, mission.id, mission.currentPosition, mission.currentPosition, nextPosition),
+      env.DB.prepare(`
+        UPDATE mission_workflow_steps
+        SET status = 'completed', completed_by_user_id = ?, completed_at = ?
+        WHERE mission_id = ? AND position = ? AND status = 'active' AND changes() = 1
+      `).bind(completedById, now, mission.id, mission.currentPosition),
+      env.DB.prepare(`
+        UPDATE mission_workflow_steps
+        SET status = 'active'
+        WHERE mission_id = ? AND position = ? AND status = 'pending' AND changes() = 1
+      `).bind(mission.id, nextPosition),
+      env.DB.prepare(`
+        INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at)
+        SELECT ?, ?, ?, 'workflow_advanced', ?, ? WHERE changes() = 1
+      `).bind(transitionHistoryId, mission.id, user.id, `${mission.currentDepartment} concluiu sua etapa. Próximo setor: ${mission.nextDepartment}.`, now),
       ...timerStatements,
     ]
 
     if (mission.nextResponsibleId) {
       statements.push(
-        env.DB.prepare(`DELETE FROM mission_assignees WHERE mission_id = ?`).bind(mission.id),
-        env.DB.prepare(`INSERT OR IGNORE INTO mission_assignees (mission_id, user_id) VALUES (?, ?)`).bind(mission.id, mission.nextResponsibleId),
+        env.DB.prepare(`DELETE FROM mission_assignees WHERE mission_id = ? AND ${transitionGuard}`).bind(mission.id, transitionHistoryId, mission.id),
+        env.DB.prepare(`INSERT OR IGNORE INTO mission_assignees (mission_id, user_id) SELECT ?, ? WHERE ${transitionGuard}`).bind(mission.id, mission.nextResponsibleId, transitionHistoryId, mission.id),
       )
     }
 
-    await env.DB.batch(statements)
-    const following = await env.DB.prepare('SELECT department_name AS name FROM mission_workflow_steps WHERE mission_id = ? AND position = ?').bind(mission.id, mission.currentPosition + 2).first<{ name: string }>()
+    const results = await env.DB.batch(statements)
+    if (!results[0]?.meta.changes) return Response.json({ error: 'A etapa foi atualizada por outra solicitação' }, { status: 409 })
+    const following = await env.DB.prepare('SELECT department_name AS name FROM mission_workflow_steps WHERE mission_id = ? AND position = ?').bind(mission.id, nextPosition + 1).first<{ name: string }>()
     return Response.json({ missionId: mission.id, status: 'workflow_advanced', currentDepartment: mission.nextDepartment, currentResponsibleName: mission.nextResponsibleName, nextDepartment: following?.name ?? null })
   }
 
@@ -102,7 +134,11 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
     return Response.json({ missionId: mission.id, status: 'pending_approval' })
   }
 
-  const completion = await env.DB.prepare(`UPDATE missions SET status = 'completed', approval_status = 'approved', completed_at = ?, approved_at = ?, approved_by_user_id = ?, updated_at = ? WHERE id = ? AND status <> 'completed'`).bind(now, now, user.id, now, mission.id).run()
+  const completion = await env.DB.prepare(`
+    UPDATE missions
+    SET status = 'completed', approval_status = 'approved', completed_at = ?, approved_at = ?, approved_by_user_id = ?, updated_at = ?
+    WHERE id = ? AND status IN ('open', 'in_progress')
+  `).bind(now, now, user.id, now, mission.id).run()
   if (!completion.meta.changes) return Response.json({ error: 'Missão já concluída' }, { status: 409 })
 
   const configuredRule = mission.xpRuleId ? await env.DB.prepare(`SELECT id, name, base_xp AS baseXp, on_time_bonus_percent AS bonusPercent, version FROM xp_rules WHERE id = ? AND organization_id = ?`).bind(mission.xpRuleId, user.organizationId).first<Rule>() : null

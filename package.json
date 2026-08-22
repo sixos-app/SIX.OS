@@ -1,7 +1,7 @@
 {
   "name": "six-os",
   "private": true,
-  "version": "0.51.2",
+  "version": "0.51.3",
   "type": "module",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
@@ -15,6 +15,7 @@
     "test:security": "tsx scripts/test-security.ts",
     "test:workflow": "tsx scripts/test_workflow_lifecycle.ts",
     "test:agenda": "tsx scripts/test_agenda_expansion.ts",
+    "test:agenda:concurrency": "tsx scripts/test_agenda_concurrency.ts",
     "test": "tsx scripts/certify-beta.ts",
     "certify:beta": "tsx scripts/certify-beta.ts",
     "preview": "vite preview",

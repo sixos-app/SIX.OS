@@ -8,6 +8,15 @@ export type MentionNotificationInput = {
   entityType: 'mission' | 'project' | 'agenda_event'
   entityId: string
   entityTitle: string
+  mentionLogins?: readonly string[]
+}
+
+export function getMentionLogins(text: string): string[] {
+  const mentionMatches = text.match(/(?:^|[\s(])@([a-z0-9._-]{3,40})/gi)
+  if (!mentionMatches || mentionMatches.length === 0) return []
+  return [...new Set(mentionMatches
+    .map((match) => match.slice(match.indexOf('@') + 1).toLowerCase().trim())
+    .filter(Boolean))]
 }
 
 export async function notifyMentionedUsers(
@@ -18,13 +27,7 @@ export async function notifyMentionedUsers(
 
   // Extract @login from text, ignoring emails like user@domain.com
   // A mention is @login preceded by start-of-line or whitespace or punctuation, not alphanumeric
-  const mentionMatches = input.text.match(/(?:^|[\s(])@([a-z0-9._-]{3,40})/gi)
-  if (!mentionMatches || mentionMatches.length === 0) return []
-
-  const rawLogins = mentionMatches
-    .map((m) => m.replace(/^[^\s@]*@/, '').toLowerCase().trim())
-    .filter(Boolean)
-  const uniqueLogins = [...new Set(rawLogins)]
+  const uniqueLogins = input.mentionLogins ? [...new Set(input.mentionLogins)] : getMentionLogins(input.text)
 
   if (uniqueLogins.length === 0) return []
 

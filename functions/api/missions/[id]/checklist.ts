@@ -10,13 +10,19 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
   const body = await request.json().catch(() => null) as { label?: unknown } | null
   const label = typeof body?.label === 'string' ? body.label.trim().slice(0, 240) : ''
   if (!label) return Response.json({ error: 'Informe o item do checklist' }, { status: 400 })
-  const position = await env.DB.prepare('SELECT COALESCE(MAX(position), 0) AS value FROM mission_checklist_items WHERE mission_id = ?').bind(mission.id).first<{ value: number }>()
-  const item = { id: crypto.randomUUID(), label, isCompleted: 0, position: (position?.value ?? 0) + 1 }
+  const item = { id: crypto.randomUUID(), label, isCompleted: 0, position: 0 }
   const now = new Date().toISOString()
-  await env.DB.batch([
-    env.DB.prepare('INSERT INTO mission_checklist_items (id, mission_id, label, position, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(item.id, mission.id, item.label, item.position, user.id, now, now),
+  const [insert] = await env.DB.batch<{ position: number }>([
+    env.DB.prepare(`
+      INSERT INTO mission_checklist_items (id, mission_id, label, position, created_by_user_id, created_at, updated_at)
+      SELECT ?, ?, ?, COALESCE(MAX(position), 0) + 1, ?, ?, ?
+      FROM mission_checklist_items
+      WHERE mission_id = ?
+      RETURNING position
+    `).bind(item.id, mission.id, item.label, user.id, now, now, mission.id),
     env.DB.prepare('INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), mission.id, user.id, 'checklist_added', item.label, now),
   ])
+  item.position = insert.results[0]?.position ?? 0
   return Response.json({ item }, { status: 201 })
 }
 

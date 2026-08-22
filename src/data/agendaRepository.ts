@@ -4,6 +4,7 @@ export type CalendarVisibility = 'personal' | 'team'
 
 export type CalendarEventRecord = {
   id: string
+  revision: number
   title: string
   startsAt: string
   endsAt: string | null
@@ -43,7 +44,7 @@ export type CreateCalendarEventInput = {
   participantUserIds?: string[]
 }
 
-export type UpdateCalendarEventInput = CreateCalendarEventInput
+export type UpdateCalendarEventInput = CreateCalendarEventInput & { expectedRevision: number }
 
 async function readJson<T>(response: Response) {
   const payload = await response.json().catch(() => null) as T | { error?: string } | null

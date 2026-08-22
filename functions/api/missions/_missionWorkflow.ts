@@ -2,6 +2,10 @@ import type { Bindings } from '../_access'
 
 export type MissionStageType = 'backlog' | 'ready' | 'doing' | 'review' | 'approval' | 'done'
 
+type TimerCloseGuard = {
+  transitionHistoryId: string
+}
+
 export type MissionWorkflowStage = {
   id: string
   boardId: string
@@ -109,6 +113,7 @@ export async function closeActiveTimers(
   missionId: string,
   organizationId: string,
   now: Date = new Date(),
+  guard?: TimerCloseGuard,
 ): Promise<{ statements: D1PreparedStatement[]; totalCost: number }> {
   const { results: activeTimers } = await db.prepare(`
     SELECT entries.id, entries.user_id AS userId, entries.started_at AS startedAt
@@ -123,6 +128,15 @@ export async function closeActiveTimers(
   const nowMs = now.getTime()
   const statements: D1PreparedStatement[] = []
   let totalCost = 0
+  const guardSql = guard
+    ? ` AND EXISTS (
+      SELECT 1 FROM mission_history transition_marker
+      WHERE transition_marker.id = ? AND transition_marker.mission_id = ?
+    )`
+    : ''
+  const guardBinds = guard
+    ? [guard.transitionHistoryId, missionId]
+    : []
 
   for (const timer of activeTimers) {
     const durationSeconds = Math.max(0, Math.floor((nowMs - Date.parse(timer.startedAt)) / 1000))
@@ -156,6 +170,7 @@ export async function closeActiveTimers(
         SET ended_at = ?, duration_seconds = ?, hours = ?, minutes = ?, cost = ?,
             hourly_cost_snapshot = ?, compensation_history_id = ?
         WHERE id = ? AND organization_id = ? AND ended_at IS NULL
+        ${guardSql}
       `).bind(
         nowIso,
         durationSeconds,
@@ -166,17 +181,14 @@ export async function closeActiveTimers(
         compensationHistoryId,
         timer.id,
         organizationId,
+        ...guardBinds,
       ),
-    )
-  }
-
-  if (totalCost > 0) {
-    statements.push(
       db.prepare(`
         UPDATE missions
         SET realized_cost = realized_cost + ?
         WHERE id = ? AND project_id IN (SELECT id FROM projects WHERE organization_id = ?)
-      `).bind(totalCost, missionId, organizationId),
+          AND changes() = 1
+      `).bind(cost, missionId, organizationId),
     )
   }
 

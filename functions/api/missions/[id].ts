@@ -197,30 +197,66 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
   const body = await request.json().catch(() => null) as UpdateMissionInput | null
   if (!body) return Response.json({ error: 'Atualização inválida' }, { status: 400 })
 
-  const stored = await env.DB.prepare(`SELECT title, description, priority, due_at AS dueAt, expected_minutes AS expectedMinutes, xp_reward AS xpReward, reward_label AS rewardLabel, xp_rule_id AS xpRuleId, cost_center_id AS costCenterId, billing_value AS billingValue FROM missions WHERE id = ?`).bind(current.id).first<{ title: string; description: string; priority: string; dueAt: string | null; expectedMinutes: number | null; xpReward: number; rewardLabel: string | null; xpRuleId: string | null; costCenterId: string | null; billingValue: number }>()
-  if (!stored) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
-  const title = typeof body.title === 'string' ? body.title.trim().slice(0, 160) : stored.title
-  const description = typeof body.description === 'string' ? body.description.trim().slice(0, 4000) : stored.description
-  const priority = typeof body.priority === 'string' ? body.priority : stored.priority
-  const dueAt = typeof body.dueAt === 'string' ? body.dueAt : stored.dueAt
-  const expectedMinutes = typeof body.expectedMinutes === 'number' && Number.isInteger(body.expectedMinutes) && body.expectedMinutes >= 0 ? body.expectedMinutes : stored.expectedMinutes
-  const xpReward = typeof body.xpReward === 'number' ? body.xpReward : stored.xpReward
-  const rewardLabel = typeof body.rewardLabel === 'string' ? body.rewardLabel.trim().slice(0, 120) || null : stored.rewardLabel
-  const xpRuleId = body.xpRuleId === null || body.xpRuleId === '' ? null : typeof body.xpRuleId === 'string' ? body.xpRuleId : stored.xpRuleId
-  let costCenterId = stored.costCenterId
+  const has = (field: keyof UpdateMissionInput) => Object.prototype.hasOwnProperty.call(body, field)
+  const updates: Array<{ column: string; value: string | number | null }> = []
+  let title: string | undefined
+  let description: string | undefined
+  let priority: string | undefined
+  let dueAt: string | null | undefined
+  let expectedMinutes: number | null | undefined
+  let xpReward: number | undefined
+  let rewardLabel: string | null | undefined
+  let xpRuleId: string | null | undefined
+  let costCenterId: string | null | undefined
+  let billingValue: number | undefined
+
+  if (has('title') && typeof body.title === 'string') {
+    title = body.title.trim().slice(0, 160)
+    if (!title) return Response.json({ error: 'Dados da missão inválidos' }, { status: 400 })
+    updates.push({ column: 'title', value: title })
+  }
+  if (has('description') && typeof body.description === 'string') {
+    description = body.description.trim().slice(0, 4000)
+    updates.push({ column: 'description', value: description })
+  }
+  if (has('priority') && typeof body.priority === 'string') {
+    if (!priorities.has(body.priority)) return Response.json({ error: 'Dados da missão inválidos' }, { status: 400 })
+    priority = body.priority
+    updates.push({ column: 'priority', value: priority })
+  }
+  if (has('dueAt') && typeof body.dueAt === 'string') {
+    if (Number.isNaN(Date.parse(body.dueAt))) return Response.json({ error: 'Dados da missão inválidos' }, { status: 400 })
+    dueAt = new Date(body.dueAt).toISOString()
+    updates.push({ column: 'due_at', value: dueAt })
+  }
+  if (has('expectedMinutes') && typeof body.expectedMinutes === 'number' && Number.isInteger(body.expectedMinutes) && body.expectedMinutes >= 0) {
+    expectedMinutes = body.expectedMinutes
+    updates.push({ column: 'expected_minutes', value: expectedMinutes })
+  }
+  if (has('xpReward') && typeof body.xpReward === 'number' && Number.isInteger(body.xpReward) && body.xpReward >= 0 && body.xpReward <= 10000) {
+    xpReward = body.xpReward
+  }
+  if (has('rewardLabel') && typeof body.rewardLabel === 'string') {
+    rewardLabel = body.rewardLabel.trim().slice(0, 120) || null
+    updates.push({ column: 'reward_label', value: rewardLabel })
+  }
+  if (has('xpRuleId')) {
+    xpRuleId = body.xpRuleId === null || body.xpRuleId === '' ? null : typeof body.xpRuleId === 'string' ? body.xpRuleId : undefined
+    if (xpRuleId !== undefined) updates.push({ column: 'xp_rule_id', value: xpRuleId })
+  }
   if (Object.prototype.hasOwnProperty.call(body, 'costCenterId')) {
     if (body.costCenterId === null || body.costCenterId === '') costCenterId = null
     else if (typeof body.costCenterId === 'string' && body.costCenterId) costCenterId = body.costCenterId
     else return Response.json({ error: 'Centro de custos inválido' }, { status: 400 })
+    updates.push({ column: 'cost_center_id', value: costCenterId })
   }
-  let billingValue = stored.billingValue
   if (Object.prototype.hasOwnProperty.call(body, 'billingValue')) {
     if (typeof body.billingValue !== 'number' || !Number.isFinite(body.billingValue) || body.billingValue < 0) {
       return Response.json({ error: 'Valor de faturamento inválido' }, { status: 400 })
     }
     billingValue = body.billingValue
+    updates.push({ column: 'billing_value', value: billingValue })
   }
-  if (!title || !priorities.has(priority) || !dueAt || Number.isNaN(Date.parse(dueAt)) || !Number.isInteger(xpReward) || xpReward < 0 || xpReward > 10000) return Response.json({ error: 'Dados da missão inválidos' }, { status: 400 })
 
   const nextProjectId = typeof body.projectId === 'string' ? body.projectId : current.projectId
   const project = await env.DB.prepare('SELECT id, client_id AS clientId FROM projects WHERE id = ? AND organization_id = ? LIMIT 1').bind(nextProjectId, user.organizationId).first<{ id: string; clientId: string }>()
@@ -235,6 +271,11 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
   }
   const xpRule = xpRuleId ? await env.DB.prepare('SELECT id, base_xp AS baseXp FROM xp_rules WHERE id = ? AND organization_id = ? AND is_active = 1').bind(xpRuleId, user.organizationId).first<{ id: string; baseXp: number }>() : null
   if (xpRuleId && !xpRule) return Response.json({ error: 'Regra de XP não encontrada ou inativa' }, { status: 404 })
+  if (xpRule) {
+    updates.push({ column: 'xp_reward', value: xpRule.baseXp })
+  } else if (xpReward !== undefined) {
+    updates.push({ column: 'xp_reward', value: xpReward })
+  }
   if (project.id !== current.projectId) {
     const attachment = await env.DB.prepare('SELECT id FROM mission_attachments WHERE mission_id = ? LIMIT 1').bind(current.id).first<{ id: string }>()
     if (attachment) return Response.json({ error: 'Remova os anexos antes de mover a missão para outro projeto' }, { status: 409 })
@@ -244,13 +285,20 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
   const changes = ['updated']
   if (project.id !== current.projectId) changes.push('project_changed')
   if (assignee.id !== current.assigneeId) changes.push('reassigned')
-  const statements = [
-    env.DB.prepare(`UPDATE missions SET project_id = ?, client_id = ?, title = ?, description = ?, priority = ?, due_at = ?, expected_minutes = ?, xp_reward = ?, reward_label = ?, xp_rule_id = ?, cost_center_id = ?, billing_value = ?, updated_at = ? WHERE id = ?`).bind(project.id, project.clientId, title, description, priority, new Date(dueAt).toISOString(), expectedMinutes, xpRule?.baseXp ?? xpReward, rewardLabel, xpRule?.id ?? null, costCenterId, billingValue, now, current.id),
-  ]
+  if (project.id !== current.projectId) updates.push({ column: 'project_id', value: project.id }, { column: 'client_id', value: project.clientId })
+  updates.push({ column: 'updated_at', value: now })
+  const setters = updates.map((update) => `${update.column} = ?`).join(', ')
+  const statements = [env.DB.prepare(`UPDATE missions SET ${setters} WHERE id = ?`).bind(...updates.map((update) => update.value), current.id)]
   if (assignee.id !== current.assigneeId) statements.push(env.DB.prepare('DELETE FROM mission_assignees WHERE mission_id = ?').bind(current.id), env.DB.prepare('INSERT INTO mission_assignees (mission_id, user_id) VALUES (?, ?)').bind(current.id, assignee.id))
   for (const action of changes) statements.push(env.DB.prepare('INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), current.id, user.id, action, action === 'reassigned' ? 'Responsável atualizado.' : action === 'project_changed' ? 'Projeto atualizado.' : 'Dados da missão atualizados.', now))
   await env.DB.batch(statements)
-  return Response.json({ mission: { id: current.id, title, projectId: project.id, assigneeId: assignee.id, dueAt: new Date(dueAt).toISOString(), expectedMinutes, priority, description, xpReward: xpRule?.baseXp ?? xpReward, xpRuleId: xpRule?.id ?? null, rewardLabel } })
+  const updated = await env.DB.prepare(`
+    SELECT title, due_at AS dueAt, expected_minutes AS expectedMinutes, priority, description,
+      xp_reward AS xpReward, xp_rule_id AS xpRuleId, reward_label AS rewardLabel
+    FROM missions WHERE id = ?
+  `).bind(current.id).first<{ title: string; dueAt: string | null; expectedMinutes: number | null; priority: string; description: string; xpReward: number; xpRuleId: string | null; rewardLabel: string | null }>()
+  if (!updated) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
+  return Response.json({ mission: { id: current.id, ...updated, projectId: project.id, assigneeId: assignee.id } })
 }
 
 export const onRequestDelete: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
@@ -263,9 +311,19 @@ export const onRequestDelete: PagesFunction<Bindings, 'id'> = async ({ env, para
   if (mission.status === 'cancelled') return new Response(null, { status: 204 })
   const nowDate = new Date()
   const now = nowDate.toISOString()
+  const cancellation = await env.DB.prepare(`
+    UPDATE missions
+    SET status = 'cancelled', updated_at = ?
+    WHERE id = ? AND status IN ('open', 'in_progress')
+  `).bind(now, mission.id).run()
+  if (!cancellation.meta.changes) {
+    const latest = await env.DB.prepare('SELECT status FROM missions WHERE id = ?').bind(mission.id).first<{ status: string }>()
+    if (latest?.status === 'cancelled') return new Response(null, { status: 204 })
+    if (latest?.status === 'completed') return Response.json({ error: 'Missões concluídas não podem ser excluídas porque já possuem histórico e XP. Cancele antes da conclusão.' }, { status: 409 })
+    return Response.json({ error: 'A missão foi atualizada por outra solicitação' }, { status: 409 })
+  }
   const { statements: timerStatements } = await closeActiveTimers(env.DB, mission.id, user.organizationId, nowDate)
   await env.DB.batch([
-    env.DB.prepare(`UPDATE missions SET status = 'cancelled', updated_at = ? WHERE id = ?`).bind(now, mission.id),
     env.DB.prepare(`INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at) VALUES (?, ?, ?, 'cancelled', 'Missão cancelada e removida das visões operacionais.', ?)`).bind(crypto.randomUUID(), mission.id, user.id, now),
     ...timerStatements,
   ])

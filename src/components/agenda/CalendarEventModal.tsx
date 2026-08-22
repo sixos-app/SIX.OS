@@ -93,7 +93,7 @@ export function CalendarEventModal({
     try {
       const input = { title, startsAt, endsAt, eventType, visibility, projectId: projectId || undefined, location, description, ownerUserId: ownerUserId || undefined, missionId: missionId || undefined, participantUserIds }
       const eventId = calendarEvent
-        ? (await updateCalendarEvent(calendarEvent.id, input), calendarEvent.id)
+        ? (await updateCalendarEvent(calendarEvent.id, { ...input, expectedRevision: calendarEvent.revision }), calendarEvent.id)
         : (await createCalendarEvent(input)).event.id
       if (!calendarEvent) createdEventId = eventId
       if (documentFile) await uploadCalendarEventDocument(eventId, documentFile)

@@ -59,14 +59,17 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
     const durationSeconds = Math.max(0, Math.floor((now.getTime() - Date.parse(active.startedAt)) / 1000))
 
     const { statements } = await closeActiveTimers(env.DB, missionAccess.id, user.organizationId, now)
-    statements.push(
-      env.DB.prepare(`
-        INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at)
-        VALUES (?, ?, ?, 'timer_stopped', 'Cronômetro pausado.', ?)
-      `).bind(crypto.randomUUID(), missionAccess.id, user.id, now.toISOString()),
-    )
+    if (statements.length) {
+      statements.push(
+        env.DB.prepare(`
+          INSERT INTO mission_history (id, mission_id, actor_user_id, action, detail, created_at)
+          SELECT ?, ?, ?, 'timer_stopped', 'Cronômetro pausado.', ?
+          WHERE changes() = 1
+        `).bind(crypto.randomUUID(), missionAccess.id, user.id, now.toISOString()),
+      )
+    }
 
-    await env.DB.batch(statements)
+    if (statements.length) await env.DB.batch(statements)
     return Response.json({ active: false, missionId: missionAccess.id, elapsedSeconds: durationSeconds })
   }
 

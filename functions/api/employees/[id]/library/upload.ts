@@ -4,7 +4,7 @@ import { getEmployeeWithinScope } from '../../_documentAccess'
 type LibraryBindings = Bindings & { FILES: R2Bucket }
 
 type FolderRow = { id: string; slug: string }
-type ExistingFileRow = { id: string; version: number }
+type ExistingFileRow = { id: string; version: number; storageKey: string | null }
 
 function fileTypeFrom(file: File) {
   if (file.type) return file.type
@@ -42,7 +42,7 @@ export const onRequestPost: PagesFunction<LibraryBindings, 'id'> = async ({ env,
   if (!name) return Response.json({ error: 'O arquivo precisa ter um nome válido' }, { status: 400 })
 
   const existingFile = await env.DB.prepare(`
-    SELECT id, version
+    SELECT id, version, storage_key AS storageKey
     FROM employee_library_files
     WHERE employee_id = ? AND folder_id = ? AND name = ?
     LIMIT 1
@@ -50,7 +50,8 @@ export const onRequestPost: PagesFunction<LibraryBindings, 'id'> = async ({ env,
 
   const fileId = existingFile?.id ?? crypto.randomUUID()
   const version = (existingFile?.version ?? 0) + 1
-  const storageKey = `organizations/${user.organizationId}/employees/${employee.id}/${folder.slug}/${fileId}/v${version}/${storageFileName(name)}`
+  const uploadAttemptId = crypto.randomUUID()
+  const storageKey = `organizations/${user.organizationId}/employees/${employee.id}/${folder.slug}/${fileId}/v${version}/${uploadAttemptId}-${storageFileName(name)}`
   const now = new Date().toISOString()
 
   await env.FILES.put(storageKey, file.stream(), {
@@ -61,8 +62,8 @@ export const onRequestPost: PagesFunction<LibraryBindings, 'id'> = async ({ env,
   try {
     const statements = [
       existingFile
-        ? env.DB.prepare(`UPDATE employee_library_files SET file_type = ?, size_bytes = ?, storage_provider = 'r2', storage_key = ?, version = ?, created_by_user_id = ?, updated_at = ? WHERE id = ?`)
-          .bind(fileTypeFrom(file), file.size, storageKey, version, user.id, now, fileId)
+        ? env.DB.prepare(`UPDATE employee_library_files SET file_type = ?, size_bytes = ?, storage_provider = 'r2', storage_key = ?, version = ?, created_by_user_id = ?, updated_at = ? WHERE id = ? AND version = ? AND storage_key IS ?`)
+          .bind(fileTypeFrom(file), file.size, storageKey, version, user.id, now, fileId, existingFile.version, existingFile.storageKey)
         : env.DB.prepare(`INSERT INTO employee_library_files (id, employee_id, folder_id, name, file_type, size_bytes, storage_provider, storage_key, version, created_by_user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'r2', ?, ?, ?, ?, ?)`)
           .bind(fileId, employee.id, folder.id, name, fileTypeFrom(file), file.size, storageKey, version, user.id, now, now),
       env.DB.prepare(`INSERT INTO employee_library_file_versions (id, file_id, version, storage_key, size_bytes, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
@@ -73,7 +74,11 @@ export const onRequestPost: PagesFunction<LibraryBindings, 'id'> = async ({ env,
         ) VALUES (?, ?, ?, ?, 'file_uploaded', 'document', NULL, ?, ?, ?)
       `).bind(crypto.randomUUID(), user.organizationId, employee.id, user.id, name, `Upload realizado: ${name} (v${version})`, now)
     ]
-    await env.DB.batch(statements)
+    const [persistence] = await env.DB.batch(statements)
+    if (existingFile && !persistence.meta.changes) {
+      await env.FILES.delete(storageKey)
+      return Response.json({ error: 'O arquivo foi alterado por outra solicitação' }, { status: 409 })
+    }
   } catch (error) {
     await env.FILES.delete(storageKey)
     throw error

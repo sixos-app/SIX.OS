@@ -1,9 +1,9 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type AccessUser, type Bindings } from '../_access'
-import { notifyMentionedUsers } from '../_notifications'
+import { getMentionLogins, notifyMentionedUsers } from '../_notifications'
 
 type AgendaBindings = Bindings & { FILES: R2Bucket }
 type EventRow = { id: string; visibility: 'personal' | 'team'; ownerUserId: string | null; attachmentKey: string | null }
-type UpdateAgendaInput = { title?: unknown; startsAt?: unknown; endsAt?: unknown; eventType?: unknown; visibility?: unknown; description?: unknown; location?: unknown; projectId?: unknown; ownerUserId?: unknown; missionId?: unknown; participantUserIds?: unknown }
+type UpdateAgendaInput = { title?: unknown; startsAt?: unknown; endsAt?: unknown; eventType?: unknown; visibility?: unknown; description?: unknown; location?: unknown; projectId?: unknown; ownerUserId?: unknown; missionId?: unknown; participantUserIds?: unknown; expectedRevision?: unknown }
 
 const eventTypes = new Set(['meeting', 'deadline', 'appointment', 'capture', 'vacation', 'birthday'])
 
@@ -38,7 +38,9 @@ export const onRequestPatch: PagesFunction<AgendaBindings, 'id'> = async ({ env,
 
   const input = await request.json().catch(() => null) as UpdateAgendaInput | null
   if (!input) return Response.json({ error: 'Atualização inválida' }, { status: 400 })
-  const stored = await env.DB.prepare('SELECT title, starts_at AS startsAt, ends_at AS endsAt, event_type AS eventType, visibility, description, location, project_id AS projectId, owner_user_id AS ownerUserId, mission_id AS missionId FROM calendar_events WHERE id = ?').bind(eventId).first<{ title: string; startsAt: string; endsAt: string | null; eventType: string; visibility: 'personal' | 'team'; description: string; location: string | null; projectId: string | null; ownerUserId: string | null; missionId: string | null }>()
+  const expectedRevision = typeof input.expectedRevision === 'number' && Number.isInteger(input.expectedRevision) && input.expectedRevision >= 0 ? input.expectedRevision : null
+  if (expectedRevision === null) return Response.json({ error: 'A versão do evento é obrigatória' }, { status: 400 })
+  const stored = await env.DB.prepare('SELECT title, starts_at AS startsAt, ends_at AS endsAt, event_type AS eventType, visibility, description, location, project_id AS projectId, owner_user_id AS ownerUserId, mission_id AS missionId, revision FROM calendar_events WHERE id = ? AND organization_id = ?').bind(eventId, user.organizationId).first<{ title: string; startsAt: string; endsAt: string | null; eventType: string; visibility: 'personal' | 'team'; description: string; location: string | null; projectId: string | null; ownerUserId: string | null; missionId: string | null; revision: number }>()
   if (!stored) return Response.json({ error: 'Evento não encontrado' }, { status: 404 })
 
   const title = text(input.title, 160) ?? stored.title
@@ -74,14 +76,49 @@ export const onRequestPatch: PagesFunction<AgendaBindings, 'id'> = async ({ env,
   }
 
   const now = new Date().toISOString()
-  const statements = [env.DB.prepare('UPDATE calendar_events SET title = ?, starts_at = ?, ends_at = ?, event_type = ?, visibility = ?, description = ?, location = ?, project_id = ?, client_id = ?, owner_user_id = ?, mission_id = ?, updated_at = ? WHERE id = ?').bind(title, startsAt, endsAt, eventType, visibility, description, location, project?.id ?? null, project?.clientId ?? mission?.clientId ?? null, ownerUserId, mission?.id ?? null, now, eventId)]
-  if (selectedParticipants) {
-    statements.push(env.DB.prepare('DELETE FROM calendar_event_participants WHERE event_id = ?').bind(eventId))
-    statements.push(...selectedParticipants.filter((participantId) => participantId !== ownerUserId).map((participantId) => env.DB.prepare('INSERT INTO calendar_event_participants (event_id, user_id, organization_id, created_at) VALUES (?, ?, ?, ?)').bind(eventId, participantId, user.organizationId, now)))
+  const has = (field: keyof UpdateAgendaInput) => Object.prototype.hasOwnProperty.call(input, field)
+  const updates: Array<{ column: string; value: string | null }> = []
+  if (has('title') && typeof input.title === 'string') updates.push({ column: 'title', value: title })
+  if (has('startsAt') && typeof input.startsAt === 'string' && toDate(input.startsAt)) updates.push({ column: 'starts_at', value: startsAt })
+  if (has('endsAt') && (input.endsAt === '' || toDate(input.endsAt))) updates.push({ column: 'ends_at', value: endsAt })
+  if (has('eventType') && typeof input.eventType === 'string' && eventTypes.has(input.eventType)) updates.push({ column: 'event_type', value: eventType })
+  if (has('visibility') && (input.visibility === 'personal' || input.visibility === 'team')) updates.push({ column: 'visibility', value: visibility })
+  if (has('description') && typeof input.description === 'string') updates.push({ column: 'description', value: description })
+  if (has('location') && (input.location === '' || text(input.location, 160) !== undefined)) updates.push({ column: 'location', value: location })
+  if (has('projectId') && typeof input.projectId === 'string') {
+    updates.push({ column: 'project_id', value: project?.id ?? null }, { column: 'client_id', value: project?.clientId ?? mission?.clientId ?? null })
   }
-  await env.DB.batch(statements)
+  if (has('missionId') && typeof input.missionId === 'string') {
+    updates.push({ column: 'mission_id', value: mission?.id ?? null })
+    if (!has('projectId')) updates.push({ column: 'project_id', value: project?.id ?? null }, { column: 'client_id', value: project?.clientId ?? mission?.clientId ?? null })
+  }
+  if (has('ownerUserId') && typeof input.ownerUserId === 'string' && input.ownerUserId) updates.push({ column: 'owner_user_id', value: ownerUserId })
+  if (updates.length === 0 && selectedParticipants === null) return Response.json({ error: 'Nenhuma alteração válida foi informada' }, { status: 400 })
+  updates.push({ column: 'updated_at', value: now })
+  const statements = [env.DB.prepare(`
+    UPDATE calendar_events
+    SET ${updates.map((update) => `${update.column} = ?`).join(', ')}, revision = revision + 1
+    WHERE id = ? AND organization_id = ? AND revision = ?
+  `).bind(...updates.map((update) => update.value), eventId, user.organizationId, expectedRevision)]
+  if (selectedParticipants) {
+    const participantIdsToKeep = selectedParticipants.filter((participantId) => participantId !== ownerUserId)
+    statements.push(...participantIdsToKeep.map((participantId) => env.DB.prepare(`
+      INSERT OR REPLACE INTO calendar_event_participants (event_id, user_id, organization_id, created_at)
+      SELECT ?, ?, ?, ?
+      WHERE changes() = 1
+    `).bind(eventId, participantId, user.organizationId, now)))
+    const participantFilter = participantIdsToKeep.length ? `AND user_id NOT IN (${participantIdsToKeep.map(() => '?').join(', ')})` : ''
+    statements.push(env.DB.prepare(`
+      DELETE FROM calendar_event_participants
+      WHERE event_id = ? ${participantFilter} AND changes() = 1
+    `).bind(eventId, ...participantIdsToKeep))
+  }
+  const [update] = await env.DB.batch(statements)
+  if (!update.meta.changes) return Response.json({ error: 'O evento foi alterado por outra operação. Recarregue antes de salvar novamente.' }, { status: 409 })
 
-  if (description) {
+  const previousMentions = new Set(getMentionLogins(stored.description))
+  const addedMentions = getMentionLogins(description).filter((login) => !previousMentions.has(login))
+  if (addedMentions.length) {
     await notifyMentionedUsers(env.DB, {
       organizationId: user.organizationId,
       actorUserId: user.id,
@@ -90,6 +127,7 @@ export const onRequestPatch: PagesFunction<AgendaBindings, 'id'> = async ({ env,
       entityType: 'agenda_event',
       entityId: eventId,
       entityTitle: title ?? 'Compromisso',
+      mentionLogins: addedMentions,
     })
   }
 

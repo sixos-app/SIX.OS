@@ -51,7 +51,8 @@ export const onRequestPost: PagesFunction<LibraryBindings, 'id'> = async ({ env,
 
   const fileId = existingFile?.id ?? crypto.randomUUID()
   const version = (existingFile?.version ?? 0) + 1
-  const storageKey = `organizations/${user.organizationId}/projects/${project.id}/${folder.slug}/${fileId}/v${version}/${storageFileName(name)}`
+  const uploadAttemptId = crypto.randomUUID()
+  const storageKey = `organizations/${user.organizationId}/projects/${project.id}/${folder.slug}/${fileId}/v${version}/${uploadAttemptId}-${storageFileName(name)}`
   const now = new Date().toISOString()
 
   await env.FILES.put(storageKey, file.stream(), {

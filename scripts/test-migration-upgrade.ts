@@ -149,6 +149,11 @@ try {
   const missionStartedAt = d1(['--command', "SELECT COUNT(*) AS count FROM pragma_table_info('missions') WHERE name = 'started_at';"], true)?.[0]?.results ?? []
   assert.equal(Number(missionStartedAt[0]?.count), 1, 'missions must record their first start')
 
+  const agendaRevisionColumn = d1(['--command', "SELECT COUNT(*) AS count FROM pragma_table_info('calendar_events') WHERE name = 'revision' AND type = 'INTEGER';"], true)?.[0]?.results ?? []
+  assert.equal(Number(agendaRevisionColumn[0]?.count), 1, 'calendar events must have an optimistic-lock revision')
+  const invalidAgendaRevisions = d1(['--command', 'SELECT COUNT(*) AS count FROM calendar_events WHERE revision IS NULL OR revision < 0;'], true)?.[0]?.results ?? []
+  assert.equal(Number(invalidAgendaRevisions[0]?.count), 0, 'existing calendar events must receive a valid revision')
+
   const historicalDemoRows = d1([
     '--command',
     "SELECT (SELECT COUNT(*) FROM projects WHERE id = 'project-shopping-uberaba') + (SELECT COUNT(*) FROM users WHERE id = 'team-guilherme') AS count;",

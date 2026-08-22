@@ -6,6 +6,7 @@ type LibraryBindings = Bindings & { FILES: R2Bucket }
 type FileRow = {
   name: string
   storageKey: string | null
+  version: number
 }
 
 type VersionRow = { storageKey: string | null }
@@ -21,7 +22,7 @@ export const onRequestGet: PagesFunction<LibraryBindings, 'id' | 'fileId'> = asy
   if (!employee) return Response.json({ error: 'Arquivo não encontrado' }, { status: 404 })
 
   const file = await env.DB.prepare(`
-    SELECT files.name, files.storage_key AS storageKey
+    SELECT files.name, files.storage_key AS storageKey, files.version
     FROM employee_library_files AS files
     JOIN employees ON employees.id = files.employee_id
     WHERE files.id = ? AND files.employee_id = ? AND employees.organization_id = ?
@@ -77,8 +78,13 @@ export const onRequestDelete: PagesFunction<LibraryBindings, 'id' | 'fileId'> = 
     ...(versions.results ?? []).map((version) => version.storageKey),
   ].filter((key): key is string => Boolean(key)))]
 
+  const deletion = await env.DB.prepare(`
+    DELETE FROM employee_library_files
+    WHERE id = ? AND employee_id = ? AND version = ? AND storage_key IS ?
+  `).bind(params.fileId, employee.id, file.version, file.storageKey).run()
+  if (!deletion.meta.changes) return Response.json({ error: 'O arquivo foi alterado por outra solicitação' }, { status: 409 })
+
   await env.DB.batch([
-    env.DB.prepare('DELETE FROM employee_library_files WHERE id = ?').bind(params.fileId),
     env.DB.prepare(`
       INSERT INTO employee_audit_logs (
         id, organization_id, employee_id, actor_user_id, action, field_name, old_value, new_value, details, created_at

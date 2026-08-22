@@ -1,3 +1,17 @@
+## [0.51.3] - 2026-08-22
+
+### Fixed
+
+- Proteção contra transições concorrentes de workflow, conclusão/cancelamento de missões e duplicação de custo no fechamento de timers.
+- PATCH esparso de missões e agenda, checklist com posição concorrente segura e menções idempotentes em retries.
+- Versionamento concorrente de bibliotecas, corrida entre upload e exclusão e substituição concorrente de anexos da Agenda.
+- Parser de menções após espaço e locking otimista da Agenda com resposta de conflito para revisão obsoleta.
+
+### Changed
+
+- A Agenda utiliza `revision` persistente para impedir perda de participantes e alterações concorrentes.
+- Migration histórica `0048_calendar_event_revision.sql` adicionada ao repositório após aplicação e validação em produção.
+
 ## [0.51.2] - 2026-08-22
 
 ### Security
