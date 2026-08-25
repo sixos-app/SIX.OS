@@ -27,6 +27,8 @@ export type MissionCreationInput = {
   workTypeId?: string | null
   workflowDepartments?: string[]
   workflowSteps?: MissionWorkflowStepInput[]
+  costCenterId?: string | null
+  billingValue?: number
 }
 
 const WORKFLOW_PRESETS: Record<string, string[]> = {
@@ -66,6 +68,9 @@ export function MissionCreateModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [xpRules, setXpRules] = useState<Array<{ id: string; name: string; baseXp: number; onTimeBonusPercent: number }>>([])
   const [xpRuleId, setXpRuleId] = useState('')
+  const [costCenters, setCostCenters] = useState<Array<{ id: string; name: string; code: string }>>([])
+  const [costCenterId, setCostCenterId] = useState<string>('')
+  const [billingValue, setBillingValue] = useState<string>('')
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
@@ -214,6 +219,8 @@ export function MissionCreateModal({
         files,
         xpRuleId: xpRuleId || undefined,
         workTypeId: workTypeId || null,
+        costCenterId: costCenterId || null,
+        billingValue: billingValue ? Number(billingValue.replace(',', '.')) || 0 : 0,
         workflowSteps: steps.map((s) => ({
           departmentName: s.departmentName,
           responsibleUserId: s.responsibleUserId,
@@ -498,6 +505,32 @@ export function MissionCreateModal({
           </select>
           <small className="mission-xp-rule-note">O XP será distribuído na aprovação final para todos os participantes do fluxo.</small>
         </label>
+
+        <div className="mission-create-row" style={{ marginTop: '14px' }}>
+          <label style={{ marginTop: 0 }}>
+            <span>CENTRO DE CUSTOS (OPCIONAL)</span>
+            <select value={costCenterId} onChange={(event) => setCostCenterId(event.target.value)}>
+              <option value="">Geral / Não atrelado</option>
+              {costCenters.map((cc) => (
+                <option value={cc.id} key={cc.id}>
+                  {cc.name} ({cc.code})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ marginTop: 0 }}>
+            <span>VALOR FATURADO (R$)</span>
+            <input
+              type="text"
+              placeholder="0,00"
+              value={billingValue}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^0-9,]/g, '');
+                setBillingValue(val);
+              }}
+            />
+          </label>
+        </div>
 
         </div>
         {formError && <p className="mission-create-error" role="alert">{formError}</p>}

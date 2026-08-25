@@ -11,6 +11,8 @@ export type IconName =
   | 'chart'
   | 'profile'
   | 'activity'
+  | 'dollar-sign'
+  | 'pie-chart'
   | 'key'
   | 'help'
   | 'logout'
@@ -27,6 +29,8 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     chart: <><path d="M4 19V5M4 19h16" /><path d="m7 15 4-5 3 2 5-7" /></>,
     profile: <><circle cx="12" cy="8" r="4" /><path d="M20 21c0-3.3-3.6-6-8-6s-8 2.7-8 6" /></>,
     activity: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
+    'dollar-sign': <><path d="M12 2v20" /><path d="M17 5.5C16.2 4.6 14.8 4 13 4h-2c-2.2 0-4 1.3-4 3s1.8 3 4 3h2c2.2 0 4 1.3 4 3s-1.8 3-4 3h-2c-1.8 0-3.2-.6-4-1.5" /></>,
+    'pie-chart': <><path d="M21 12a9 9 0 1 1-9-9v9h9Z" /><path d="M12 3a9 9 0 0 1 9 9h-9V3Z" /></>,
     key: <><circle cx="8" cy="15" r="4" /><path d="m11 12 8-8M15 8l2 2M17 6l2 2" /></>,
     help: <><circle cx="12" cy="12" r="9" /><path d="M9.8 9a2.4 2.4 0 0 1 4.6 1c0 1.8-2.4 2-2.4 3.7M12 17h.01" /></>,
     logout: <><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5" /><path d="m15 8 4 4-4 4M19 12H9" /></>,

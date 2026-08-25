@@ -15,6 +15,8 @@ export type Mission = {
   status?: 'open' | 'in_progress' | 'completed'
   approvalStatus?: 'not_requested' | 'pending' | 'approved'
   realizedCost: number
+  billingValue?: number
+  costCenterId?: string | null
   xpRecipientUserId?: string | null
   xpRecipientName?: string | null
   currentDepartment?: string | null

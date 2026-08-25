@@ -76,6 +76,8 @@ export type MissionDetails = {
     rewardLabel: string | null
     approvalStatus: string
     realizedCost: number
+    billingValue: number
+    costCenterId: string | null
     currentWorkflowPosition?: number
     createdAt: string
     completedAt: string | null
@@ -178,6 +180,8 @@ export type SaveMissionInput = {
   xpReward?: number
   xpRuleId?: string | null
   workTypeId?: string | null
+  costCenterId?: string | null
+  billingValue?: number
   workflowDepartments?: string[]
   workflowSteps?: Array<{ departmentName: string; responsibleUserId: string; stepType?: string; expectedMinutes?: number | null }>
 }

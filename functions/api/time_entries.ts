@@ -65,13 +65,35 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const client = await env.DB.prepare('SELECT id FROM clients WHERE id = ? AND organization_id = ? LIMIT 1')
     .bind(body.clientId, user.organizationId).first<{ id: string }>()
   if (!client) return Response.json({ error: 'Cliente não encontrado nesta organização' }, { status: 404 })
-
   const hours = Number(body.hours || 0)
   const minutes = Number(body.minutes || 0)
   if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 24 || minutes < 0 || minutes > 59 || hours + minutes === 0) {
     return Response.json({ error: 'Informe horas e minutos válidos' }, { status: 400 })
   }
 
+  // Cost calculation
+  const totalMinutes = (hours * 60) + minutes
+  const durationSeconds = totalMinutes * 60
+
+  const compRow = await env.DB.prepare(`
+    SELECT comp.id, comp.hourly_cost AS hourlyCost
+    FROM employee_compensation_history comp
+    JOIN employees emp ON emp.id = comp.employee_id
+    WHERE emp.user_id = ? AND emp.organization_id = ?
+      AND (comp.valid_until IS NULL OR comp.valid_until >= datetime('now'))
+    ORDER BY comp.valid_from DESC
+    LIMIT 1
+  `).bind(targetUser.id, user.organizationId).first<{ id: string; hourlyCost: number }>()
+
+  let hourlyRate = compRow?.hourlyCost ?? 0
+  let compensationHistoryId = compRow?.id ?? null
+
+  if (hourlyRate <= 0) {
+    const userRow = await env.DB.prepare('SELECT hourly_rate FROM users WHERE id = ?').bind(targetUser.id).first<{ hourly_rate: number }>()
+    hourlyRate = userRow?.hourly_rate || 0
+  }
+
+  const cost = (durationSeconds / 3600) * hourlyRate
   const demand = body.demandId
     ? await env.DB.prepare('SELECT id, client_id AS clientId FROM demands WHERE id = ? AND organization_id = ? LIMIT 1')
       .bind(body.demandId, user.organizationId).first<{ id: string; clientId: string }>()
@@ -97,11 +119,15 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const now = new Date().toISOString()
   const dateStr = body.date || now.slice(0, 10)
 
-  await env.DB.prepare(`
+  const dbStatements: D1PreparedStatement[] = []
+
+  dbStatements.push(env.DB.prepare(`
     INSERT INTO time_entries (
       id, organization_id, demand_id, task_id, client_id, user_id,
-      hours, minutes, date, description, entry_type, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      hours, minutes, date, description, entry_type,
+      cost, hourly_cost_snapshot, compensation_history_id, duration_seconds,
+      created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     user.organizationId,
@@ -114,8 +140,52 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     dateStr,
     body.description || null,
     body.entryType || 'manual',
+    cost,
+    hourlyRate,
+    compensationHistoryId,
+    durationSeconds,
     now
-  ).run()
+  ))
+
+  if (body.missionId && cost > 0) {
+    // If it's a mission time entry (from a new view potentially), we also need to update mission cost.
+    dbStatements.push(
+      env.DB.prepare(`
+        UPDATE missions SET realized_cost = realized_cost + ?
+        WHERE id = ? AND project_id IN (SELECT id FROM projects WHERE organization_id = ?)
+      `).bind(cost, body.missionId, user.organizationId)
+    )
+
+    // Also inject mission_id into time_entries
+    dbStatements[0] = env.DB.prepare(`
+      INSERT INTO time_entries (
+        id, organization_id, demand_id, task_id, mission_id, client_id, user_id,
+        hours, minutes, date, description, entry_type,
+        cost, hourly_cost_snapshot, compensation_history_id, duration_seconds,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      id,
+      user.organizationId,
+      demand?.id || task?.demandId || null,
+      task?.id || null,
+      body.missionId,
+      client.id,
+      targetUser.id,
+      hours,
+      minutes,
+      dateStr,
+      body.description || null,
+      body.entryType || 'manual',
+      cost,
+      hourlyRate,
+      compensationHistoryId,
+      durationSeconds,
+      now
+    )
+  }
+
+  await env.DB.batch(dbStatements)
 
   return Response.json({ id, ...body, userId: targetUserId, date: dateStr }, { status: 201 })
 }

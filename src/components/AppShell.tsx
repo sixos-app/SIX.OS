@@ -49,6 +49,7 @@ import { AnalyticsPage } from './analytics/AnalyticsPage'
 import { ChangePasswordModal } from './auth/ChangePasswordModal'
 import { Dashboard } from './dashboard/DashboardPage'
 import { EmployeesPage } from './employees/EmployeesPage'
+import { FinancePage } from './finance/FinancePage'
 import { EvolutionPage } from './evolution/EvolutionPage'
 import { FeedPage } from './feed/FeedPage'
 import { LibraryPage } from './library/LibraryPage'
@@ -449,6 +450,8 @@ export function AppShell({
       xpReward: input.priority === 'urgent' ? 120 : 80,
       xpRuleId: input.xpRuleId,
       workTypeId: input.workTypeId,
+      costCenterId: input.costCenterId,
+      billingValue: input.billingValue,
       workflowDepartments: input.workflowDepartments,
       workflowSteps: input.workflowSteps,
       })
@@ -635,6 +638,12 @@ export function AppShell({
                 <button className={`nav-item ${activeSection === 'employees' ? 'active' : ''}`} onClick={() => setActiveSection('employees')}>
                   <Icon name="people" />
                   <span>Colaboradores & RH</span>
+                </button>
+              )}
+              {can('finance.manage') && (
+                <button className={`nav-item ${activeSection === 'finance' ? 'active' : ''}`} onClick={() => setActiveSection('finance')}>
+                  <Icon name="dollar-sign" />
+                  <span>Financeiro</span>
                 </button>
               )}
               {(can('users.manage') || can('roles.manage')) && (

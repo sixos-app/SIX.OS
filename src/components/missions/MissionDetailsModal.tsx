@@ -89,6 +89,8 @@ export function MissionDetailsModal({
           rewardLabel: null,
           approvalStatus: mission.approvalStatus ?? 'not_requested',
           realizedCost: 0,
+          billingValue: 0,
+          costCenterId: null,
           createdAt: '',
           completedAt: null,
           approvedAt: null,
@@ -341,10 +343,24 @@ export function MissionDetailsModal({
                   Tempo: {details.activeTimer ? <MissionTimerValue startedAt={details.activeTimer.startedAt} /> : trackedHoursFormatted}
                 </span>
               )}
-              {(can('mission_costs.view') || can('finance.view') || can('finance.manage')) && details.mission.realizedCost > 0 && (
-                <span title="Custo de mão de obra acumulado">
-                  Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}
-                </span>
+              {(can('mission_costs.view') || can('finance.view') || can('finance.manage')) && (
+                <>
+                  {details.mission.realizedCost > 0 && (
+                    <span title="Custo de mão de obra acumulado">
+                      Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}
+                    </span>
+                  )}
+                  {details.mission.billingValue > 0 && (
+                    <span title="Valor a faturar (Receita)">
+                      Rec: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.billingValue)}
+                    </span>
+                  )}
+                  {details.mission.billingValue > 0 && details.mission.realizedCost > 0 && (
+                    <span title="Margem de Lucro Bruto">
+                      Mg: {Math.round(((details.mission.billingValue - details.mission.realizedCost) / details.mission.billingValue) * 100)}%
+                    </span>
+                  )}
+                </>
               )}
               <span>+{details.mission.xpReward} XP</span>
             </div>
