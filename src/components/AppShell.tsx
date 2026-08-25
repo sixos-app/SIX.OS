@@ -642,7 +642,7 @@ export function AppShell({
                   <span>Colaboradores & RH</span>
                 </button>
               )}
-              {can('finance.manage') && (
+              {(can('finance.view') || can('finance.manage')) && (
                 <button className={`nav-item ${activeSection === 'finance' ? 'active' : ''}`} onClick={() => setActiveSection('finance')}>
                   <Icon name="dollar-sign" />
                   <span>Financeiro</span>
@@ -861,6 +861,8 @@ export function AppShell({
           />
         ) : activeSection === 'employees' && (can('employees.view') || can('finance.view')) ? (
           <EmployeesPage />
+        ) : activeSection === 'finance' && (can('finance.view') || can('finance.manage')) ? (
+          <FinancePage />
         ) : activeSection === 'admin' && (can('users.manage') || can('roles.manage')) ? (
           <AdminPage onClientCreated={(client) => setClientIdentities((current) => [...current.filter((item) => item.id !== client.id), client])} />
         ) : activeSection === 'evolution' && (can('evaluations.view') || can('evaluations.respond') || can('evaluations.cycles.manage')) ? (

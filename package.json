@@ -18,6 +18,7 @@
     "test:agenda:concurrency": "tsx scripts/test_agenda_concurrency.ts",
     "test:finance:integrity": "tsx scripts/test_finance_backend_integrity.ts",
     "test:mission:financial-contracts": "tsx scripts/test_mission_financial_contracts.ts",
+    "test:finance:page": "tsx scripts/test_finance_page_integration.ts",
     "test": "tsx scripts/certify-beta.ts",
     "certify:beta": "tsx scripts/certify-beta.ts",
     "preview": "vite preview",
