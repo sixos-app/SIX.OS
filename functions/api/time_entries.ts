@@ -1,4 +1,25 @@
 import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, getPermissionScope, hasPermissionV2, type Bindings } from './_access'
+import { canAccessMission, getMissionAccess } from './missions/_missionAccess'
+import { resolveTimeEntryCost } from './_timeEntryCost'
+
+type TimeEntryInput = {
+  clientId?: unknown
+  userId?: unknown
+  hours?: unknown
+  minutes?: unknown
+  date?: unknown
+  description?: unknown
+  entryType?: unknown
+  demandId?: unknown
+  taskId?: unknown
+  missionId?: unknown
+}
+
+function isDateOnly(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
 
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
   const user = await getAccessUser(request, env)
@@ -46,13 +67,13 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const canCreate = await hasPermissionV2(env, request, user, 'time_entries.create')
   if (!canCreate) return permissionRequiredResponse()
 
-  const body = await request.json().catch(() => null) as any
-  if (!body || !body.clientId || (body.hours === undefined && body.minutes === undefined)) {
+  const body = await request.json().catch(() => null) as TimeEntryInput | null
+  if (!body || typeof body.clientId !== 'string' || !body.clientId || (body.hours === undefined && body.minutes === undefined)) {
     return Response.json({ error: 'Cliente e horas/minutos são obrigatórios' }, { status: 400 })
   }
 
   let targetUserId = user.id
-  if (body.userId && body.userId !== user.id) {
+  if (typeof body.userId === 'string' && body.userId && body.userId !== user.id) {
     const canManage = await hasPermissionV2(env, request, user, 'time_entries.manage')
     if (!canManage) return permissionRequiredResponse()
     targetUserId = body.userId
@@ -71,30 +92,14 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     return Response.json({ error: 'Informe horas e minutos válidos' }, { status: 400 })
   }
 
-  // Cost calculation
   const totalMinutes = (hours * 60) + minutes
   const durationSeconds = totalMinutes * 60
 
-  const compRow = await env.DB.prepare(`
-    SELECT comp.id, comp.hourly_cost AS hourlyCost
-    FROM employee_compensation_history comp
-    JOIN employees emp ON emp.id = comp.employee_id
-    WHERE emp.user_id = ? AND emp.organization_id = ?
-      AND (comp.valid_until IS NULL OR comp.valid_until >= datetime('now'))
-    ORDER BY comp.valid_from DESC
-    LIMIT 1
-  `).bind(targetUser.id, user.organizationId).first<{ id: string; hourlyCost: number }>()
+  const now = new Date().toISOString()
+  const dateStr = body.date === undefined ? now.slice(0, 10) : body.date
+  if (!isDateOnly(dateStr)) return Response.json({ error: 'Data do apontamento inválida' }, { status: 400 })
 
-  let hourlyRate = compRow?.hourlyCost ?? 0
-  let compensationHistoryId = compRow?.id ?? null
-
-  if (hourlyRate <= 0) {
-    const userRow = await env.DB.prepare('SELECT hourly_rate FROM users WHERE id = ?').bind(targetUser.id).first<{ hourly_rate: number }>()
-    hourlyRate = userRow?.hourly_rate || 0
-  }
-
-  const cost = (durationSeconds / 3600) * hourlyRate
-  const demand = body.demandId
+  const demand = typeof body.demandId === 'string' && body.demandId
     ? await env.DB.prepare('SELECT id, client_id AS clientId FROM demands WHERE id = ? AND organization_id = ? LIMIT 1')
       .bind(body.demandId, user.organizationId).first<{ id: string; clientId: string }>()
     : null
@@ -102,7 +107,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     return Response.json({ error: 'Demanda não pertence ao cliente informado' }, { status: 400 })
   }
 
-  const task = body.taskId
+  const task = typeof body.taskId === 'string' && body.taskId
     ? await env.DB.prepare(`
         SELECT t.id, t.demand_id AS demandId, d.client_id AS clientId
         FROM tasks t
@@ -115,31 +120,49 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     return Response.json({ error: 'Tarefa não pertence à demanda ou ao cliente informado' }, { status: 400 })
   }
 
+  const missionId = typeof body.missionId === 'string' && body.missionId ? body.missionId : null
+  let mission = null
+  if (missionId) {
+    mission = await getMissionAccess(env, user, missionId)
+    if (!mission) return Response.json({ error: 'Missão não encontrada' }, { status: 404 })
+    if (mission.clientId !== client.id) return Response.json({ error: 'Missão não pertence ao cliente informado' }, { status: 400 })
+    if (!(await canAccessMission(env, request, user, mission))) return permissionRequiredResponse()
+  } else if (body.missionId !== undefined) {
+    return Response.json({ error: 'Missão inválida' }, { status: 400 })
+  }
+
+  const { cost, hourlyRate, compensationHistoryId } = await resolveTimeEntryCost(
+    env.DB,
+    targetUser.id,
+    user.organizationId,
+    dateStr,
+    durationSeconds,
+  )
+
   const id = crypto.randomUUID()
-  const now = new Date().toISOString()
-  const dateStr = body.date || now.slice(0, 10)
 
   const dbStatements: D1PreparedStatement[] = []
 
   dbStatements.push(env.DB.prepare(`
     INSERT INTO time_entries (
-      id, organization_id, demand_id, task_id, client_id, user_id,
+      id, organization_id, demand_id, task_id, mission_id, client_id, user_id,
       hours, minutes, date, description, entry_type,
       cost, hourly_cost_snapshot, compensation_history_id, duration_seconds,
       created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id,
     user.organizationId,
     demand?.id || task?.demandId || null,
     task?.id || null,
+    mission?.id ?? null,
     client.id,
     targetUser.id,
     hours,
     minutes,
     dateStr,
-    body.description || null,
-    body.entryType || 'manual',
+    typeof body.description === 'string' && body.description ? body.description : null,
+    typeof body.entryType === 'string' && body.entryType ? body.entryType : 'manual',
     cost,
     hourlyRate,
     compensationHistoryId,
@@ -147,41 +170,13 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     now
   ))
 
-  if (body.missionId && cost > 0) {
-    // If it's a mission time entry (from a new view potentially), we also need to update mission cost.
+  if (mission && cost > 0) {
     dbStatements.push(
       env.DB.prepare(`
         UPDATE missions SET realized_cost = realized_cost + ?
         WHERE id = ? AND project_id IN (SELECT id FROM projects WHERE organization_id = ?)
-      `).bind(cost, body.missionId, user.organizationId)
-    )
-
-    // Also inject mission_id into time_entries
-    dbStatements[0] = env.DB.prepare(`
-      INSERT INTO time_entries (
-        id, organization_id, demand_id, task_id, mission_id, client_id, user_id,
-        hours, minutes, date, description, entry_type,
-        cost, hourly_cost_snapshot, compensation_history_id, duration_seconds,
-        created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      id,
-      user.organizationId,
-      demand?.id || task?.demandId || null,
-      task?.id || null,
-      body.missionId,
-      client.id,
-      targetUser.id,
-      hours,
-      minutes,
-      dateStr,
-      body.description || null,
-      body.entryType || 'manual',
-      cost,
-      hourlyRate,
-      compensationHistoryId,
-      durationSeconds,
-      now
+          AND changes() = 1
+      `).bind(cost, mission.id, user.organizationId)
     )
   }
 

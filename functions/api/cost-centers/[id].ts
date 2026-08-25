@@ -1,10 +1,11 @@
-import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
+import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, type Bindings } from '../_access'
+import { canManageCostCenters } from '../_costCenterAccess'
 
 export const onRequestDelete: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
 
-  if (!(await hasPermissionV2(env, request, user, 'finance.manage'))) {
+  if (!(await canManageCostCenters(env, request, user))) {
     return permissionRequiredResponse()
   }
 

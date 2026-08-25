@@ -1,4 +1,5 @@
 import type { Bindings } from '../_access'
+import { resolveTimeEntryCost } from '../_timeEntryCost'
 
 export type MissionStageType = 'backlog' | 'ready' | 'doing' | 'review' | 'approval' | 'done'
 
@@ -142,26 +143,13 @@ export async function closeActiveTimers(
     const durationSeconds = Math.max(0, Math.floor((nowMs - Date.parse(timer.startedAt)) / 1000))
     const totalMinutes = Math.floor(durationSeconds / 60)
 
-    // Lookup compensation history for employee linked to this user
-    const compRow = await db.prepare(`
-      SELECT comp.id, comp.hourly_cost AS hourlyCost
-      FROM employee_compensation_history comp
-      JOIN employees emp ON emp.id = comp.employee_id
-      WHERE emp.user_id = ? AND emp.organization_id = ?
-        AND (comp.valid_until IS NULL OR comp.valid_until >= ?)
-      ORDER BY comp.valid_from DESC
-      LIMIT 1
-    `).bind(timer.userId, organizationId, timer.startedAt).first<{ id: string; hourlyCost: number }>()
-
-    let hourlyRate = compRow?.hourlyCost ?? 0
-    let compensationHistoryId: string | null = compRow?.id ?? null
-
-    if (hourlyRate <= 0) {
-      const userRow = await db.prepare('SELECT hourly_rate FROM users WHERE id = ?').bind(timer.userId).first<{ hourly_rate: number }>()
-      hourlyRate = userRow?.hourly_rate || 0
-    }
-
-    const cost = (durationSeconds / 3600) * hourlyRate
+    const { cost, hourlyRate, compensationHistoryId } = await resolveTimeEntryCost(
+      db,
+      timer.userId,
+      organizationId,
+      timer.startedAt.slice(0, 10),
+      durationSeconds,
+    )
     totalCost += cost
 
     statements.push(

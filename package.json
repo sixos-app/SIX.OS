@@ -16,6 +16,7 @@
     "test:workflow": "tsx scripts/test_workflow_lifecycle.ts",
     "test:agenda": "tsx scripts/test_agenda_expansion.ts",
     "test:agenda:concurrency": "tsx scripts/test_agenda_concurrency.ts",
+    "test:finance:integrity": "tsx scripts/test_finance_backend_integrity.ts",
     "test": "tsx scripts/certify-beta.ts",
     "certify:beta": "tsx scripts/certify-beta.ts",
     "preview": "vite preview",
