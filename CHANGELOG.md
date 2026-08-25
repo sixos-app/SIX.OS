@@ -1,3 +1,19 @@
+## [0.52.0] - 2026-08-25
+
+### Added
+
+- Área Financeiro inicial para listar, criar e excluir centros de custo reais conforme RBAC.
+
+### Changed
+
+- Missões passam a suportar centro de custo, faturamento, custo realizado e margem com contratos frontend/backend compatíveis.
+- Apontamentos calculam custo com remuneração histórica e validam missão, cliente, organização e acesso antes de atualizar o custo realizado.
+
+### Security
+
+- Escrita e leitura de campos financeiros de missão exigem permissões financeiras e escopo organizacional no servidor.
+- Centros de custo aplicam isolamento por organização e exigem escopo `all` para leitura, criação e exclusão.
+
 ## [0.51.3] - 2026-08-22
 
 ### Fixed
