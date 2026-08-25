@@ -423,6 +423,8 @@ export function AppShell({
         status: 'open',
         approvalStatus: 'not_requested',
         realizedCost: 0,
+        billingValue: saved.billingValue,
+        costCenterId: saved.costCenterId,
       }
       setDashboardData((current) => ({ ...current, missions: [...current.missions, mission] }))
     }

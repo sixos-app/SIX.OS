@@ -6,6 +6,7 @@ import { DateTimePicker } from '../shared/DateTimePicker'
 import { Icon } from '../shared/Icon'
 import { MentionTextarea } from '../shared/MentionTextarea'
 import { WorkTypeSelector } from '../shared/WorkTypeSelector'
+import { usePermission } from '../../hooks/usePermission'
 
 export type MissionWorkflowStepInput = {
   departmentName: string
@@ -55,6 +56,8 @@ export function MissionCreateModal({
   onClose: () => void
   onCreate: (input: MissionCreationInput) => Promise<void> | void
 }) {
+  const { can, hasScope } = usePermission()
+  const canManageFinancials = can('finance.manage') && hasScope('finance.manage', 'all')
   const [title, setTitle] = useState('')
   const [projectId, setProjectId] = useState(initialProjectId ?? projects[0]?.id ?? '')
   const [workTypesList, setWorkTypesList] = useState<WorkType[]>(initialWorkTypes ?? [])
@@ -69,6 +72,8 @@ export function MissionCreateModal({
   const [xpRules, setXpRules] = useState<Array<{ id: string; name: string; baseXp: number; onTimeBonusPercent: number }>>([])
   const [xpRuleId, setXpRuleId] = useState('')
   const [costCenters, setCostCenters] = useState<Array<{ id: string; name: string; code: string }>>([])
+  const [isCostCentersLoading, setIsCostCentersLoading] = useState(false)
+  const [costCentersUnavailable, setCostCentersUnavailable] = useState(false)
   const [costCenterId, setCostCenterId] = useState<string>('')
   const [billingValue, setBillingValue] = useState<string>('')
   const [isSaving, setIsSaving] = useState(false)
@@ -100,6 +105,38 @@ export function MissionCreateModal({
       fetchWorkTypes().then(setWorkTypesList).catch(() => {})
     }
   }, [initialWorkTypes])
+
+  useEffect(() => {
+    if (!canManageFinancials) {
+      setCostCenters([])
+      setCostCenterId('')
+      setBillingValue('')
+      return
+    }
+
+    let cancelled = false
+    setIsCostCentersLoading(true)
+    setCostCentersUnavailable(false)
+    void fetch('/api/cost-centers', { headers: { Accept: 'application/json' } })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Cost centers unavailable (${response.status})`)
+        return response.json() as Promise<Array<{ id: string; name: string; code: string }>>
+      })
+      .then((centers) => {
+        if (!cancelled) setCostCenters(Array.isArray(centers) ? centers : [])
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCostCenters([])
+          setCostCentersUnavailable(true)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsCostCentersLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [canManageFinancials])
 
   function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`
@@ -205,6 +242,18 @@ export function MissionCreateModal({
     }
     const initialAssignee = steps[0]?.responsibleUserId || team[0]?.id || ''
     const expectedMinutesVal = estimatedHours ? Math.round(Number(estimatedHours) * 60) : null
+    const normalizedBillingValue = billingValue.trim() ? Number(billingValue.replace(',', '.')) : undefined
+    if (canManageFinancials && normalizedBillingValue !== undefined && (!Number.isFinite(normalizedBillingValue) || normalizedBillingValue < 0)) {
+      setFormError('Informe um valor faturado válido.')
+      return
+    }
+
+    const financialInput = canManageFinancials
+      ? {
+          ...(costCenterId ? { costCenterId } : {}),
+          ...(normalizedBillingValue !== undefined ? { billingValue: normalizedBillingValue } : {}),
+        }
+      : {}
 
     setIsSaving(true)
     try {
@@ -219,8 +268,7 @@ export function MissionCreateModal({
         files,
         xpRuleId: xpRuleId || undefined,
         workTypeId: workTypeId || null,
-        costCenterId: costCenterId || null,
-        billingValue: billingValue ? Number(billingValue.replace(',', '.')) || 0 : 0,
+        ...financialInput,
         workflowSteps: steps.map((s) => ({
           departmentName: s.departmentName,
           responsibleUserId: s.responsibleUserId,
@@ -506,10 +554,10 @@ export function MissionCreateModal({
           <small className="mission-xp-rule-note">O XP será distribuído na aprovação final para todos os participantes do fluxo.</small>
         </label>
 
-        <div className="mission-create-row" style={{ marginTop: '14px' }}>
+        {canManageFinancials && <div className="mission-create-row" style={{ marginTop: '14px' }}>
           <label style={{ marginTop: 0 }}>
             <span>CENTRO DE CUSTOS (OPCIONAL)</span>
-            <select value={costCenterId} onChange={(event) => setCostCenterId(event.target.value)}>
+            <select value={costCenterId} onChange={(event) => setCostCenterId(event.target.value)} disabled={isCostCentersLoading || costCentersUnavailable}>
               <option value="">Geral / Não atrelado</option>
               {costCenters.map((cc) => (
                 <option value={cc.id} key={cc.id}>
@@ -517,6 +565,9 @@ export function MissionCreateModal({
                 </option>
               ))}
             </select>
+            {isCostCentersLoading && <small>Carregando centros de custo…</small>}
+            {!isCostCentersLoading && !costCentersUnavailable && costCenters.length === 0 && <small>Nenhum centro de custo disponível.</small>}
+            {costCentersUnavailable && <small>Centros de custo indisponíveis. A missão pode ser criada sem este vínculo.</small>}
           </label>
           <label style={{ marginTop: 0 }}>
             <span>VALOR FATURADO (R$)</span>
@@ -530,7 +581,7 @@ export function MissionCreateModal({
               }}
             />
           </label>
-        </div>
+        </div>}
 
         </div>
         {formError && <p className="mission-create-error" role="alert">{formError}</p>}

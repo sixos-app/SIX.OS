@@ -14,7 +14,7 @@ export type Mission = {
   urgent?: boolean
   status?: 'open' | 'in_progress' | 'completed'
   approvalStatus?: 'not_requested' | 'pending' | 'approved'
-  realizedCost: number
+  realizedCost?: number
   billingValue?: number
   costCenterId?: string | null
   xpRecipientUserId?: string | null

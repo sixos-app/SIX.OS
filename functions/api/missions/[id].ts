@@ -1,5 +1,6 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
 import { canAccessMission, canManageMission, getMissionAccess } from './_missionAccess'
+import { canManageMissionFinancials, canViewMissionBilling, canViewMissionCosts } from './_financialAccess'
 import { closeActiveTimers } from './_missionWorkflow'
 
 type DetailRow = {
@@ -142,15 +143,24 @@ export const onRequestGet: PagesFunction<Bindings, 'id'> = async ({ env, params,
     `).bind(mission.id, user.organizationId).all<TimeEntryRow>(),
   ])
 
-  const [canInteract, canManage, canApprove, canTrackTime] = await Promise.all([
+  const [canInteract, canManage, canApprove, canTrackTime, canSeeBilling, canSeeCosts] = await Promise.all([
     canAccessMission(env, request, user, mission),
     canManageMission(env, request, user),
     hasPermissionV2(env, request, user, 'missions.approve'),
     hasPermissionV2(env, request, user, 'time_entries.create'),
+    canViewMissionBilling(env, request, user),
+    canViewMissionCosts(env, request, user),
   ])
 
+  const { realizedCost, billingValue, costCenterId, ...missionWithoutFinancials } = detail
+  const visibleMission = {
+    ...missionWithoutFinancials,
+    ...(canSeeCosts ? { realizedCost } : {}),
+    ...(canSeeBilling ? { billingValue, costCenterId } : {}),
+  }
+
   return Response.json({
-    mission: detail,
+    mission: visibleMission,
     checklist: checklist.results,
     comments: comments.results,
     attachments: attachments.results,
@@ -198,6 +208,9 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
   if (!body) return Response.json({ error: 'Atualização inválida' }, { status: 400 })
 
   const has = (field: keyof UpdateMissionInput) => Object.prototype.hasOwnProperty.call(body, field)
+  if ((has('costCenterId') || has('billingValue')) && !(await canManageMissionFinancials(env, request, user))) {
+    return permissionRequiredResponse()
+  }
   const updates: Array<{ column: string; value: string | number | null }> = []
   let title: string | undefined
   let description: string | undefined

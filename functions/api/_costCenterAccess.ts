@@ -5,23 +5,23 @@ import { getPermissionScope, type AccessUser, type Bindings } from './_access'
  * department, team, client, project, or unit relation that can safely map a
  * restricted RBAC V2 scope, so only `all` is valid for this resource.
  */
-async function hasOrganizationWideScope(
+export async function hasOrganizationWidePermission(
   env: Bindings,
   request: Request,
   user: AccessUser,
-  permissionCode: 'finance.view' | 'finance.manage',
+  permissionCode: string,
 ) {
   return (await getPermissionScope(env, request, user, permissionCode)) === 'all'
 }
 
 export async function canViewCostCenters(env: Bindings, request: Request, user: AccessUser) {
   const [canView, canManage] = await Promise.all([
-    hasOrganizationWideScope(env, request, user, 'finance.view'),
-    hasOrganizationWideScope(env, request, user, 'finance.manage'),
+    hasOrganizationWidePermission(env, request, user, 'finance.view'),
+    hasOrganizationWidePermission(env, request, user, 'finance.manage'),
   ])
   return canView || canManage
 }
 
 export function canManageCostCenters(env: Bindings, request: Request, user: AccessUser) {
-  return hasOrganizationWideScope(env, request, user, 'finance.manage')
+  return hasOrganizationWidePermission(env, request, user, 'finance.manage')
 }

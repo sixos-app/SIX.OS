@@ -1,5 +1,6 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from './_access'
 import { ensureDefaultMissionWorkflow } from './missions/_missionWorkflow'
+import { canManageMissionFinancials } from './missions/_financialAccess'
 
 type CreateMissionInput = {
   title?: unknown
@@ -38,8 +39,23 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const rewardLabel = typeof body?.rewardLabel === 'string' ? body.rewardLabel.trim().slice(0, 120) : null
   const xpRuleId = typeof body?.xpRuleId === 'string' && body.xpRuleId ? body.xpRuleId : null
   const workTypeId = typeof body?.workTypeId === 'string' && body.workTypeId ? body.workTypeId : null
-  const costCenterId = typeof body?.costCenterId === 'string' && body.costCenterId ? body.costCenterId : null
-  const billingValue = typeof body?.billingValue === 'number' && body.billingValue >= 0 ? body.billingValue : 0
+  const hasFinancialInput = Boolean(body)
+    && (Object.prototype.hasOwnProperty.call(body, 'costCenterId') || Object.prototype.hasOwnProperty.call(body, 'billingValue'))
+  if (hasFinancialInput && !(await canManageMissionFinancials(env, request, user))) return permissionRequiredResponse()
+
+  let costCenterId: string | null = null
+  if (body && Object.prototype.hasOwnProperty.call(body, 'costCenterId')) {
+    if (typeof body.costCenterId !== 'string' || !body.costCenterId) return Response.json({ error: 'Centro de custos inválido' }, { status: 400 })
+    costCenterId = body.costCenterId
+  }
+
+  let billingValue = 0
+  if (body && Object.prototype.hasOwnProperty.call(body, 'billingValue')) {
+    if (typeof body.billingValue !== 'number' || !Number.isFinite(body.billingValue) || body.billingValue < 0) {
+      return Response.json({ error: 'Valor de faturamento inválido' }, { status: 400 })
+    }
+    billingValue = body.billingValue
+  }
 
   const workflowSteps = Array.isArray(body?.workflowSteps)
     ? body.workflowSteps.map((value) => {
@@ -124,5 +140,6 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     xpReward: xpRule?.baseXp ?? xpReward,
     xpRuleId: xpRule?.id ?? null,
     description,
+    ...(hasFinancialInput ? { costCenterId, billingValue } : {}),
   }, { status: 201 })
 }

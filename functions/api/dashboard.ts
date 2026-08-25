@@ -1,4 +1,5 @@
 import { accessRequiredResponse, getAccessUser, getPermissionScope, hasPermissionV2, permissionRequiredResponse, type Bindings, type PermissionScope } from './_access'
+import { canViewMissionBilling, canViewMissionCosts } from './missions/_financialAccess'
 
 type MissionRow = {
   id: string
@@ -33,6 +34,9 @@ type MissionRow = {
   startedAt: string | null
   activeTimerStartedAt: string | null
   workTypeId: string | null
+  realizedCost?: number
+  billingValue?: number
+  costCenterId?: string | null
 }
 
 type ProjectRow = {
@@ -108,6 +112,15 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   const scoped = missionScope(scope, user)
   const scopedProjects = projectScope(scope, user)
   const scopedTeam = teamScope(scope, user)
+  const [canSeeMissionCosts, canSeeMissionBilling] = await Promise.all([
+    canViewMissionCosts(env, request, user),
+    canViewMissionBilling(env, request, user),
+  ])
+  const financialFields = [
+    canSeeMissionCosts ? 'missions.realized_cost AS realizedCost' : null,
+    canSeeMissionBilling ? 'missions.billing_value AS billingValue' : null,
+    canSeeMissionBilling ? 'missions.cost_center_id AS costCenterId' : null,
+  ].filter((field): field is string => Boolean(field)).join(',\n        ')
 
   try {
     const [profile, missionsResult, projectsResult, teamResult, xpResult, eventResult, activeTimer, workTypesResult, departmentsResult, notificationsResult] = await Promise.all([
@@ -128,7 +141,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
         missions.xp_reward AS xp, missions.ideas_reward AS ideas, missions.visual_tone AS tone,
         CASE WHEN missions.priority = 'urgent' THEN 1 ELSE 0 END AS urgent,
         missions.status, missions.approval_status AS approvalStatus,
-        missions.realized_cost AS realizedCost,
+        ${financialFields ? `${financialFields},` : ''}
         missions.xp_recipient_user_id AS xpRecipientUserId,
         (SELECT recipient.name FROM users recipient WHERE recipient.id = missions.xp_recipient_user_id) AS xpRecipientName,
         (SELECT steps.department_name FROM mission_workflow_steps steps WHERE steps.mission_id = missions.id AND steps.position = missions.current_workflow_position LIMIT 1) AS currentDepartment,

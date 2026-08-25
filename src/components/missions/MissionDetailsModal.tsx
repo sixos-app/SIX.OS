@@ -236,6 +236,8 @@ export function MissionDetailsModal({
   const totalTrackedSeconds = details?.timeTracking?.totalSeconds ?? 0
   const trackedHoursFormatted = `${Math.floor(totalTrackedSeconds / 3600)}h ${Math.floor((totalTrackedSeconds % 3600) / 60)}min`
   const expectedHoursFormatted = details?.mission.expectedMinutes ? `${Math.floor(details.mission.expectedMinutes / 60)}h ${details.mission.expectedMinutes % 60 ? `${details.mission.expectedMinutes % 60}min` : ''}` : null
+  const realizedCost = details?.mission.realizedCost
+  const billingValue = details?.mission.billingValue
 
   return (
     <div className="mission-create-overlay mission-details-overlay" role="dialog" aria-modal="true" aria-label="Detalhes da missão">
@@ -345,19 +347,19 @@ export function MissionDetailsModal({
               )}
               {(can('mission_costs.view') || can('finance.view') || can('finance.manage')) && (
                 <>
-                  {details.mission.realizedCost > 0 && (
+                  {typeof realizedCost === 'number' && realizedCost > 0 && (
                     <span title="Custo de mão de obra acumulado">
-                      Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}
+                      Custo: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(realizedCost)}
                     </span>
                   )}
-                  {details.mission.billingValue > 0 && (
+                  {typeof billingValue === 'number' && billingValue > 0 && (
                     <span title="Valor a faturar (Receita)">
-                      Rec: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.billingValue)}
+                      Rec: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(billingValue)}
                     </span>
                   )}
-                  {details.mission.billingValue > 0 && details.mission.realizedCost > 0 && (
+                  {typeof billingValue === 'number' && billingValue > 0 && typeof realizedCost === 'number' && realizedCost > 0 && (
                     <span title="Margem de Lucro Bruto">
-                      Mg: {Math.round(((details.mission.billingValue - details.mission.realizedCost) / details.mission.billingValue) * 100)}%
+                      Mg: {Math.round(((billingValue - realizedCost) / billingValue) * 100)}%
                     </span>
                   )}
                 </>
@@ -530,8 +532,8 @@ export function MissionDetailsModal({
                     <div className="mission-management-info"><span>Estimativa</span><strong>{expectedHoursFormatted ?? 'Não definida'}</strong></div>
                     <div className="mission-management-info"><span>Tempo realizado</span><strong>{trackedHoursFormatted}</strong></div>
                     <div className="mission-management-info"><span>Prazo</span><strong>{details.mission.dueAt ? new Date(details.mission.dueAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Não definido'}</strong></div>
-                    {(can('mission_costs.view') || can('finance.view') || can('finance.manage')) && details.mission.realizedCost > 0 && (
-                      <div className="mission-management-info"><span>Custo acumulado</span><strong>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(details.mission.realizedCost)}</strong></div>
+                    {(can('mission_costs.view') || can('finance.view') || can('finance.manage')) && typeof realizedCost === 'number' && realizedCost > 0 && (
+                      <div className="mission-management-info"><span>Custo acumulado</span><strong>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(realizedCost)}</strong></div>
                     )}
                   </div>
 
