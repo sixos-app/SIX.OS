@@ -15,6 +15,7 @@ export function FileUploadField({
   maxBytes,
   onChange,
   preview,
+  validateFile,
 }: {
   accept?: string
   buttonLabel?: string
@@ -25,6 +26,7 @@ export function FileUploadField({
   maxBytes?: number
   onChange?: (file: File | null) => void
   preview?: (file: File) => ReactNode
+  validateFile?: (file: File) => string | undefined
 }) {
   const inputId = useId()
   const hintId = hint || maxBytes ? `${inputId}-hint` : undefined
@@ -35,8 +37,9 @@ export function FileUploadField({
   const errorId = effectiveError ? `${inputId}-error` : undefined
 
   function selectFile(nextFile: File | null) {
-    if (nextFile && maxBytes && nextFile.size > maxBytes) {
-      setSelectionError(`O arquivo deve ter no máximo ${formatMaximumSize(maxBytes)}.`)
+    const validationError = nextFile ? validateFile?.(nextFile) ?? (maxBytes && nextFile.size > maxBytes ? `O arquivo deve ter no máximo ${formatMaximumSize(maxBytes)}.` : undefined) : undefined
+    if (validationError) {
+      setSelectionError(validationError)
       if (inputRef.current) inputRef.current.value = ''
       return
     }
