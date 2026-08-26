@@ -14,5 +14,6 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["scripts/**/*.ts"]
+  "include": ["scripts/**/*.ts"],
+  "exclude": ["scripts/test_ui_primitives.ts"]
 }
