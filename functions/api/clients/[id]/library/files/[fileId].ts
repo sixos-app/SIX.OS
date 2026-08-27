@@ -1,4 +1,4 @@
-import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../../../_access'
+import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, type Bindings } from '../../../../_access'
 import { canAccessClientLibrary } from '../../../_libraryAccess'
 
 type Env = Bindings & { FILES: R2Bucket }
@@ -6,10 +6,9 @@ type Env = Bindings & { FILES: R2Bucket }
 export const onRequestGet: PagesFunction<Env, 'id' | 'fileId'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  const canView = await hasPermissionV2(env, request, user, 'library.view')
-  const canManage = await hasPermissionV2(env, request, user, 'library.manage')
+  const canView = await canAccessClientLibrary(env, request, user, params.id as string, 'library.view')
+  const canManage = await canAccessClientLibrary(env, request, user, params.id as string, 'library.manage')
   if (!canView && !canManage) return permissionRequiredResponse()
-  if (!await canAccessClientLibrary(env, request, user, params.id as string)) return permissionRequiredResponse()
   const file = await env.DB.prepare(`SELECT files.name, files.storage_key AS storageKey FROM client_library_files files JOIN clients ON clients.id = files.client_id WHERE files.id = ? AND files.client_id = ? AND clients.organization_id = ?`).bind(params.fileId, params.id, user.organizationId).first<{ name: string; storageKey: string | null }>()
   if (!file?.storageKey) return Response.json({ error: 'Arquivo não encontrado' }, { status: 404 })
   const object = await env.FILES.get(file.storageKey)
@@ -24,7 +23,7 @@ export const onRequestGet: PagesFunction<Env, 'id' | 'fileId'> = async ({ env, p
 export const onRequestDelete: PagesFunction<Env, 'id' | 'fileId'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  if (!(await hasPermissionV2(env, request, user, 'library.manage'))) return permissionRequiredResponse()
+  if (!await canAccessClientLibrary(env, request, user, params.id as string, 'library.manage')) return permissionRequiredResponse()
 
   const file = await env.DB.prepare(`
     SELECT files.id, files.storage_key AS storageKey, files.version

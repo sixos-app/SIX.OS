@@ -1,13 +1,12 @@
-import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../_access'
+import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, type Bindings } from '../../_access'
 import { canAccessClientLibrary } from '../_libraryAccess'
 
 export const onRequestGet: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  const canView = await hasPermissionV2(env, request, user, 'library.view')
-  const canManage = await hasPermissionV2(env, request, user, 'library.manage')
+  const canView = await canAccessClientLibrary(env, request, user, params.id as string, 'library.view')
+  const canManage = await canAccessClientLibrary(env, request, user, params.id as string, 'library.manage')
   if (!canView && !canManage) return permissionRequiredResponse()
-  if (!await canAccessClientLibrary(env, request, user, params.id as string)) return permissionRequiredResponse()
   const client = await env.DB.prepare('SELECT id FROM clients WHERE id = ? AND organization_id = ?').bind(params.id, user.organizationId).first<{ id: string }>()
   if (!client) return Response.json({ error: 'Cliente não encontrado' }, { status: 404 })
   const [folders, files] = await Promise.all([

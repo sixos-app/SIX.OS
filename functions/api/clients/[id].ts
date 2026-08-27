@@ -1,11 +1,14 @@
-import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
+import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, type Bindings } from '../_access'
+import { canAccessClient } from './_clientAccess'
 
 type UpdateClientPayload = { description?: unknown }
 
 export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, params, request }) => {
   const user = await getAccessUser(request, env)
   if (!user) return accessRequiredResponse()
-  if (!(await hasPermissionV2(env, request, user, 'clients.manage'))) return permissionRequiredResponse()
+  const client = await env.DB.prepare('SELECT id FROM clients WHERE id = ? AND organization_id = ?').bind(params.id, user.organizationId).first<{ id: string }>()
+  if (!client) return Response.json({ error: 'Cliente não encontrado' }, { status: 404 })
+  if (!await canAccessClient(env, request, user, client.id, 'clients.manage')) return permissionRequiredResponse()
 
   const payload = await request.json().catch(() => null) as UpdateClientPayload | null
   if (!payload || typeof payload.description !== 'string') {
