@@ -222,6 +222,7 @@ export function EmployeesPage() {
           levels={levels}
           users={users}
           canSetSalary={can('employees.salary.edit')}
+          canEditSensitive={can('employees.edit_sensitive')}
           onClose={() => setIsCreateModalOpen(false)}
           onCreate={async (input) => {
             await createAdminUser(input)

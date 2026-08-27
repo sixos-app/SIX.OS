@@ -1,5 +1,6 @@
 import { accessRequiredResponse, getAccessUser, hashPassword, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
 import { relationId, validateEmployeeRelations } from '../_employeeRelations'
+import { hasSensitiveEmployeeFields } from '../_employeeSensitive'
 
 type CreateUserPayload = { name?: unknown; email?: unknown; role?: unknown; roles?: unknown; username?: unknown; initialPassword?: unknown; department?: unknown; status?: unknown; employee?: unknown }
 
@@ -32,6 +33,9 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const departmentValue = normalizeText(payload.department)
   const status = typeof payload.status === 'string' && ['active', 'blocked', 'inactive'].includes(payload.status) ? payload.status : 'active'
   const employee = payload.employee && typeof payload.employee === 'object' && !Array.isArray(payload.employee) ? payload.employee as Record<string, unknown> : {}
+  if (hasSensitiveEmployeeFields(employee) && !(await hasPermissionV2(env, request, administrator, 'employees.edit_sensitive'))) {
+    return Response.json({ error: 'Você não tem permissão para registrar dados pessoais sensíveis do colaborador.' }, { status: 403 })
+  }
   if (!name || name.length > 120 || !/^\S+@\S+\.\S+$/.test(email) || email.length > 180 || roles.length < 1 || roles.length > 5 || (username && !/^[a-z0-9._-]{3,40}$/.test(username)) || initialPassword.length < 12 || initialPassword.length > 256) {
     return Response.json({ error: 'Revise os dados do colaborador. A senha inicial deve ter pelo menos 12 caracteres.' }, { status: 400 })
   }

@@ -6,6 +6,7 @@ import {
   type Bindings,
 } from '../_access'
 import { relationId, validateEmployeeRelations, type EmployeeRelationValues } from '../_employeeRelations'
+import { hasSensitiveEmployeeFields } from '../_employeeSensitive'
 
 type EmployeeDetailRow = {
   id: string
@@ -187,6 +188,9 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
   }
 
   const canEditSensitive = await hasPermissionV2(env, request, user, 'employees.edit_sensitive')
+  if (hasSensitiveEmployeeFields(body) && !canEditSensitive) {
+    return Response.json({ error: 'Você não tem permissão para alterar dados pessoais sensíveis do colaborador.' }, { status: 403 })
+  }
   const now = new Date().toISOString()
   const auditLogs: Array<{ action: string; field: string; oldVal: string | null; newVal: string | null; detail: string }> = []
 
@@ -195,7 +199,6 @@ export const onRequestPatch: PagesFunction<Bindings, 'id'> = async ({ env, param
 
   function trackChange(field: string, dbCol: string, newVal: unknown, isSensitive = false) {
     if (newVal === undefined) return
-    if (isSensitive && !canEditSensitive) return
     const oldVal = existing ? existing[dbCol] : null
     if (oldVal !== newVal) {
       updates.push(`${dbCol} = ?`)

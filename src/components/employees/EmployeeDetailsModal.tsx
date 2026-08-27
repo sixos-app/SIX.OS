@@ -19,6 +19,8 @@ import { Avatar } from '../shared/Avatar'
 import { Icon } from '../shared/Icon'
 import { ModalHeader } from '../shared/ModalHeader'
 import { ModalShell } from '../shared/ModalShell'
+
+const sensitiveEmployeeFields = new Set(['cpf', 'rg', 'emitterOrgan', 'birthDate', 'maritalStatus', 'phone', 'personalEmail', 'emergencyContactName', 'emergencyContactPhone', 'zipCode', 'street', 'number', 'complement', 'neighborhood', 'city', 'state', 'country'])
 import { getEmployeeLibrary, createEmployeeLibraryFolder, uploadEmployeeLibraryFile, deleteEmployeeLibraryFile, type EmployeeLibrary, employeeLibrarySeed } from '../../data/employeeLibraryRepository'
 
 type TabType = 'overview' | 'personal' | 'professional' | 'compensation' | 'documents' | 'history'
@@ -131,7 +133,8 @@ export function EmployeeDetailsModal({
     setFeedback('')
     setError('')
     try {
-      await updateEmployee(employeeId, form)
+      const payload = can('employees.edit_sensitive') ? form : Object.fromEntries(Object.entries(form).filter(([key]) => !sensitiveEmployeeFields.has(key)))
+      await updateEmployee(employeeId, payload)
       setFeedback('Alterações salvas com sucesso!')
       onUpdated()
       await loadData()
@@ -264,7 +267,7 @@ export function EmployeeDetailsModal({
         {/* Tabs Bar */}
         <nav className="employee-tabs" role="tablist" aria-label="Navegação do detalhe do colaborador">
           <button className={`employee-tab-button ${activeTab === 'overview' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'overview'} type="button" onClick={() => setActiveTab('overview')}>VISÃO GERAL</button>
-          <button className={`employee-tab-button ${activeTab === 'personal' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'personal'} type="button" onClick={() => setActiveTab('personal')}>DADOS PESSOAIS</button>
+          {can('employees.edit_sensitive') && <button className={`employee-tab-button ${activeTab === 'personal' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'personal'} type="button" onClick={() => setActiveTab('personal')}>DADOS PESSOAIS</button>}
           <button className={`employee-tab-button ${activeTab === 'professional' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'professional'} type="button" onClick={() => setActiveTab('professional')}>VÍNCULO</button>
           {can('employees.salary.view') && <button className={`employee-tab-button ${activeTab === 'compensation' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'compensation'} type="button" onClick={() => setActiveTab('compensation')}>REMUNERAÇÃO</button>}
           {can('employees.documents.view') && <button className={`employee-tab-button ${activeTab === 'documents' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'documents'} type="button" onClick={() => setActiveTab('documents')}>DOCUMENTOS {library.files.length > 0 && <span className="employee-tab-badge">{library.files.length}</span>}</button>}

@@ -22,6 +22,7 @@
     "test:ui:primitives": "tsx scripts/test_ui_primitives.ts",
     "test:ui:client-dialog": "tsx scripts/test_ui_client_dialog.ts",
     "test:ui:employees": "tsx scripts/test_ui_employees.ts",
+    "test:employees:sensitive-rbac": "tsx scripts/test_employee_sensitive_rbac.ts",
     "test": "tsx scripts/certify-beta.ts",
     "certify:beta": "tsx scripts/certify-beta.ts",
     "preview": "vite preview",
