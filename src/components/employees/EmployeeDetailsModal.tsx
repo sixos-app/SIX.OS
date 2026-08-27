@@ -17,6 +17,7 @@ import { usePermission } from '../../hooks/usePermission'
 import { getInitials } from '../../utils/formatters'
 import { Avatar } from '../shared/Avatar'
 import { Icon } from '../shared/Icon'
+import { FormField } from '../shared/FormField'
 import { ModalHeader } from '../shared/ModalHeader'
 import { ModalShell } from '../shared/ModalShell'
 
@@ -402,6 +403,11 @@ export function EmployeeDetailsModal({
           {activeTab === 'professional' && (
             <form onSubmit={handleSaveGeneral} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                {!can('employees.edit_sensitive') && (
+                  <FormField controlId="employee-social-name-restricted" label="Nome Social">
+                    <input className="admin-input" value={form.socialName || ''} onChange={(e) => setForm({ ...form, socialName: e.target.value })} />
+                  </FormField>
+                )}
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '6px' }}>Matrícula Interna</label>
                   <input className="admin-input" placeholder="Ex: SIX-042" value={form.registrationNumber || ''} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })} />
