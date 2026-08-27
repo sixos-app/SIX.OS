@@ -1,3 +1,24 @@
+## [0.53.0] - 2026-08-27
+
+### Added
+
+- Primitives compartilhadas para modal e formulário, incluindo `ModalShell`, `ModalHeader`, `FormField` e `FileUploadField`.
+- Cadastro de colaborador expandido com dados pessoais, profissionais, endereço, relações organizacionais e remuneração inicial no histórico existente.
+
+### Changed
+
+- Novo Cliente e os fluxos de Colaboradores & RH passam a usar estruturas de formulário e modal normalizadas, com scroll em superfície única, foco e fechamento acessíveis.
+- Detalhe e edição de colaborador foram normalizados; cards da equipe permanecem acessíveis por teclado.
+
+### Security
+
+- Escrita de dados sensíveis de colaboradores exige `employees.edit_sensitive`, inclusive para usuários com `users.manage`.
+- Leitura e payloads preservam o filtro de campos sensíveis no servidor; Nome Social permanece não sensível para perfis restritos.
+
+### Coverage
+
+- Certificação interativa autenticada permanece parcialmente indisponível por ausência de D1/bootstrap local seguro com fixtures adequadas; não representa E2E completo.
+
 ## [0.52.0] - 2026-08-25
 
 ### Added
