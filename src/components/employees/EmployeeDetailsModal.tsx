@@ -16,6 +16,9 @@ import {
 import { usePermission } from '../../hooks/usePermission'
 import { getInitials } from '../../utils/formatters'
 import { Avatar } from '../shared/Avatar'
+import { Icon } from '../shared/Icon'
+import { ModalHeader } from '../shared/ModalHeader'
+import { ModalShell } from '../shared/ModalShell'
 import { getEmployeeLibrary, createEmployeeLibraryFolder, uploadEmployeeLibraryFile, deleteEmployeeLibraryFile, type EmployeeLibrary, employeeLibrarySeed } from '../../data/employeeLibraryRepository'
 
 type TabType = 'overview' | 'personal' | 'professional' | 'compensation' | 'documents' | 'history'
@@ -60,12 +63,6 @@ export function EmployeeDetailsModal({
   const { can } = usePermission()
   const [activeTab, setActiveTab] = useState<TabType>('overview')
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [])
   const [loading, setLoading] = useState(true)
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null)
   const [saving, setSaving] = useState(false)
@@ -239,11 +236,11 @@ export function EmployeeDetailsModal({
 
   if (loading) {
     return (
-      <div className="mission-details-overlay" onClick={onClose}>
-        <div className="mission-details-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '840px', padding: '32px', textAlign: 'center', color: '#888' }}>
+      <ModalShell accessibleTitle="Carregando colaborador" onClose={onClose} size="lg">
+        <div className="employee-details-loading">
           Carregando dados do colaborador...
         </div>
-      </div>
+      </ModalShell>
     )
   }
 
@@ -254,43 +251,28 @@ export function EmployeeDetailsModal({
   const statusMeta = STATUS_LABELS[employee.status] || { label: employee.status, tone: 'gray' }
 
   return (
-    <div className="mission-details-overlay" onClick={onClose}>
-      <div className="mission-details-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '920px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+    <ModalShell accessibleTitle={`Detalhes de ${employee.name}`} onClose={onClose} size="lg">
+      <div className="employee-details-modal">
         
         {/* Header SIX.OS */}
-        <header className="mission-details-header" style={{ padding: '20px 24px', borderBottom: '1px solid #282825', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <Avatar initials={getInitials(employee.name)} tone="lime" />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#fff' }}>{employee.name}</h3>
-                {employee.socialName && <span style={{ color: '#85857e', fontSize: '13px' }}>({employee.socialName})</span>}
-                <span className={`badge badge-${statusMeta.tone}`} style={{ fontSize: '10px', padding: '2px 8px' }}>{statusMeta.label}</span>
-              </div>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#85857e' }}>
-                {employee.positionName || 'Sem cargo'} • {employee.departmentName || 'Sem departamento'} {employee.registrationNumber ? `• Matrícula: ${employee.registrationNumber}` : ''}
-              </p>
-            </div>
-          </div>
-          <button className="close-button" type="button" onClick={onClose} aria-label="Fechar modal">×</button>
-        </header>
+        <ModalHeader closeLabel="Fechar detalhes do colaborador" eyebrow={employee.positionName || 'COLABORADOR'} icon={<Icon name="people" size={21} />} onClose={onClose} subtitle={<>{employee.departmentName || 'Sem departamento'} {employee.registrationNumber ? `• Matrícula: ${employee.registrationNumber}` : ''} • <span className={`badge badge-${statusMeta.tone}`}>{statusMeta.label}</span></>} title={employee.name} />
 
         {/* Feedback / Error Alerts */}
         {feedback && <div style={{ background: 'rgba(198, 255, 56, 0.15)', color: '#c6ff38', padding: '8px 24px', fontSize: '12px', borderBottom: '1px solid #31312e' }}>{feedback}</div>}
         {error && <div style={{ background: 'rgba(255, 107, 107, 0.15)', color: '#ff6b6b', padding: '8px 24px', fontSize: '12px', borderBottom: '1px solid #31312e' }}>{error}</div>}
 
         {/* Tabs Bar */}
-        <nav className="mission-tabs" aria-label="Navegação do detalhe do colaborador" style={{ padding: '0 24px', background: '#111' }}>
-          <button className={`mission-tab-button ${activeTab === 'overview' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('overview')}>VISÃO GERAL</button>
-          <button className={`mission-tab-button ${activeTab === 'personal' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('personal')}>DADOS PESSOAIS</button>
-          <button className={`mission-tab-button ${activeTab === 'professional' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('professional')}>VÍNCULO</button>
-          {can('employees.salary.view') && <button className={`mission-tab-button ${activeTab === 'compensation' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('compensation')}>REMUNERAÇÃO</button>}
-          {can('employees.documents.view') && <button className={`mission-tab-button ${activeTab === 'documents' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('documents')}>DOCUMENTOS {library.files.length > 0 && <span className="mission-tab-badge">{library.files.length}</span>}</button>}
-          {can('employees.history.view') && <button className={`mission-tab-button ${activeTab === 'history' ? 'active' : ''}`} type="button" onClick={() => setActiveTab('history')}>AUDITORIA</button>}
+        <nav className="employee-tabs" role="tablist" aria-label="Navegação do detalhe do colaborador">
+          <button className={`employee-tab-button ${activeTab === 'overview' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'overview'} type="button" onClick={() => setActiveTab('overview')}>VISÃO GERAL</button>
+          <button className={`employee-tab-button ${activeTab === 'personal' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'personal'} type="button" onClick={() => setActiveTab('personal')}>DADOS PESSOAIS</button>
+          <button className={`employee-tab-button ${activeTab === 'professional' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'professional'} type="button" onClick={() => setActiveTab('professional')}>VÍNCULO</button>
+          {can('employees.salary.view') && <button className={`employee-tab-button ${activeTab === 'compensation' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'compensation'} type="button" onClick={() => setActiveTab('compensation')}>REMUNERAÇÃO</button>}
+          {can('employees.documents.view') && <button className={`employee-tab-button ${activeTab === 'documents' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'documents'} type="button" onClick={() => setActiveTab('documents')}>DOCUMENTOS {library.files.length > 0 && <span className="employee-tab-badge">{library.files.length}</span>}</button>}
+          {can('employees.history.view') && <button className={`employee-tab-button ${activeTab === 'history' ? 'active' : ''}`} role="tab" aria-selected={activeTab === 'history'} type="button" onClick={() => setActiveTab('history')}>AUDITORIA</button>}
         </nav>
 
         {/* Scrollable Content Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+        <div className="employee-details-modal__body">
           
           {/* TAB 1: VISÃO GERAL */}
           {activeTab === 'overview' && (
@@ -665,6 +647,6 @@ export function EmployeeDetailsModal({
 
         </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }

@@ -1,6 +1,7 @@
 import { accessRequiredResponse, getAccessUser, hashPassword, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
+import { relationId, validateEmployeeRelations } from '../_employeeRelations'
 
-type CreateUserPayload = { name?: unknown; email?: unknown; role?: unknown; roles?: unknown; username?: unknown; initialPassword?: unknown; department?: unknown; status?: unknown }
+type CreateUserPayload = { name?: unknown; email?: unknown; role?: unknown; roles?: unknown; username?: unknown; initialPassword?: unknown; department?: unknown; status?: unknown; employee?: unknown }
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -30,6 +31,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const initialPassword = typeof payload.initialPassword === 'string' ? payload.initialPassword : ''
   const departmentValue = normalizeText(payload.department)
   const status = typeof payload.status === 'string' && ['active', 'blocked', 'inactive'].includes(payload.status) ? payload.status : 'active'
+  const employee = payload.employee && typeof payload.employee === 'object' && !Array.isArray(payload.employee) ? payload.employee as Record<string, unknown> : {}
   if (!name || name.length > 120 || !/^\S+@\S+\.\S+$/.test(email) || email.length > 180 || roles.length < 1 || roles.length > 5 || (username && !/^[a-z0-9._-]{3,40}$/.test(username)) || initialPassword.length < 12 || initialPassword.length > 256) {
     return Response.json({ error: 'Revise os dados do colaborador. A senha inicial deve ter pelo menos 12 caracteres.' }, { status: 400 })
   }
@@ -44,6 +46,13 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     : null
   if (departmentValue && !department) return Response.json({ error: 'Departamento inválido para esta organização' }, { status: 400 })
 
+  const positionId = relationId(employee.positionId)
+  const professionalLevelId = relationId(employee.professionalLevelId)
+  const managerId = relationId(employee.managerId)
+  if (!await validateEmployeeRelations(env, administrator.organizationId, { departmentId: department?.id ?? null, positionId, professionalLevelId, managerId })) {
+    return Response.json({ error: 'Uma ou mais relações do colaborador são inválidas.' }, { status: 400 })
+  }
+
   const profileCodeByRole: Record<string, string> = {
     admin: 'admin_tech', management: 'operations_management', coordinator: 'coordinator', service: 'service', specialist: 'specialist',
   }
@@ -57,12 +66,23 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   const id = `user-${crypto.randomUUID()}`
   try {
     const now = new Date().toISOString()
+    const employeeId = `emp-${id}`
+    const text = (key: string) => typeof employee[key] === 'string' ? employee[key].trim() || null : null
+    const date = (key: string) => typeof employee[key] === 'string' && employee[key] ? employee[key] : null
+    const contractType = typeof employee.contractType === 'string' && ['CLT', 'PJ', 'estagio', 'freelancer', 'temporario', 'outro'].includes(employee.contractType) ? employee.contractType : 'CLT'
+    const workModality = typeof employee.workModality === 'string' && ['presencial', 'remoto', 'hibrido'].includes(employee.workModality) ? employee.workModality : 'hibrido'
+    const employeeStatus = typeof employee.status === 'string' && ['active', 'inactive', 'vacation', 'leave', 'terminated'].includes(employee.status) ? employee.status : status === 'active' ? 'active' : 'inactive'
+    const salary = Number(employee.salary) || 0
+    const monthlyHours = Number(employee.monthlyHours) || 220
+    const canSetSalary = salary > 0 && await hasPermissionV2(env, request, administrator, 'employees.salary.edit')
     await env.DB.batch([
       env.DB.prepare('INSERT INTO users (id, organization_id, team_id, name, email, role, username, department_id, access_profile_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, administrator.organizationId, administrator.teamId, name, email, primaryRole, username, department?.id ?? null, accessProfile?.id ?? null, status),
       env.DB.prepare("INSERT INTO gamification_profiles (user_id, level) VALUES (?, 'Criativo Iniciante')").bind(id),
       ...roles.map((role, index) => env.DB.prepare('INSERT INTO user_role_assignments (user_id, role_code, is_primary) VALUES (?, ?, ?)').bind(id, role, index === 0 ? 1 : 0)),
       env.DB.prepare('INSERT INTO user_credentials (user_id, password_salt, password_hash, iterations) VALUES (?, ?, ?, ?)').bind(id, credential.passwordSalt, credential.passwordHash, credential.iterations),
-      env.DB.prepare('INSERT INTO employees (id, organization_id, user_id, name, personal_email, department_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(`emp-${id}`, administrator.organizationId, id, name, email, department?.id ?? null, status === 'active' ? 'active' : 'inactive', now, now),
+      env.DB.prepare(`INSERT INTO employees (id, organization_id, user_id, name, social_name, cpf, rg, emitter_organ, birth_date, marital_status, phone, personal_email, emergency_contact_name, emergency_contact_phone, zip_code, street, number, complement, neighborhood, city, state, country, registration_number, department_id, position_id, professional_level_id, manager_id, admission_date, contract_type, work_modality, status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(employeeId, administrator.organizationId, id, name, text('socialName'), text('cpf')?.replace(/\D/g, '') ?? null, text('rg'), text('emitterOrgan'), date('birthDate'), text('maritalStatus'), text('phone'), text('personalEmail') ?? email, text('emergencyContactName'), text('emergencyContactPhone'), text('zipCode'), text('street'), text('number'), text('complement'), text('neighborhood'), text('city'), text('state'), text('country') ?? 'Brasil', text('registrationNumber'), department?.id ?? null, positionId, professionalLevelId, managerId, date('admissionDate'), contractType, workModality, employeeStatus, text('notes'), now, now),
+      ...(canSetSalary ? [env.DB.prepare('INSERT INTO employee_compensation_history (id, organization_id, employee_id, salary, monthly_hours, hourly_cost, currency, valid_from, reason, created_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), administrator.organizationId, employeeId, salary, monthlyHours, Math.round((salary / monthlyHours) * 100) / 100, 'BRL', date('admissionDate') ?? now.slice(0, 10), 'Remuneração inicial.', administrator.id, now)] : []),
     ])
   } catch {
     return Response.json({ error: 'Já existe um colaborador com este e-mail ou login' }, { status: 409 })

@@ -160,10 +160,12 @@ export function EmployeesPage() {
       ) : (
         <section className="employees-grid">
           {filtered.map((emp) => (
-            <article
+            <button
+              type="button"
               key={emp.id}
-              className="admin-card"
+              className="admin-card employee-card"
               onClick={() => setSelectedEmployeeId(emp.id)}
+              aria-label={`Abrir detalhes de ${emp.name}`}
               style={{
                 cursor: 'pointer',
                 transition: 'border-color .15s ease, box-shadow .15s ease, transform .15s ease',
@@ -206,7 +208,7 @@ export function EmployeesPage() {
                   <span style={{ fontSize: '13px', color: '#171717', fontWeight: 500, textTransform: 'uppercase' }}>{emp.contractType || '-'}</span>
                 </div>
               </div>
-            </article>
+            </button>
           ))}
         </section>
       )}
@@ -215,6 +217,11 @@ export function EmployeesPage() {
       {isCreateModalOpen && adminOverview && (
         <AdminUserDialog
           roles={adminOverview.roles}
+          departments={departments}
+          positions={positions}
+          levels={levels}
+          users={users}
+          canSetSalary={can('employees.salary.edit')}
           onClose={() => setIsCreateModalOpen(false)}
           onCreate={async (input) => {
             await createAdminUser(input)

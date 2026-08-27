@@ -1,143 +1,27 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import React, { useEffect, useState, type FormEvent } from 'react'
 import type { AdminOverview, CreateAdminUserInput } from '../../data/adminRepository'
 import { Icon } from '../shared/Icon'
+import { FormField } from '../shared/FormField'
+import { ModalHeader } from '../shared/ModalHeader'
+import { ModalShell } from '../shared/ModalShell'
 
-export function AdminUserDialog({ roles, onClose, onCreate }: { roles: AdminOverview['roles']; onClose: () => void; onCreate: (input: CreateAdminUserInput) => Promise<void> }) {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [username, setUsername] = useState('')
-  const [initialPassword, setInitialPassword] = useState('')
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(['specialist'])
-  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([])
-  const [department, setDepartment] = useState('')
-  const [status, setStatus] = useState<CreateAdminUserInput['status']>('active')
-  const [error, setError] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
+type Tab = 'personal' | 'professional' | 'access' | 'address' | 'rh'
+type Option = { id: string; name: string }
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [])
-
-  useEffect(() => {
-    void fetch('/api/admin/departments', { headers: { Accept: 'application/json' } })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Não foi possível carregar os departamentos.')
-        return await response.json() as Array<{ id: string; name: string; is_active: boolean }>
-      })
-      .then((items) => {
-        const activeDepartments = items.filter((item) => item.is_active !== false)
-        setDepartments(activeDepartments)
-        setDepartment((current) => current || activeDepartments[0]?.id || '')
-      })
-      .catch((reason: Error) => setError(reason.message))
-  }, [])
-
-  function toggleRole(code: string) {
-    setError('')
-    setSelectedRoles((current) => {
-      if (current.includes(code)) return current.length === 1 ? current : current.filter((item) => item !== code)
-      if (current.length >= 5) {
-        setError('Cada colaborador pode ter no máximo cinco cargos.')
-        return current
-      }
-      return [...current, code]
-    })
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!department) {
-      setError('Selecione um departamento antes de criar o colaborador.')
-      return
-    }
-    setIsSaving(true)
-    setError('')
-    try {
-      await onCreate({ name: name.trim(), email: email.trim(), username: username.trim(), roles: selectedRoles, initialPassword, department, status })
-      onClose()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Não foi possível salvar o colaborador.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  return (
-    <div className="mission-create-overlay" role="dialog" aria-modal="true" aria-label="Novo colaborador">
-      <form className="mission-create-dialog admin-create-dialog" onSubmit={submit}>
-        <div className="admin-create-header">
-          <button className="close-button" type="button" onClick={onClose} aria-label="Fechar cadastro de colaborador">×</button>
-          <span className="mission-create-icon"><Icon name="people" size={21} /></span>
-          <p>CADASTRO COMPLETO DE COLABORADOR</p>
-          <h2>Quem vai tornar<br /><em>possível?</em></h2>
-        </div>
-        <div className="admin-create-content mission-create-scroll">
-        <label>
-          <span>NOME COMPLETO</span>
-          <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex: Lucas Mendes" required />
-        </label>
-        <div className="mission-create-row">
-          <label>
-            <span>E-MAIL PROFISSIONAL</span>
-            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="nome@agenciasix.com.br" required />
-          </label>
-          <label>
-            <span>SENHA INICIAL</span>
-            <input value={initialPassword} onChange={(event) => setInitialPassword(event.target.value)} type="password" minLength={12} placeholder="Mínimo 12 caracteres" required />
-          </label>
-        </div>
-        <label>
-          <span>CARGOS & PERMISSÕES · {selectedRoles.length}/5</span>
-          <div className="admin-role-picker" role="group" aria-label="Selecione até cinco cargos">
-            {roles.map((item) => {
-              const selected = selectedRoles.includes(item.code)
-              return (
-                <button className={selected ? 'selected' : ''} type="button" key={item.code} aria-pressed={selected} onClick={() => toggleRole(item.code)}>
-                  <i>{selected ? '✓' : '+'}</i>
-                  <span><b>{item.name}</b><small>{item.permissionCount} permissões</small></span>
-                </button>
-              )
-            })}
-          </div>
-          <small className="admin-role-picker-note">As permissões dos cargos selecionados serão somadas.</small>
-        </label>
-        <div className="mission-create-row">
-          <label>
-            <span>LOGIN (OPCIONAL)</span>
-            <input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="nome.sobrenome" />
-          </label>
-          <label>
-            <span>STATUS INICIAL</span>
-            <select value={status} onChange={(event) => setStatus(event.target.value as CreateAdminUserInput['status'])}>
-              <option value="active">Ativo (Permitir Acesso)</option>
-              <option value="blocked">Bloqueado</option>
-              <option value="inactive">Desativado</option>
-            </select>
-          </label>
-        </div>
-        <div className="mission-create-row">
-          <label>
-            <span>DEPARTAMENTO</span>
-            <select value={department} onChange={(event) => setDepartment(event.target.value)} required>
-              <option value="">Selecione um departamento</option>
-              {departments.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
-          </label>
-          <div />
-        </div>
-        </div>
-        <div className="admin-create-footer mission-create-footer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-          {error && <p className="admin-dialog-error" style={{ margin: '0 0 12px 0' }}>{error}</p>}
-          <button className="mission-create-submit" type="submit" disabled={isSaving || departments.length === 0} style={{ width: 'auto', padding: '13px 24px', marginTop: error ? 0 : '23px' }}>
-            {isSaving ? 'SALVANDO…' : <>CRIAR COLABORADOR <span>→</span></>}
-          </button>
-        </div>
-      </form>
-    </div>
-  )
+export function AdminUserDialog({ roles, departments = [], positions = [], levels = [], users = [], canSetSalary = false, onClose, onCreate }: { roles: AdminOverview['roles']; departments?: Option[]; positions?: Option[]; levels?: Option[]; users?: Option[]; canSetSalary?: boolean; onClose: () => void; onCreate: (input: CreateAdminUserInput) => Promise<void> }) {
+  const [tab, setTab] = useState<Tab>('personal')
+  const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [username, setUsername] = useState(''); const [initialPassword, setInitialPassword] = useState(''); const [selectedRoles, setSelectedRoles] = useState<string[]>(['specialist']); const [error, setError] = useState(''); const [isSaving, setIsSaving] = useState(false)
+  const [employee, setEmployee] = useState<Record<string, string>>({ departmentId: '', positionId: '', professionalLevelId: '', managerId: '', status: 'active', contractType: 'CLT', workModality: 'hibrido', monthlyHours: '220', country: 'Brasil' })
+  useEffect(() => { if (!employee.departmentId && departments[0]) setEmployee((current) => ({ ...current, departmentId: departments[0].id })) }, [departments, employee.departmentId])
+  const set = (key: string) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setEmployee((current) => ({ ...current, [key]: event.target.value }))
+  function toggleRole(code: string) { setSelectedRoles((current) => current.includes(code) ? current.length === 1 ? current : current.filter((item) => item !== code) : current.length >= 5 ? current : [...current, code]) }
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setIsSaving(true); setError(''); try { await onCreate({ name: name.trim(), email: email.trim(), username: username.trim(), roles: selectedRoles, initialPassword, department: employee.departmentId, status: employee.status === 'active' ? 'active' : 'inactive', employee }); onClose() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível salvar o colaborador.') } finally { setIsSaving(false) } }
+  const tabs: Array<[Tab, string]> = [['personal', 'PESSOAL'], ['professional', 'PROFISSIONAL'], ['access', 'ACESSO'], ['address', 'ENDEREÇO'], ['rh', 'RH']]
+  return <ModalShell accessibleTitle="Novo colaborador" onClose={onClose} size="lg"><form className="employee-create-dialog" onSubmit={submit}><ModalHeader closeLabel="Fechar cadastro de colaborador" eyebrow="CADASTRO COMPLETO DE COLABORADOR" icon={<Icon name="people" size={21} />} onClose={onClose} title={<>Quem vai tornar<br /><em>possível?</em></>} /><div className="employee-tabs" role="tablist" aria-label="Seções do cadastro de colaborador">{tabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}</div><div className="employee-create-dialog__body">
+    {tab === 'personal' && <div className="employee-form-grid"><FormField controlId="employee-name" label="NOME COMPLETO" required><input autoFocus value={name} onChange={(e) => setName(e.target.value)} required /></FormField><FormField controlId="employee-social-name" label="NOME SOCIAL"><input value={employee.socialName || ''} onChange={set('socialName')} /></FormField><FormField controlId="employee-cpf" label="CPF"><input value={employee.cpf || ''} onChange={set('cpf')} /></FormField><FormField controlId="employee-rg" label="RG"><input value={employee.rg || ''} onChange={set('rg')} /></FormField><FormField controlId="employee-emitter" label="ÓRGÃO EMISSOR"><input value={employee.emitterOrgan || ''} onChange={set('emitterOrgan')} /></FormField><FormField controlId="employee-birth" label="DATA DE NASCIMENTO"><input type="date" value={employee.birthDate || ''} onChange={set('birthDate')} /></FormField><FormField controlId="employee-marital" label="ESTADO CIVIL"><input value={employee.maritalStatus || ''} onChange={set('maritalStatus')} /></FormField><FormField controlId="employee-phone" label="TELEFONE"><input value={employee.phone || ''} onChange={set('phone')} /></FormField><FormField controlId="employee-personal-email" label="E-MAIL PESSOAL"><input type="email" value={employee.personalEmail || ''} onChange={set('personalEmail')} /></FormField><FormField controlId="employee-emergency-name" label="CONTATO DE EMERGÊNCIA"><input value={employee.emergencyContactName || ''} onChange={set('emergencyContactName')} /></FormField><FormField controlId="employee-emergency-phone" label="TELEFONE DE EMERGÊNCIA"><input value={employee.emergencyContactPhone || ''} onChange={set('emergencyContactPhone')} /></FormField></div>}
+    {tab === 'professional' && <div className="employee-form-grid"><FormField controlId="employee-department" label="DEPARTAMENTO" required><select value={employee.departmentId} onChange={set('departmentId')} required><option value="">Selecione</option>{departments.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></FormField><FormField controlId="employee-position" label="CARGO"><select value={employee.positionId} onChange={set('positionId')}><option value="">Selecione</option>{positions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></FormField><FormField controlId="employee-level" label="NÍVEL"><select value={employee.professionalLevelId} onChange={set('professionalLevelId')}><option value="">Selecione</option>{levels.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></FormField><FormField controlId="employee-manager" label="GESTOR"><select value={employee.managerId} onChange={set('managerId')}><option value="">Sem gestor</option>{users.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></FormField><FormField controlId="employee-admission" label="DATA DE ADMISSÃO"><input type="date" value={employee.admissionDate || ''} onChange={set('admissionDate')} /></FormField><FormField controlId="employee-contract" label="VÍNCULO"><select value={employee.contractType} onChange={set('contractType')}><option value="CLT">CLT</option><option value="PJ">PJ</option><option value="estagio">Estágio</option><option value="freelancer">Freelancer</option><option value="temporario">Temporário</option><option value="outro">Outro</option></select></FormField></div>}
+    {tab === 'access' && <div className="employee-form-grid"><FormField controlId="employee-email" label="E-MAIL PROFISSIONAL" required><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></FormField><FormField controlId="employee-password" label="SENHA INICIAL" hint="Mínimo de 12 caracteres." required><input type="password" minLength={12} value={initialPassword} onChange={(e) => setInitialPassword(e.target.value)} required /></FormField><FormField controlId="employee-login" label="LOGIN"><input value={username} onChange={(e) => setUsername(e.target.value)} /></FormField><FormField controlId="employee-status" label="STATUS"><select value={employee.status} onChange={set('status')}><option value="active">Ativo</option><option value="inactive">Inativo</option></select></FormField><div className="employee-role-field"><span>CARGOS E PERMISSÕES</span><div className="admin-role-picker">{roles.map((item) => <button className={selectedRoles.includes(item.code) ? 'selected' : ''} type="button" key={item.code} aria-pressed={selectedRoles.includes(item.code)} onClick={() => toggleRole(item.code)}><i>{selectedRoles.includes(item.code) ? '✓' : '+'}</i><span><b>{item.name}</b><small>{item.permissionCount} permissões</small></span></button>)}</div></div></div>}
+    {tab === 'address' && <div className="employee-form-grid">{[['zipCode','CEP'],['street','LOGRADOURO'],['number','NÚMERO'],['complement','COMPLEMENTO'],['neighborhood','BAIRRO'],['city','CIDADE'],['state','UF']].map(([key,label]) => <FormField key={key} controlId={`employee-${key}`} label={label}><input maxLength={key === 'state' ? 2 : undefined} value={employee[key] || ''} onChange={set(key)} /></FormField>)}</div>}
+    {tab === 'rh' && <div className="employee-form-grid"><FormField controlId="employee-modality" label="MODALIDADE"><select value={employee.workModality} onChange={set('workModality')}><option value="hibrido">Híbrido</option><option value="remoto">Remoto</option><option value="presencial">Presencial</option></select></FormField>{canSetSalary && <><FormField controlId="employee-salary" label="REMUNERAÇÃO INICIAL"><input type="number" min="0" value={employee.salary || ''} onChange={set('salary')} /></FormField><FormField controlId="employee-hours" label="HORAS MENSAIS"><input type="number" min="1" value={employee.monthlyHours} onChange={set('monthlyHours')} /></FormField></>}<FormField controlId="employee-notes" label="OBSERVAÇÕES"><textarea value={employee.notes || ''} onChange={set('notes')} /></FormField></div>}
+    {error && <p className="employee-dialog-error" role="alert">{error}</p>}<button className="employee-dialog-submit" type="submit" disabled={isSaving}>{isSaving ? 'SALVANDO…' : <>CRIAR COLABORADOR <span>→</span></>}</button></div></form></ModalShell>
 }

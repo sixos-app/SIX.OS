@@ -30,6 +30,7 @@ export type CreateAdminUserInput = {
   initialPassword: string
   department: string
   status: 'active' | 'blocked' | 'inactive'
+  employee?: Record<string, unknown>
 }
 
 export type CreateAdminClientInput = {
