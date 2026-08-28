@@ -51,6 +51,7 @@ assert.match(styles, /\.momentum-badge \{[^}]*position: relative[^}]*z-index: 2/
 assert.match(styles, /\.momentum-art \.level-badge \{[^}]*--level-badge-size: clamp\(104px, 10\.5vw, 150px\)/s)
 assert.match(styles, /@media \(max-width: 780px\) \{[\s\S]*?\.momentum-art::before \{ width: 130px; height: 130px; \}/)
 assert.match(styles, /\/\* Home momentum card: mobile badge composition\. \*\/[\s\S]*?\.momentum-card \{ min-height: 392px; \}[\s\S]*?\.momentum-art \{[\s\S]*?width: min\(210px, 58vw\)[\s\S]*?right: clamp\(8px, 4vw, 24px\)[\s\S]*?bottom: 50px;[\s\S]*?\.momentum-art \.level-badge \{ --level-badge-size: clamp\(82px, 25vw, 102px\); \}/)
+assert.match(styles, /\/\* Home momentum card: desktop badge target in the upper-right quadrant\. \*\/[\s\S]*?@media \(min-width: 781px\) \{[\s\S]*?\.momentum-art \{[\s\S]*?align-self: start;[\s\S]*?justify-self: end;[\s\S]*?width: min\(320px, 36vw\);[\s\S]*?height: 210px;[\s\S]*?margin: 24px 28px 0 0;[\s\S]*?\.momentum-art \.level-badge \{ --level-badge-size: clamp\(138px, 12vw, 170px\); \}/)
 assert.doesNotMatch(styles, /\.momentum[^\n]*transform: scale/)
 
 console.log('✅ HOME GAMIFICATION: engine oficial, selo atual, XP real, máximo e contrato estrutural responsivo verificados.')
