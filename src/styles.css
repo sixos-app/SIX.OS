@@ -37,8 +37,8 @@ button { border: 0; cursor: pointer; }
 .momentum-copy h2 em { font-size: 34px; }
 .momentum-copy button { margin-top: 27px; padding: 0; background: transparent; color: #f5f5ef; font-size: 9px; font-weight: 800; letter-spacing: 1.1px; }
 .momentum-copy button span { margin-left: 8px; color: #c6ff38; font-size: 15px; }
-.momentum-decoration { position: absolute; z-index: 0; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .72fr); pointer-events: none; }
-.momentum-decoration-visual { position: relative; grid-column: 2; display: grid; place-items: center; }
+.momentum-decoration { position: relative; z-index: 0; grid-area: badge; display: grid; place-items: center; pointer-events: none; }
+.momentum-decoration-visual { position: relative; align-self: stretch; justify-self: stretch; display: grid; place-items: center; }
 .momentum-decoration-visual::before { position: absolute; width: 185px; height: 185px; border-radius: 50%; background: #c6ff38; content: ""; box-shadow: 0 0 0 28px rgba(198,255,56,.07), 0 0 0 58px rgba(198,255,56,.05); }
 .momentum-art { position: relative; z-index: 1; grid-area: badge; display: grid; place-items: center; min-width: 0; background: transparent; border: 0; box-shadow: none; outline: 0; overflow: visible; }
 .momentum-badge { display: grid; place-items: center; background: transparent; border: 0; box-shadow: none; outline: 0; }
@@ -1926,7 +1926,6 @@ select.admin-input {
   .momentum-copy { padding: 30px 0 22px 24px; }
   .momentum-copy h2 { font-size: clamp(20px, 6.4vw, 25px); }
   .momentum-copy h2 em { font-size: clamp(24px, 7.4vw, 29px); }
-  .momentum-decoration { grid-template-columns: minmax(0, 1fr) auto; }
   .momentum-decoration-visual { width: clamp(76px, 25vw, 110px); }
   .momentum-decoration-visual::before { width: clamp(100px, 30vw, 130px); height: clamp(100px, 30vw, 130px); }
   .momentum-art .level-badge { --level-badge-size: clamp(64px, 22vw, 98px); }
