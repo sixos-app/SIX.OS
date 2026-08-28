@@ -437,6 +437,24 @@ button { border: 0; cursor: pointer; }
   .mission-side-panel { grid-template-columns: 1fr; }
 }
 
+/* Journey — official 25-level progression. */
+.journey-hero-badge { margin-top: 18px; }
+.journey-levels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 24px 37px; background: #fffefa; border-bottom: 1px solid #dfdfd8; }
+.journey-level-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 11px; min-width: 0; padding: 13px; border: 1px solid #e1e1da; border-radius: 10px; background: #f4f3ef; }
+.journey-level-card__content { min-width: 0; }
+.journey-level-card__content > span { display: block; margin-bottom: 5px; color: #777771; font-size: 8px; font-weight: 900; letter-spacing: .9px; }
+.journey-level-card h3 { margin: 0; color: #171717; font-size: 12px; letter-spacing: -.3px; }
+.journey-level-card p { margin: 5px 0; color: #777771; font-size: 9px; line-height: 1.4; }
+.journey-level-card small { color: #55554f; font-size: 9px; font-weight: 900; }
+.journey-level-card--conquered { border-color: #c8c8c0; }
+.journey-level-card--conquered .journey-level-card__content > span { color: #536e10; }
+.journey-level-card--current { border-color: #171717; background: #171717; color: #fff; }
+.journey-level-card--current h3, .journey-level-card--current small { color: #fff; }
+.journey-level-card--current p { color: #d1d1c9; }
+.journey-level-card--current .journey-level-card__content > span { color: #c6ff38; }
+.journey-level-card--locked { opacity: .67; }
+@media (max-width: 780px) { .journey-levels { grid-template-columns: 1fr; padding: 20px 24px; } }
+
 /* Client library — file view controls and simplified folders */
 .client-library-manager nav .client-library-folder-actions .client-library-folder-add,
 .client-library-folder-add {

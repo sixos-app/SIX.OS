@@ -1,6 +1,20 @@
 import { useEffect } from 'react'
 import type { DashboardData } from '../../data/dashboard'
-import { GAMIFICATION_LEVELS, getLevelProgress } from '../../../shared/gamificationLevels'
+import { GAMIFICATION_LEVELS, getLevelProgress, type GamificationLevel } from '../../../shared/gamificationLevels'
+import { LevelBadge } from '../gamification/LevelBadge'
+
+export type JourneyLevelState = 'conquered' | 'current' | 'locked'
+
+export function getJourneyLevelState(level: GamificationLevel, currentLevel: GamificationLevel): JourneyLevelState {
+  if (level.id === currentLevel.id) return 'current'
+  return level.level < currentLevel.level ? 'conquered' : 'locked'
+}
+
+const journeyStateLabels: Record<JourneyLevelState, string> = {
+  conquered: 'CONQUISTADO',
+  current: 'ATUAL',
+  locked: 'BLOQUEADO',
+}
 
 export function JourneyPanel({
   profile,
@@ -16,9 +30,8 @@ export function JourneyPanel({
   onClose: () => void
 }) {
   const levelProgress = getLevelProgress(totalXp)
-  const { currentLevel: currentMilestone, nextLevel: nextMilestone } = levelProgress
+  const { currentLevel, nextLevel } = levelProgress
   const achievements = [
-    { title: 'Ritmo extraordinário', detail: 'Energia sustentada acima de 90%.', unlocked: true },
     { title: 'Entrega de impacto', detail: `${completedCount} de ${missionCount} missões concluídas.`, unlocked: completedCount > 0 },
     { title: 'Visão de futuro', detail: `Alcance ${GAMIFICATION_LEVELS[2]!.minXp.toLocaleString('pt-BR')} XP para desbloquear.`, unlocked: totalXp >= GAMIFICATION_LEVELS[2]!.minXp },
   ]
@@ -38,26 +51,32 @@ export function JourneyPanel({
         <button className="close-button" onClick={onClose} aria-label="Fechar jornada">×</button>
         <div className="journey-hero">
           <span>SEU NÍVEL ATUAL</span>
-          <div className="journey-level-mark">{currentMilestone.name.charAt(0)}</div>
-          <p>{currentMilestone.name.toUpperCase()}</p>
-          <h2>{currentMilestone.description}</h2>
+          <div className="journey-hero-badge"><LevelBadge level={currentLevel} size="lg" decorative loading="lazy" /></div>
+          <p>{currentLevel.name.toUpperCase()}</p>
+          <h2>{currentLevel.description}</h2>
           <small>{profile.ideas.toLocaleString('pt-BR')} ideias registradas até aqui.</small>
         </div>
         <div className="journey-progress">
           <div>
             <span>{totalXp.toLocaleString('pt-BR')} XP</span>
-            <b>{nextMilestone ? `Faltam ${levelProgress.xpRemaining.toLocaleString('pt-BR')} XP para ${nextMilestone.name}` : 'Você alcançou o nível máximo atual.'}</b>
+            <b>{nextLevel ? `Faltam ${levelProgress.xpRemaining.toLocaleString('pt-BR')} XP para ${nextLevel.name}` : 'Você alcançou o nível máximo atual.'}</b>
           </div>
           <i><span style={{ width: `${levelProgress.progressPercent}%` }} /></i>
-          <div className="journey-milestones">
-            {GAMIFICATION_LEVELS.map((milestone) => (
-              <span className={totalXp >= milestone.minXp ? 'reached' : ''} key={milestone.id}>
-                <b>{milestone.name}</b>
-                <small>{milestone.minXp.toLocaleString('pt-BR')} XP</small>
-              </span>
-            ))}
-          </div>
         </div>
+        <section className="journey-levels" aria-label="Níveis da jornada">
+          {GAMIFICATION_LEVELS.map((level) => {
+            const state = getJourneyLevelState(level, currentLevel)
+            return <article className={`journey-level-card journey-level-card--${state}`} data-level-id={level.id} key={level.id}>
+              <LevelBadge level={level} size="sm" decorative loading="lazy" />
+              <div className="journey-level-card__content">
+                <span>{journeyStateLabels[state]}</span>
+                <h3>{level.level.toString().padStart(2, '0')} · {level.name}</h3>
+                <p>{level.description}</p>
+                <small>{level.minXp.toLocaleString('pt-BR')} XP</small>
+              </div>
+            </article>
+          })}
+        </section>
         <div className="journey-achievements">
           <div>
             <span>CONQUISTAS</span>
