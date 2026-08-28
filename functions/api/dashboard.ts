@@ -1,5 +1,6 @@
 import { accessRequiredResponse, getAccessUser, getPermissionScope, hasPermissionV2, permissionRequiredResponse, type Bindings, type PermissionScope } from './_access'
 import { canViewMissionBilling, canViewMissionCosts } from './missions/_financialAccess'
+import { getLevelFromXp } from '../../shared/gamificationLevels'
 
 type MissionRow = {
   id: string
@@ -284,7 +285,9 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   const deliveryRate = missions.length ? Math.round((completedCount / missions.length) * 100) : 0
 
   return Response.json({
-    profile: profile ?? { xp: 0, ideas: 0, level: 'Criador', streak: 0 },
+    profile: profile
+      ? { ...profile, level: getLevelFromXp(profile.xp).name }
+      : { xp: 0, ideas: 0, level: getLevelFromXp(0).name, streak: 0 },
     missions,
     projects: projectsResult.results.map(project => ({
       ...project,

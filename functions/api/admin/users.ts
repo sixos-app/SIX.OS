@@ -1,6 +1,7 @@
 import { accessRequiredResponse, getAccessUser, hashPassword, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
 import { relationId, validateEmployeeRelations } from '../_employeeRelations'
 import { hasSensitiveEmployeeFields } from '../_employeeSensitive'
+import { getLevelFromXp } from '../../../shared/gamificationLevels'
 
 type CreateUserPayload = { name?: unknown; email?: unknown; role?: unknown; roles?: unknown; username?: unknown; initialPassword?: unknown; department?: unknown; status?: unknown; employee?: unknown }
 
@@ -81,7 +82,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     const canSetSalary = salary > 0 && await hasPermissionV2(env, request, administrator, 'employees.salary.edit')
     await env.DB.batch([
       env.DB.prepare('INSERT INTO users (id, organization_id, team_id, name, email, role, username, department_id, access_profile_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, administrator.organizationId, administrator.teamId, name, email, primaryRole, username, department?.id ?? null, accessProfile?.id ?? null, status),
-      env.DB.prepare("INSERT INTO gamification_profiles (user_id, level) VALUES (?, 'Criativo Iniciante')").bind(id),
+      env.DB.prepare('INSERT INTO gamification_profiles (user_id, level) VALUES (?, ?)').bind(id, getLevelFromXp(0).name),
       ...roles.map((role, index) => env.DB.prepare('INSERT INTO user_role_assignments (user_id, role_code, is_primary) VALUES (?, ?, ?)').bind(id, role, index === 0 ? 1 : 0)),
       env.DB.prepare('INSERT INTO user_credentials (user_id, password_salt, password_hash, iterations) VALUES (?, ?, ?, ?)').bind(id, credential.passwordSalt, credential.passwordHash, credential.iterations),
       env.DB.prepare(`INSERT INTO employees (id, organization_id, user_id, name, social_name, cpf, rg, emitter_organ, birth_date, marital_status, phone, personal_email, emergency_contact_name, emergency_contact_phone, zip_code, street, number, complement, neighborhood, city, state, country, registration_number, department_id, position_id, professional_level_id, manager_id, admission_date, contract_type, work_modality, status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)

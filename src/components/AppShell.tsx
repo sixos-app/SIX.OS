@@ -755,7 +755,6 @@ export function AppShell({
         {activeSection === 'home' ? (
           <Dashboard
             userName={accessSession.name}
-            profileLevel={dashboardData.profile.level}
             filter={filter}
             onFilterChange={setFilter}
             missions={displayedMissions}

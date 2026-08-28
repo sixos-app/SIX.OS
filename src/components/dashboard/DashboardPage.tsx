@@ -4,10 +4,10 @@ import { AgendaItem } from '../agenda/AgendaItem'
 import { ProjectCard } from '../projects/ProjectCard'
 import { Avatar } from '../shared/Avatar'
 import { MissionDetailsModal } from '../missions/MissionDetailsModal'
+import { getLevelFromXp } from '../../../shared/gamificationLevels'
 
 export function Dashboard({
   userName,
-  profileLevel,
   filter,
   onFilterChange,
   missions: visibleMissions,
@@ -30,7 +30,6 @@ export function Dashboard({
   onDeleteMission,
 }: {
   userName: string
-  profileLevel: string
   filter: 'all' | 'today' | 'urgent'
   onFilterChange: (filter: 'all' | 'today' | 'urgent') => void
   missions: Mission[]
@@ -57,6 +56,7 @@ export function Dashboard({
   const [selectedMissionId, setSelectedMissionId] = useState<string>('')
   const openMissionCount = projectMissions.filter((mission) => mission.status !== 'completed').length
   const completionRate = projectMissions.length ? Math.round(((projectMissions.length - openMissionCount) / projectMissions.length) * 100) : 0
+  const profileLevel = getLevelFromXp(totalXp).name
 
   const selectedMission = visibleMissions.find((mission) => mission.id === selectedMissionId) || projectMissions.find((mission) => mission.id === selectedMissionId)
 

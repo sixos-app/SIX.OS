@@ -1,16 +1,12 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../_access'
+import { GAMIFICATION_LEVELS } from '../../../shared/gamificationLevels'
 
 type SettingsRow = {
   xp_multiplier: number
-  level_config: string
   rewards_config: string
 }
 
-const DEFAULT_LEVELS = [
-  { name: 'Criador', target: 0, detail: 'Transforma intenção em entrega.' },
-  { name: 'Visionário', target: 8700, detail: 'Enxerga possibilidades antes do óbvio.' },
-  { name: 'Catalisador', target: 12000, detail: 'Move pessoas e ideias para a frente.' }
-]
+const OFFICIAL_LEVEL_CONFIG = GAMIFICATION_LEVELS.map(level => ({ name: level.name, target: level.minXp, detail: level.description }))
 
 const DEFAULT_REWARDS = [
   { id: 'reward-1', title: 'Kudos no Feed', xpCost: 100 },
@@ -24,7 +20,7 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   if (!(await hasPermissionV2(env, request, user, 'gamification.manage'))) return permissionRequiredResponse()
 
   const settings = await env.DB.prepare(`
-    SELECT xp_multiplier, level_config, rewards_config
+    SELECT xp_multiplier, rewards_config
     FROM organization_settings
     WHERE organization_id = ?
     LIMIT 1
@@ -33,14 +29,14 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
   if (!settings) {
     return Response.json({
       xpMultiplier: 1.0,
-      levelConfig: DEFAULT_LEVELS,
+      levelConfig: OFFICIAL_LEVEL_CONFIG,
       rewardsConfig: DEFAULT_REWARDS
     })
   }
 
   return Response.json({
     xpMultiplier: settings.xp_multiplier,
-    levelConfig: JSON.parse(settings.level_config || '[]'),
+    levelConfig: OFFICIAL_LEVEL_CONFIG,
     rewardsConfig: JSON.parse(settings.rewards_config || '[]')
   })
 }
@@ -49,6 +45,18 @@ type SaveGamificationInput = {
   xpMultiplier?: unknown
   levelConfig?: unknown
   rewardsConfig?: unknown
+}
+
+function isOfficialLevelConfig(value: unknown): boolean {
+  return Array.isArray(value)
+    && value.length === OFFICIAL_LEVEL_CONFIG.length
+    && value.every((level, index) => {
+      const official = OFFICIAL_LEVEL_CONFIG[index]
+      return typeof level === 'object' && level !== null
+        && 'name' in level && level.name === official?.name
+        && 'target' in level && level.target === official?.target
+        && 'detail' in level && level.detail === official?.detail
+    })
 }
 
 export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) => {
@@ -63,24 +71,25 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
     ? input.xpMultiplier
     : 1.0
 
-  const levelConfig = Array.isArray(input.levelConfig) ? JSON.stringify(input.levelConfig) : JSON.stringify(DEFAULT_LEVELS)
+  if (input.levelConfig !== undefined && !isOfficialLevelConfig(input.levelConfig)) {
+    return Response.json({ error: 'Os níveis oficiais são definidos pelo produto e não podem ser alterados por organização.' }, { status: 400 })
+  }
   const rewardsConfig = Array.isArray(input.rewardsConfig) ? JSON.stringify(input.rewardsConfig) : JSON.stringify(DEFAULT_REWARDS)
 
   const now = new Date().toISOString()
 
   await env.DB.prepare(`
     INSERT INTO organization_settings (organization_id, xp_multiplier, level_config, rewards_config, updated_at)
-    VALUES (?, ?, ?, ?, ?)
+    VALUES (?, ?, NULL, ?, ?)
     ON CONFLICT (organization_id) DO UPDATE SET
       xp_multiplier = excluded.xp_multiplier,
-      level_config = excluded.level_config,
       rewards_config = excluded.rewards_config,
       updated_at = excluded.updated_at
-  `).bind(user.organizationId, xpMultiplier, levelConfig, rewardsConfig, now).run()
+  `).bind(user.organizationId, xpMultiplier, rewardsConfig, now).run()
 
   return Response.json({
     xpMultiplier,
-    levelConfig: JSON.parse(levelConfig),
+    levelConfig: OFFICIAL_LEVEL_CONFIG,
     rewardsConfig: JSON.parse(rewardsConfig)
   })
 }

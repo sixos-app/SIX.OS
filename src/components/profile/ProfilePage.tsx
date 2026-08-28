@@ -3,6 +3,7 @@ import type { AccessSession } from '../../data/accessRepository'
 import { getProfileData, type ProfileData } from '../../data/profileRepository'
 import { usePermission } from '../../hooks/usePermission'
 import { ProfileEditModal } from './ProfileEditModal'
+import { getLevelFromXp, getLevelProgress } from '../../../shared/gamificationLevels'
 
 export function ProfilePage({ accessSession, onLogoutSuccess }: { accessSession: AccessSession | null; onLogoutSuccess?: () => void }) {
   const { can } = usePermission()
@@ -33,13 +34,8 @@ export function ProfilePage({ accessSession, onLogoutSuccess }: { accessSession:
   const ranking = profileData?.ranking ?? []
   const stickers = profileData?.stickers ?? []
   const stats = profileData?.stats ?? { projectsDelivered: 0, averageApproval: 100 }
-  const levelConfig = profileData?.levelConfig ?? [
-    { name: 'Criador', target: 0, detail: 'Transforma intenção em entrega.' },
-    { name: 'Visionário', target: 8700, detail: 'Enxerga possibilidades antes do óbvio.' },
-    { name: 'Catalisador', target: 12000, detail: 'Move pessoas e ideias para a frente.' },
-  ]
-  const currentLevel = profile ? ([...levelConfig].reverse().find((level) => (profile.xp ?? 0) >= level.target) ?? levelConfig[0]) : levelConfig[0]
-  const nextLevel = profile ? levelConfig.find((level) => level.target > (profile.xp ?? 0)) : levelConfig[1]
+  const levelProgress = getLevelProgress(profile?.xp ?? 0)
+  const { currentLevel, nextLevel } = levelProgress
   const displayName = profile?.socialName || profile?.name || accessSession?.name || 'Colaborador'
   const displayRole = profile?.customRole || (can('users.manage') ? 'Administrador' : 'Especialista')
   const highlightColor = profile?.highlightColor || '#c6ff38'
@@ -94,7 +90,7 @@ export function ProfilePage({ accessSession, onLogoutSuccess }: { accessSession:
         <div className="profile-stat-card">
           <span>NÍVEL</span>
           <b>{currentLevel.name}</b>
-          <small>{currentLevel.detail}</small>
+          <small>{currentLevel.description}</small>
         </div>
         <div className="profile-stat-card">
           <span>STREAK</span>
@@ -136,7 +132,7 @@ export function ProfilePage({ accessSession, onLogoutSuccess }: { accessSession:
                   </span>
                   <div className="ranking-name">
                     <b>{member.socialName || member.name}</b>
-                    <small>{member.level} · {member.xp.toLocaleString('pt-BR')} XP</small>
+                    <small>{getLevelFromXp(member.xp).name} · {member.xp.toLocaleString('pt-BR')} XP</small>
                   </div>
                   <span className="ranking-xp">{member.xp.toLocaleString('pt-BR')}</span>
                 </div>
@@ -196,12 +192,12 @@ export function ProfilePage({ accessSession, onLogoutSuccess }: { accessSession:
               </div>
               <div style={{ marginTop: 8 }}>
                 <b style={{ fontSize: '18px', letterSpacing: '-1px' }}>{nextLevel.name}</b>
-                <p style={{ margin: '4px 0 10px', fontSize: '10px', color: '#85857e' }}>{nextLevel.detail}</p>
+                <p style={{ margin: '4px 0 10px', fontSize: '10px', color: '#85857e' }}>{nextLevel.description}</p>
                 <div style={{ height: 6, background: '#e2e2db', borderRadius: 6, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${Math.min(100, (((profile?.xp ?? 0) - currentLevel.target) / (nextLevel.target - currentLevel.target)) * 100)}%`, background: highlightColor, borderRadius: 'inherit', transition: 'width .35s ease' }} />
+                  <div style={{ height: '100%', width: `${levelProgress.progressPercent}%`, background: highlightColor, borderRadius: 'inherit', transition: 'width .35s ease' }} />
                 </div>
                 <small style={{ display: 'block', marginTop: 6, fontSize: '9px', color: '#85857e' }}>
-                  Faltam {(nextLevel.target - (profile?.xp ?? 0)).toLocaleString('pt-BR')} XP
+                  Faltam {levelProgress.xpRemaining.toLocaleString('pt-BR')} XP
                 </small>
               </div>
             </section>

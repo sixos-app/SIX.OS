@@ -1,5 +1,6 @@
 import { accessRequiredResponse, getAccessUser, hasPermissionV2, permissionRequiredResponse, type Bindings } from '../../_access'
 import { closeActiveTimers } from '../_missionWorkflow'
+import { getLevelFromXp } from '../../../../shared/gamificationLevels'
 
 type MissionReward = {
   id: string
@@ -185,7 +186,7 @@ export const onRequestPost: PagesFunction<Bindings, 'id'> = async ({ env, params
     const finalXp = baseXp + bonusXp
     awards.push({ userId: recipient.id, userName: recipient.name, xp: finalXp, bonusXp })
     statements.push(
-      env.DB.prepare(`INSERT OR IGNORE INTO gamification_profiles (user_id, xp, ideas, level, streak_days, updated_at) VALUES (?, 0, 0, 'Criador', 0, ?)`).bind(recipient.id, now),
+      env.DB.prepare('INSERT OR IGNORE INTO gamification_profiles (user_id, xp, ideas, level, streak_days, updated_at) VALUES (?, 0, 0, ?, 0, ?)').bind(recipient.id, getLevelFromXp(0).name, now),
       env.DB.prepare('UPDATE gamification_profiles SET xp = xp + ?, ideas = ideas + ?, updated_at = ? WHERE user_id = ?').bind(finalXp, mission.ideasReward, now, recipient.id),
       env.DB.prepare(`INSERT INTO xp_awards (id, organization_id, mission_id, user_id, rule_id, rule_version, rule_name, base_xp, bonus_xp, final_xp, recipient_mode, awarded_by_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'participants_each', ?, ?)`).bind(crypto.randomUUID(), user.organizationId, mission.id, recipient.id, rule.id || null, rule.version, rule.name, baseXp, bonusXp, finalXp, user.id, now),
       env.DB.prepare(`INSERT INTO xp_events (id, user_id, mission_id, xp, ideas, event_type, created_at) VALUES (?, ?, ?, ?, ?, 'mission_completed', ?)`).bind(crypto.randomUUID(), recipient.id, mission.id, finalXp, mission.ideasReward, now),

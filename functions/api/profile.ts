@@ -1,4 +1,5 @@
 import { accessRequiredResponse, getAccessUser, type Bindings } from './_access'
+import { GAMIFICATION_LEVELS, getLevelFromXp, getLevelProgress } from '../../shared/gamificationLevels'
 
 type ProfileRow = {
   id: string
@@ -36,12 +37,6 @@ const ALL_STICKERS = [
   { code: 'organizer', name: 'Mestre da Organização', description: 'Criou ou organizou 10 checklists.', imageUrl: '📋' },
   { code: 'streak-3', name: 'Fogo Sagrado', description: 'Manteve 3 dias seguidos de streak.', imageUrl: '🔥' },
   { code: 'streak-7', name: 'Inabalável', description: 'Manteve 7 dias seguidos de streak.', imageUrl: '🛡️' },
-]
-
-const DEFAULT_LEVELS = [
-  { name: 'Criador', target: 0, detail: 'Transforma intenção em entrega.' },
-  { name: 'Visionário', target: 8700, detail: 'Enxerga possibilidades antes do óbvio.' },
-  { name: 'Catalisador', target: 12000, detail: 'Move pessoas e ideias para a frente.' }
 ]
 
 export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) => {
@@ -107,7 +102,14 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
       ORDER BY p.xp DESC
       LIMIT 20
     `).bind(user.organizationId).all<RankingRow>()
-  const rankingList = rankingQuery.results ?? []
+  const officialProfile = {
+    ...resolvedProfile,
+    level: getLevelFromXp(resolvedProfile.xp).name,
+  }
+  const rankingList = (rankingQuery.results ?? []).map(member => ({
+    ...member,
+    level: getLevelFromXp(member.xp).name,
+  }))
 
   let projectsDeliveredCount = 0
   let avgApprovalRate = 0
@@ -144,30 +146,17 @@ export const onRequestGet: PagesFunction<Bindings> = async ({ env, request }) =>
     unlockedAt: unlockedStickers.includes(sticker.code) ? new Date().toISOString() : undefined
   }))
 
-  let levelConfig = DEFAULT_LEVELS
-  try {
-    const orgSettings = await env.DB?.prepare(`
-      SELECT level_config AS levelConfig
-      FROM organization_settings
-      WHERE organization_id = ?
-      LIMIT 1
-    `).bind(user.organizationId).first<{ levelConfig: string }>()
-
-    if (orgSettings?.levelConfig) {
-      levelConfig = JSON.parse(orgSettings.levelConfig)
-    }
-  } catch {}
-
   return Response.json({
     profile: {
-      ...resolvedProfile,
-      highlightColor: resolvedProfile.highlightColor ?? '#c6ff38',
-      internalNetworks: resolvedProfile.internalNetworks ? JSON.parse(resolvedProfile.internalNetworks) : {},
+      ...officialProfile,
+      highlightColor: officialProfile.highlightColor ?? '#c6ff38',
+      internalNetworks: officialProfile.internalNetworks ? JSON.parse(officialProfile.internalNetworks) : {},
       stickers: unlockedStickers,
     },
     ranking: rankingList,
     stickers,
-    levelConfig,
+    levelConfig: GAMIFICATION_LEVELS.map(level => ({ name: level.name, target: level.minXp, detail: level.description })),
+    levelProgress: getLevelProgress(officialProfile.xp),
     stats: {
       projectsDelivered: projectsDeliveredCount,
       averageApproval: avgApprovalRate
@@ -228,7 +217,7 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
       statements.push(env.DB.prepare(updateUsersQuery).bind(...params))
     }
 
-    statements.push(env.DB.prepare("INSERT OR IGNORE INTO gamification_profiles (user_id, level) VALUES (?, 'Criador')").bind(user.id))
+    statements.push(env.DB.prepare('INSERT OR IGNORE INTO gamification_profiles (user_id, level) VALUES (?, ?)').bind(user.id, getLevelFromXp(0).name))
 
     const profileUpdates: string[] = []
     const profileValues: unknown[] = []
