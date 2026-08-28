@@ -1,5 +1,6 @@
 import { accessRequiredResponse, getAccessUser, permissionRequiredResponse, type Bindings } from '../_access'
 import { canCreateClient } from '../clients/_clientAccess'
+import { clientLibraryFolderStatements } from '../clients/_clientMaster'
 
 type CreateClientPayload = { name?: unknown; shortCode?: unknown; imageDataUrl?: unknown }
 
@@ -22,10 +23,15 @@ export const onRequestPost: PagesFunction<Bindings> = async ({ env, request }) =
   if (!name || name.length > 120 || !/^[A-Z0-9]{2,6}$/.test(shortCode) || !imageIsValid) return Response.json({ error: 'Informe nome, sigla de 2 a 6 caracteres e uma imagem válida de até 250 KB' }, { status: 400 })
 
   const id = `client-${crypto.randomUUID()}`
+  const duplicate = await env.DB.prepare('SELECT id FROM clients WHERE organization_id = ? AND short_code = ? LIMIT 1').bind(user.organizationId, shortCode).first()
+  if (duplicate) return Response.json({ error: 'Esta sigla já está em uso' }, { status: 409 })
   try {
-    await env.DB.prepare('INSERT INTO clients (id, organization_id, name, short_code, image_url) VALUES (?, ?, ?, ?, ?)').bind(id, user.organizationId, name, shortCode, imageUrl).run()
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO clients (id, organization_id, name, short_code, image_url) VALUES (?, ?, ?, ?, ?)').bind(id, user.organizationId, name, shortCode, imageUrl),
+      ...clientLibraryFolderStatements(env, id),
+    ])
   } catch {
-    return Response.json({ error: 'Esta sigla já está em uso' }, { status: 409 })
+    return Response.json({ error: 'Não foi possível criar o cliente e preparar sua biblioteca' }, { status: 500 })
   }
   return Response.json({ client: { id, name, shortCode, imageUrl, description: null } }, { status: 201 })
 }

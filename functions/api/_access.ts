@@ -363,7 +363,7 @@ export const SYSTEM_PERMISSIONS = [
   'missions.view', 'missions.create', 'missions.edit', 'missions.assign', 'missions.complete', 'missions.approve', 'missions.delete', 'missions.workflow.manage', 'missions.update_own',
   'clients.view', 'clients.create', 'clients.edit', 'clients.manage',
   'library.view', 'library.manage',
-  'finance.view', 'finance.manage', 'contracts.view', 'contracts.create', 'mission_costs.view',
+  'finance.view', 'finance.manage', 'contracts.view', 'contracts.create', 'contracts.manage', 'mission_costs.view',
   'demands.view', 'demands.create',
   'time_entries.view', 'time_entries.create', 'time_entries.manage',
   'employees.view', 'employees.create', 'employees.edit', 'employees.view_sensitive', 'employees.edit_sensitive',

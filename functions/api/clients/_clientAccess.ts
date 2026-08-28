@@ -42,6 +42,17 @@ export async function canAccessClient(
     return Boolean(client)
   }
 
+  if (scope === 'department' && user.departmentId) {
+    const client = await env.DB.prepare(`
+      SELECT clients.id
+      FROM clients
+      JOIN users ON users.id = clients.account_manager_id
+      WHERE clients.id = ? AND clients.organization_id = ? AND users.department_id = ?
+      LIMIT 1
+    `).bind(clientId, user.organizationId, user.departmentId).first()
+    return Boolean(client)
+  }
+
   return false
 }
 
