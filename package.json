@@ -25,6 +25,7 @@
     "test:clients:scope-security": "tsx scripts/test_client_scope_security.ts",
     "test:client-master:migration": "tsx scripts/test_client_master_migration.ts",
     "test:client-master:backend": "tsx scripts/test_client_master_backend.ts",
+    "test:client-master:ui": "tsx scripts/test_ui_client_master.ts",
     "test:employees:sensitive-rbac": "tsx scripts/test_employee_sensitive_rbac.ts",
     "test": "tsx scripts/certify-beta.ts",
     "certify:beta": "tsx scripts/certify-beta.ts",

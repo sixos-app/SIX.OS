@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
   createClientLibraryFolder,
+  ClientLibraryRequestError,
   deleteClientLibraryFile,
   getClientLibrary,
+  provisionClientLibrary,
   uploadClientLibraryFile,
 } from '../../data/clientLibraryRepository'
 import type { ClientIdentity } from '../../data/clientRepository'
@@ -11,10 +13,10 @@ import type { ProjectLibrary } from '../../data/projectLibraryRepository'
 import { usePermission } from '../../hooks/usePermission'
 import { Icon } from '../shared/Icon'
 
-export function ClientLibraryManager({ client, userId }: { client: ClientIdentity; userId?: string }) {
+export function ClientLibraryManager({ client, embedded = false, canManageLibrary: canManageLibraryOverride, userId }: { client: ClientIdentity; embedded?: boolean; canManageLibrary?: boolean; userId?: string }) {
   const { can } = usePermission()
   const canManageClient = can('clients.manage')
-  const canManageLibrary = can('library.manage')
+  const canManageLibrary = canManageLibraryOverride ?? can('library.manage')
   const storageKey = userId ? `sixos:client-library-view:${userId}` : 'sixos:client-library-view'
   const [fileView, setFileView] = useState<'list' | 'small' | 'medium' | 'large'>(() => {
     let savedView = window.localStorage.getItem(storageKey)
@@ -50,8 +52,20 @@ export function ClientLibraryManager({ client, userId }: { client: ClientIdentit
         setLibrary(next)
         setFolderId(next.folders[0]?.id ?? '')
       })
-      .catch(() => setMessage('Não foi possível carregar a biblioteca.'))
-  }, [client.id])
+      .catch(async (reason: unknown) => {
+        if (!canManageLibrary || !(reason instanceof ClientLibraryRequestError) || reason.status !== 404) {
+          setMessage('Não foi possível carregar a biblioteca.')
+          return
+        }
+        try {
+          await provisionClientLibrary(client.id)
+          const next = await getClientLibrary(client.id)
+          setLibrary(next)
+          setFolderId(next.folders[0]?.id ?? '')
+          setMessage('Biblioteca preparada para este cliente.')
+        } catch { setMessage('Não foi possível preparar a biblioteca.') }
+      })
+  }, [canManageLibrary, client.id])
 
   const folder = library.folders.find((item) => item.id === folderId)
   const files = library.files.filter((item) => item.folderId === folderId)
@@ -116,8 +130,8 @@ export function ClientLibraryManager({ client, userId }: { client: ClientIdentit
   }
 
   return (
-    <section className="client-library-manager">
-      <div className="client-library-manager-head">
+    <section className={`client-library-manager${embedded ? ' client-library-manager--embedded' : ''}`}>
+      {!embedded && <div className="client-library-manager-head">
         <div className="client-library-title">
           <span>BIBLIOTECA DO CLIENTE</span>
           <h2>{client.name}</h2>
@@ -133,7 +147,7 @@ export function ClientLibraryManager({ client, userId }: { client: ClientIdentit
             <p>{description || 'Nenhuma descrição cadastrada para este cliente.'}</p>
           )}
         </div>
-      </div>
+      </div>}
 
       <div className="client-library-manager-body">
         <nav className="client-library-folders">

@@ -2,12 +2,14 @@ import { useState, type FormEvent } from 'react'
 import type { ClientIdentity } from '../../data/clientRepository'
 import type { LibraryResource, Project } from '../../data/dashboard'
 import { ClientLibraryManager } from './ClientLibraryManager'
+import { ClientMasterModal } from '../clients/ClientMasterModal'
 
 export function LibraryPage({ clients, projects, onOpenProject, userId }: { resources?: LibraryResource[]; clients: ClientIdentity[]; projects: Project[]; onOpenProject: (projectId: string) => void; userId?: string }) {
   const [selectedClientId, setSelectedClientId] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ id: string; title: string; type: string; project: string; client: string; snippet: string }[] | null>(null)
   const [isSearching, setIsSearching] = useState(false)
+  const [masterClientId, setMasterClientId] = useState<string | null>(null)
 
   const visibleClients = selectedClientId === 'all' ? clients : clients.filter((client) => client.id === selectedClientId)
   const visibleProjects = selectedClientId === 'all' ? projects : projects.filter((project) => project.client === clients.find((client) => client.id === selectedClientId)?.name)
@@ -103,6 +105,7 @@ export function LibraryPage({ clients, projects, onOpenProject, userId }: { reso
                   <span>CLIENTE</span>
                   <h2>{client.name}</h2>
                   <p>{clientProjects.length} projeto{clientProjects.length === 1 ? '' : 's'} vinculado{clientProjects.length === 1 ? '' : 's'}</p>
+                  <button className="client-library-master-open" type="button" aria-label={`Abrir cadastro mestre de ${client.name}`} onClick={() => setMasterClientId(client.id)}>CADASTRO MESTRE</button>
                 </div>
                 <div className="client-library-projects">
                   {clientProjects.length > 0 ? (
@@ -123,6 +126,7 @@ export function LibraryPage({ clients, projects, onOpenProject, userId }: { reso
         </div>
         {visibleClients.length === 0 && <p className="empty-state">Cliente não encontrado.</p>}
       </section>
+      {masterClientId && <ClientMasterModal clientId={masterClientId} onClose={() => setMasterClientId(null)} />}
     </section>
   )
 }

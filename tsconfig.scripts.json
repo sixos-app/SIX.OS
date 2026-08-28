@@ -15,5 +15,5 @@
     "allowSyntheticDefaultImports": true
   },
   "include": ["scripts/**/*.ts"],
-  "exclude": ["scripts/test_ui_primitives.ts", "scripts/test_ui_client_dialog.ts", "scripts/test_ui_employees.ts", "scripts/test_employee_sensitive_rbac.ts"]
+  "exclude": ["scripts/test_ui_primitives.ts", "scripts/test_ui_client_dialog.ts", "scripts/test_ui_client_master.ts", "scripts/test_ui_employees.ts", "scripts/test_employee_sensitive_rbac.ts"]
 }
