@@ -50,11 +50,13 @@ export function JourneyPanel({
       <div className="journey-dialog">
         <button className="close-button" onClick={onClose} aria-label="Fechar jornada">×</button>
         <div className="journey-hero">
-          <span>SEU NÍVEL ATUAL</span>
+          <div className="journey-hero-copy">
+            <span>SEU NÍVEL ATUAL</span>
+            <p>{currentLevel.name.toUpperCase()}</p>
+            <h2>{currentLevel.description}</h2>
+            <small>{profile.ideas.toLocaleString('pt-BR')} ideias registradas até aqui.</small>
+          </div>
           <div className="journey-hero-badge"><LevelBadge level={currentLevel} size="lg" decorative loading="lazy" /></div>
-          <p>{currentLevel.name.toUpperCase()}</p>
-          <h2>{currentLevel.description}</h2>
-          <small>{profile.ideas.toLocaleString('pt-BR')} ideias registradas até aqui.</small>
         </div>
         <div className="journey-progress">
           <div>

@@ -812,6 +812,7 @@ button { border: 0; cursor: pointer; }
   text-transform: uppercase;
 }
 
+
 /* Shared gamification badge primitive. */
 .level-badge {
   --level-badge-size: 48px;
@@ -1892,4 +1893,107 @@ select.admin-input {
   font-weight: 900;
   letter-spacing: .8px;
   text-transform: uppercase;
+}
+
+/* GAM-4.3: stable Home and Journey hero compositions. */
+.momentum-card {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, .72fr);
+  grid-template-areas:
+    "copy badge"
+    "meter meter";
+  align-items: center;
+  min-height: 0;
+}
+.momentum-copy { grid-area: copy; align-self: stretch; padding-bottom: 28px; }
+.momentum-art {
+  grid-area: badge;
+  align-self: stretch;
+  justify-self: stretch;
+  width: auto;
+  height: auto;
+  min-height: 214px;
+  margin: 0;
+  opacity: 1;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.momentum-badge { background: transparent; border: 0; box-shadow: none; }
+.momentum-art .level-badge { --level-badge-size: clamp(138px, 12vw, 170px); }
+.xp-meter {
+  position: relative;
+  z-index: 3;
+  grid-area: meter;
+  width: auto;
+  margin: 0 38px 26px;
+  bottom: auto;
+  left: auto;
+}
+
+.journey-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "copy badge";
+  align-items: center;
+  gap: 24px;
+  min-height: 260px;
+}
+.journey-hero-copy { position: relative; z-index: 1; grid-area: copy; min-width: 0; }
+.journey-hero-copy > span { color: #c6ff38; font-size: 9px; font-weight: 900; letter-spacing: 1.2px; }
+.journey-hero-copy > p { margin: 17px 0 3px; color: #c6ff38; font-size: 9px; font-weight: 900; letter-spacing: 1.4px; }
+.journey-hero-copy h2 { max-width: 430px; margin: 0; font-size: 26px; letter-spacing: -1.4px; }
+.journey-hero-copy > small { display: block; margin-top: 10px; color: #aaa9a1; font-size: 10px; }
+.journey-hero-badge {
+  position: relative;
+  z-index: 1;
+  grid-area: badge;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.journey-hero-badge .level-badge { --level-badge-size: clamp(112px, 15vw, 154px); }
+
+@media (max-width: 780px) {
+  .momentum-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "copy badge"
+      "meter meter";
+    column-gap: 4px;
+    min-height: 0;
+  }
+  .momentum-copy { padding: 30px 0 22px 24px; }
+  .momentum-copy h2 { font-size: clamp(20px, 6.4vw, 25px); }
+  .momentum-copy h2 em { font-size: clamp(24px, 7.4vw, 29px); }
+  .momentum-art {
+    position: relative;
+    width: auto;
+    height: auto;
+    min-height: 150px;
+    right: auto;
+    bottom: auto;
+    opacity: .9;
+  }
+  .momentum-art .level-badge { --level-badge-size: clamp(64px, 22vw, 98px); }
+  .xp-meter { position: relative; width: auto; margin: 0 24px 24px; bottom: auto; left: auto; }
+  .journey-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "copy badge";
+    align-items: center;
+    gap: 12px;
+    min-height: 0;
+    padding: 30px 24px;
+  }
+  .journey-hero-badge .level-badge { --level-badge-size: clamp(64px, 21vw, 94px); }
+}
+
+@media (max-width: 340px) {
+  .momentum-copy { padding-left: 20px; }
+  .momentum-art .level-badge { --level-badge-size: clamp(58px, 20vw, 72px); }
+  .momentum-art { min-height: 138px; }
+  .journey-hero { gap: 8px; padding-inline: 20px; }
+  .journey-hero-badge .level-badge { --level-badge-size: clamp(58px, 19vw, 70px); }
 }
