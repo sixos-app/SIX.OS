@@ -1,3 +1,23 @@
+## [0.54.0] - 2026-08-27
+
+### Added
+
+- Cadastro mestre de clientes com dados cadastrais, endereço e múltiplos contatos, incluindo contato principal, edição e desativação.
+- Ampliação dos contratos com renovação, frequência e dia de cobrança, condições comerciais, observações e edição protegida por `contracts.manage`.
+- Migration `0049_client_master_data.sql` com `client_contacts`, extensões aditivas de clientes e contratos, integridade por organização e CNPJ canônico único por organização.
+
+### Changed
+
+- Reutilização da biblioteca existente para documentos de clientes, com provisionamento idempotente das pastas padrão.
+
+### Security
+
+- Enforcement server-side dos scopes de clientes e da biblioteca, separação entre permissões contratuais e financeiras e proteção cross-tenant de clientes, contatos e contratos.
+
+### Quality
+
+- Cobertura comportamental do Client Master, upgrade de migrations e regressões de Clientes, RH, Financeiro, Agenda e Workflow.
+
 ## [0.53.0] - 2026-08-27
 
 ### Added
