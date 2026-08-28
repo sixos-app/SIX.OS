@@ -6,7 +6,7 @@ import {
   type AdminOverview,
   type CreateAdminUserInput,
 } from '../../data/adminRepository'
-import type { ClientIdentity } from '../../data/clientRepository'
+import { getClientIdentities, type ClientIdentity } from '../../data/clientRepository'
 import {
   getGamificationConfig,
   updateGamificationConfig,
@@ -17,9 +17,14 @@ import { AdminUserDialog } from './AdminUserDialog'
 import { DepartmentManager } from './DepartmentManager'
 import { GamificationManager } from './GamificationManager'
 import { PeopleAccessAdmin } from './PeopleAccessAdmin'
+import { ClientMasterModal } from '../clients/ClientMasterModal'
+import { usePermission } from '../../hooks/usePermission'
 
 export function AdminPage({ onClientCreated = () => undefined }: { onClientCreated?: (client: ClientIdentity) => void }) {
+  const { can } = usePermission()
   const [overview, setOverview] = useState<AdminOverview | null>(null)
+  const [clients, setClients] = useState<ClientIdentity[]>([])
+  const [masterClientId, setMasterClientId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [dialog, setDialog] = useState<'user' | 'client' | null>(null)
   const [activeAdminTab, setActiveAdminTab] = useState<'overview' | 'people' | 'departments'>('overview')
@@ -37,6 +42,7 @@ export function AdminPage({ onClientCreated = () => undefined }: { onClientCreat
   useEffect(() => {
     void getAdminOverview().then((res) => { setOverview(res); setError('') }).catch((reason: Error) => setError(reason.message))
     void getGamificationConfig().then(setGamificationConfig).catch(() => undefined)
+    if (can('clients.view')) void getClientIdentities().then(setClients).catch(() => undefined)
 
     fetch('/api/admin/integrations')
       .then((res) => res.ok ? res.json() : Promise.reject(new Error('Integrações indisponíveis')))
@@ -46,13 +52,15 @@ export function AdminPage({ onClientCreated = () => undefined }: { onClientCreat
         }
       })
       .catch(() => undefined)
-  }, [])
+  }, [can])
 
   const data = overview ?? { team: [], roles: [], clientCount: 0 }
 
   async function handleCreateClient(input: { name: string; shortCode: string; imageDataUrl: string | null }) {
     const client = await createAdminClient(input)
     setOverview((current) => current ? { ...current, clientCount: current.clientCount + 1 } : current)
+    setClients((current) => [...current, client].sort((a, b) => a.name.localeCompare(b.name)))
+    setMasterClientId(client.id)
     onClientCreated(client)
   }
 
@@ -141,6 +149,20 @@ export function AdminPage({ onClientCreated = () => undefined }: { onClientCreat
               <article className="admin-metric-highlight"><span>SEGURANÇA</span><b>RBAC</b><small>Perfis e permissões verificados no servidor</small></article>
             </section>
 
+            {can('clients.view') && <section className="admin-client-master-list" aria-labelledby="admin-client-master-title">
+              <div className="admin-card-head">
+                <div><span>CLIENTES</span><h2 id="admin-client-master-title">Cadastro <em>mestre.</em></h2></div>
+                <b>{clients.length} clientes</b>
+              </div>
+              <div className="admin-client-master-list__items">
+                {clients.map((client) => <button type="button" key={client.id} aria-label={`Abrir cadastro mestre de ${client.name}`} onClick={() => setMasterClientId(client.id)}>
+                  <span className={`client-library-mark ${client.imageUrl ? 'has-image' : ''}`}>{client.imageUrl ? <img src={client.imageUrl} alt="" /> : client.shortCode ?? client.name.slice(0, 3).toLocaleUpperCase('pt-BR')}</span>
+                  <p><b>{client.name}</b><small>{client.shortCode ?? 'SEM SIGLA'}</small></p><i>→</i>
+                </button>)}
+                {!clients.length && <p className="admin-client-master-list__empty">Nenhum cliente disponível no seu escopo.</p>}
+              </div>
+            </section>}
+
             <section className="admin-grid">
               <article className="admin-card admin-team-card">
                 <div className="admin-card-head">
@@ -228,6 +250,7 @@ export function AdminPage({ onClientCreated = () => undefined }: { onClientCreat
         )
       )}
       {dialog === 'client' && <AdminClientDialog onClose={() => setDialog(null)} onCreate={handleCreateClient} />}
+      {masterClientId && <ClientMasterModal clientId={masterClientId} onClose={() => setMasterClientId(null)} onUpdated={(client) => setClients((current) => current.map((item) => item.id === client.id ? { ...item, name: client.name, shortCode: client.shortCode, imageUrl: client.imageUrl, description: client.description } : item))} />}
     </div>
   )
 }
