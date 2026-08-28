@@ -89,13 +89,17 @@ export function Dashboard({
       </section>
 
       <section className="momentum-card">
+        <div className="momentum-decoration" aria-hidden="true">
+          <div className="momentum-decoration-visual">
+            <span className="orbit orbit-one" /><span className="orbit orbit-two" />
+          </div>
+        </div>
         <div className="momentum-copy">
           <p>SEU PROGRESSO</p>
           <h2>Você acumulou <span>{totalXp.toLocaleString('pt-BR')} XP</span><br />no nível <em>{currentLevel.name}.</em></h2>
           <button onClick={onOpenJourney}>VER MINHA JORNADA <span>→</span></button>
         </div>
         <div className="momentum-art" aria-hidden="true">
-          <span className="orbit orbit-one" /><span className="orbit orbit-two" />
           <div className="momentum-badge"><LevelBadge level={currentLevel} size="xl" decorative loading="eager" /></div>
         </div>
         <div className="xp-meter">
