@@ -4,7 +4,8 @@ import { AgendaItem } from '../agenda/AgendaItem'
 import { ProjectCard } from '../projects/ProjectCard'
 import { Avatar } from '../shared/Avatar'
 import { MissionDetailsModal } from '../missions/MissionDetailsModal'
-import { getLevelFromXp } from '../../../shared/gamificationLevels'
+import { getLevelProgress } from '../../../shared/gamificationLevels'
+import { LevelBadge } from '../gamification/LevelBadge'
 
 export function Dashboard({
   userName,
@@ -56,7 +57,8 @@ export function Dashboard({
   const [selectedMissionId, setSelectedMissionId] = useState<string>('')
   const openMissionCount = projectMissions.filter((mission) => mission.status !== 'completed').length
   const completionRate = projectMissions.length ? Math.round(((projectMissions.length - openMissionCount) / projectMissions.length) * 100) : 0
-  const profileLevel = getLevelFromXp(totalXp).name
+  const levelProgress = getLevelProgress(totalXp)
+  const { currentLevel, nextLevel, progressPercent, xpRemaining } = levelProgress
 
   const selectedMission = visibleMissions.find((mission) => mission.id === selectedMissionId) || projectMissions.find((mission) => mission.id === selectedMissionId)
 
@@ -89,15 +91,23 @@ export function Dashboard({
       <section className="momentum-card">
         <div className="momentum-copy">
           <p>SEU PROGRESSO</p>
-          <h2>Você acumulou <span>{totalXp.toLocaleString('pt-BR')} XP</span><br />no nível <em>{profileLevel}.</em></h2>
+          <h2>Você acumulou <span>{totalXp.toLocaleString('pt-BR')} XP</span><br />no nível <em>{currentLevel.name}.</em></h2>
           <button onClick={onOpenJourney}>VER MINHA JORNADA <span>→</span></button>
         </div>
         <div className="momentum-art" aria-hidden="true">
           <span className="orbit orbit-one" /><span className="orbit orbit-two" />
-          <strong>{profileLevel.charAt(0).toLocaleUpperCase('pt-BR')}</strong><small>{profileLevel.toLocaleUpperCase('pt-BR')}</small>
+          <div className="momentum-badge"><LevelBadge level={currentLevel} size="xl" decorative loading="eager" /></div>
           <p>GO MAKE<br />IT POSSIBLE</p>
         </div>
-        <div className="xp-meter"><span><b>{totalXp.toLocaleString('pt-BR')}</b> XP REGISTRADOS</span><div><i style={{ width: `${completionRate}%` }} /></div></div>
+        <div className="xp-meter">
+          <span>
+            <b>{totalXp.toLocaleString('pt-BR')}</b> XP REGISTRADOS
+            <small>{nextLevel ? `${xpRemaining.toLocaleString('pt-BR')} XP para ${nextLevel.name}` : 'NÍVEL MÁXIMO ALCANÇADO'}</small>
+          </span>
+          <div role="progressbar" aria-label={`Progresso no nível ${currentLevel.name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressPercent)}>
+            <i style={{ width: `${progressPercent}%` }} />
+          </div>
+        </div>
       </section>
 
       <section className="dashboard-grid">
