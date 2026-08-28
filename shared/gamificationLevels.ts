@@ -1,4 +1,4 @@
-export type GamificationLevel = Readonly<{
+type GamificationLevelShape = Readonly<{
   level: number
   id: string
   name: string
@@ -6,7 +6,7 @@ export type GamificationLevel = Readonly<{
   minXp: number
 }>
 
-const levels: GamificationLevel[] = [
+const levels = [
   { level: 1, id: '01-criador', name: 'Criador', description: 'Transforma intenção em entrega.', minXp: 0 },
   { level: 2, id: '02-visionario', name: 'Visionário', description: 'Enxerga possibilidades antes do óbvio.', minXp: 8700 },
   { level: 3, id: '03-catalisador', name: 'Catalisador', description: 'Move pessoas e ideias para a frente.', minXp: 12000 },
@@ -32,9 +32,12 @@ const levels: GamificationLevel[] = [
   { level: 23, id: '23-singular', name: 'Singular', description: 'Cria o que não pode ser confundido.', minXp: 187000 },
   { level: 24, id: '24-legado', name: 'Legado', description: 'Seu impacto permanece além da entrega.', minXp: 201000 },
   { level: 25, id: '25-originador', name: 'Originador', description: 'Não segue movimentos. Dá origem a eles.', minXp: 216000 },
-]
+] as const satisfies readonly GamificationLevelShape[]
 
-export const GAMIFICATION_LEVELS: readonly GamificationLevel[] = Object.freeze(levels.map(level => Object.freeze(level)))
+export type GamificationLevel = (typeof levels)[number]
+export type GamificationLevelId = GamificationLevel['id']
+
+export const GAMIFICATION_LEVELS = Object.freeze(levels.map(level => Object.freeze(level))) as readonly GamificationLevel[]
 
 export type LevelProgress = Readonly<{
   normalizedXp: number
@@ -57,7 +60,7 @@ function normalizeXp(xp: number): number {
 
 export function getLevelFromXp(xp: number): GamificationLevel {
   const normalizedXp = normalizeXp(xp)
-  let currentLevel = GAMIFICATION_LEVELS[0]!
+  let currentLevel: GamificationLevel = GAMIFICATION_LEVELS[0]!
 
   for (const level of GAMIFICATION_LEVELS) {
     if (level.minXp > normalizedXp) break
