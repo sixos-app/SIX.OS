@@ -38,6 +38,7 @@ assert.match(dashboard, /\{nextLevel \? `\$\{xpRemaining\.toLocaleString\('pt-BR
 assert.match(dashboard, /aria-valuenow=\{Math\.round\(progressPercent\)\}/)
 assert.match(dashboard, /<i style=\{\{ width: `\$\{progressPercent\}%` \}\} \/>/)
 assert.match(dashboard, /VER MINHA JORNADA/)
+assert.doesNotMatch(dashboard, /GO MAKE\s*<br\s*\/?\s*>\s*IT POSSIBLE/)
 
 const momentumMeter = dashboard.match(/<div className="xp-meter">[\s\S]*?<\/div>\n      <\/section>/)?.[0] ?? ''
 assert.ok(momentumMeter.length > 0)
@@ -48,7 +49,8 @@ assert.match(styles, /\.momentum-art \{[^}]*overflow: hidden/s)
 assert.match(styles, /\.momentum-art::before \{[^}]*width: 185px[^}]*height: 185px/s)
 assert.match(styles, /\.momentum-badge \{[^}]*position: relative[^}]*z-index: 2/s)
 assert.match(styles, /\.momentum-art \.level-badge \{[^}]*--level-badge-size: clamp\(104px, 10\.5vw, 150px\)/s)
-assert.match(styles, /@media \(max-width: 780px\) \{[\s\S]*?\.momentum-art::before \{ width: 130px; height: 130px; \}[\s\S]*?\.momentum-art \.level-badge \{ --level-badge-size: clamp\(86px, 29vw, 110px\); \}/)
+assert.match(styles, /@media \(max-width: 780px\) \{[\s\S]*?\.momentum-art::before \{ width: 130px; height: 130px; \}/)
+assert.match(styles, /\/\* Home momentum card: mobile badge composition\. \*\/[\s\S]*?\.momentum-card \{ min-height: 392px; \}[\s\S]*?\.momentum-art \{[\s\S]*?width: min\(210px, 58vw\)[\s\S]*?right: clamp\(8px, 4vw, 24px\)[\s\S]*?bottom: 50px;[\s\S]*?\.momentum-art \.level-badge \{ --level-badge-size: clamp\(82px, 25vw, 102px\); \}/)
 assert.doesNotMatch(styles, /\.momentum[^\n]*transform: scale/)
 
 console.log('✅ HOME GAMIFICATION: engine oficial, selo atual, XP real, máximo e contrato estrutural responsivo verificados.')

@@ -97,7 +97,6 @@ export function Dashboard({
         <div className="momentum-art" aria-hidden="true">
           <span className="orbit orbit-one" /><span className="orbit orbit-two" />
           <div className="momentum-badge"><LevelBadge level={currentLevel} size="xl" decorative loading="eager" /></div>
-          <p>GO MAKE<br />IT POSSIBLE</p>
         </div>
         <div className="xp-meter">
           <span>
