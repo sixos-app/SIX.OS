@@ -39,6 +39,7 @@ assert.match(dashboard, /aria-valuenow=\{Math\.round\(progressPercent\)\}/)
 assert.match(dashboard, /<i style=\{\{ width: `\$\{progressPercent\}%` \}\} \/>/)
 assert.match(dashboard, /VER MINHA JORNADA/)
 assert.doesNotMatch(dashboard, /GO MAKE\s*<br\s*\/?\s*>\s*IT POSSIBLE/)
+assert.ok(dashboard.indexOf('className="momentum-art"') < dashboard.indexOf('className="xp-meter"'))
 
 const momentumMeter = dashboard.match(/<div className="xp-meter">[\s\S]*?<\/div>\n      <\/section>/)?.[0] ?? ''
 assert.ok(momentumMeter.length > 0)
@@ -50,7 +51,14 @@ assert.match(styles, /\.momentum-art::before \{[^}]*width: 185px[^}]*height: 185
 assert.match(styles, /\.momentum-badge \{[^}]*position: relative[^}]*z-index: 2/s)
 assert.match(styles, /\.momentum-art \.level-badge \{[^}]*--level-badge-size: clamp\(104px, 10\.5vw, 150px\)/s)
 assert.match(styles, /@media \(max-width: 780px\) \{[\s\S]*?\.momentum-art::before \{ width: 130px; height: 130px; \}/)
-assert.match(styles, /\/\* Home momentum card: mobile badge composition\. \*\/[\s\S]*?\.momentum-card \{ min-height: 392px; \}[\s\S]*?\.momentum-art \{[\s\S]*?width: min\(210px, 58vw\)[\s\S]*?right: clamp\(8px, 4vw, 24px\)[\s\S]*?bottom: 50px;[\s\S]*?\.momentum-art \.level-badge \{ --level-badge-size: clamp\(82px, 25vw, 102px\); \}/)
+const mobileFlowStart = styles.indexOf('/* Home momentum card: mobile content flow after the CTA. */')
+const mobileFlowContract = mobileFlowStart >= 0 ? styles.slice(mobileFlowStart, mobileFlowStart + 1000) : ''
+assert.ok(mobileFlowContract.length > 0)
+assert.match(mobileFlowContract, /\.momentum-card \{ min-height: 0; \}/)
+assert.match(mobileFlowContract, /\.momentum-art \{[\s\S]*?position: relative;[\s\S]*?width: 100%;[\s\S]*?height: 132px;[\s\S]*?right: auto;[\s\S]*?bottom: auto;/)
+assert.match(mobileFlowContract, /\.momentum-art \.level-badge \{ --level-badge-size: clamp\(78px, 24vw, 98px\); \}/)
+assert.match(mobileFlowContract, /\.xp-meter \{[\s\S]*?position: relative;[\s\S]*?bottom: auto;[\s\S]*?left: auto;[\s\S]*?width: auto;/)
+assert.doesNotMatch(mobileFlowContract, /position:\s*absolute/)
 assert.match(styles, /\/\* Home momentum card: desktop badge target in the upper-right quadrant\. \*\/[\s\S]*?@media \(min-width: 781px\) \{[\s\S]*?\.momentum-art \{[\s\S]*?align-self: start;[\s\S]*?justify-self: end;[\s\S]*?width: min\(320px, 36vw\);[\s\S]*?height: 210px;[\s\S]*?margin: 24px 28px 0 0;[\s\S]*?\.momentum-art \.level-badge \{ --level-badge-size: clamp\(138px, 12vw, 170px\); \}/)
 assert.doesNotMatch(styles, /\.momentum[^\n]*transform: scale/)
 
