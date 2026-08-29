@@ -13,6 +13,7 @@
     "security:rotate-password": "tsx scripts/rotate-user-password.ts",
     "test:rbac": "tsx scripts/test_rbac_v2.ts",
     "test:security": "tsx scripts/test-security.ts",
+    "test:pilot": "tsx scripts/test_pilot_tooling.ts",
     "test:workflow": "tsx scripts/test_workflow_lifecycle.ts",
     "test:agenda": "tsx scripts/test_agenda_expansion.ts",
     "test:agenda:concurrency": "tsx scripts/test_agenda_concurrency.ts",
