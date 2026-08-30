@@ -1,0 +1,17 @@
+name = "six-os-pilot"
+compatibility_date = "2026-08-04"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+[placement]
+mode = "off"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "six-os-pilot"
+database_id = "81642d81-f81a-4a2f-8b43-400ce8d02261"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "six-os-files-pilot"
