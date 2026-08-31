@@ -36,6 +36,8 @@ export type PilotTarget = {
 export type PilotSafetyOptions = {
   /** The UUID recorded only when the isolated D1 is actually created. */
   expectedRemoteD1Id?: string
+  /** Explicit executor opt-in. Omission keeps every remote write disabled. */
+  allowRemoteWrite?: boolean
 }
 
 function normalized(value: string | undefined) {
@@ -87,9 +89,8 @@ export function validatePilotTarget(target: PilotTarget, options: PilotSafetyOpt
     return { allowed: false as const, reason: 'pilot D1 UUID mismatch' }
   }
 
-  // Target identity can now be fully certified, but this module still does not
-  // enable remote writes. A later microphase must authorize each executor.
-  return { allowed: false as const, reason: 'remote writes are disabled by default' }
+  if (!options.allowRemoteWrite) return { allowed: false as const, reason: 'remote writes are disabled by default' }
+  return { allowed: true as const }
 }
 
 export function assertPilotTarget(target: PilotTarget, options?: PilotSafetyOptions) {

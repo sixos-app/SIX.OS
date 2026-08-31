@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createPilotPagesStage } from './pilot-prepare-pages'
+import { parsePilotPagesDebugSnapshot } from './pilot-preflight'
 import {
   PILOT_CONFIG_FILE,
   PILOT_IDENTITY,
@@ -64,6 +65,20 @@ assert.equal(validatePilotRemoteSnapshot({ ...remote, pages: { ...remote.pages, 
 assert.equal(validatePilotRemoteSnapshot({ ...remote, pages: { ...remote.pages, id: 'wrong' } }).ok, false)
 assert.equal(validatePilotRemoteSnapshot({ ...remote, d1: { ...remote.d1, id: 'wrong' } }).ok, false)
 assert.equal(validatePilotRemoteSnapshot({ ...remote, r2: { name: 'wrong' } }).ok, false)
+
+const debugProject = parsePilotPagesDebugSnapshot(`Wrangler debug prefix\n${JSON.stringify({
+  id: PILOT_IDENTITY.pagesProjectId,
+  name: PILOT_IDENTITY.pagesProject,
+  subdomain: PILOT_IDENTITY.pagesDomain,
+  source: null,
+  production_branch: PILOT_IDENTITY.branch,
+  deployment_configs: {
+    production: { d1_databases: { DB: { id: PILOT_IDENTITY.d1Id } }, r2_buckets: { FILES: { name: PILOT_IDENTITY.r2Bucket } } },
+    preview: { d1_databases: { DB: { id: PILOT_IDENTITY.d1Id } }, r2_buckets: { FILES: { name: PILOT_IDENTITY.r2Bucket } } },
+  },
+})}\nWrangler debug suffix`)
+assert.equal(debugProject.id, PILOT_IDENTITY.pagesProjectId)
+assert.throws(() => parsePilotPagesDebugSnapshot('{"name":"six-os"}'), /snapshot missing/)
 
 assert.equal(validatePilotGitState({ branch: PILOT_IDENTITY.branch, head: approvedHead, porcelain: '' }, approvedHead).ok, true)
 assert.equal(validatePilotGitState({ branch: 'main', head: approvedHead, porcelain: '' }, approvedHead).ok, false)

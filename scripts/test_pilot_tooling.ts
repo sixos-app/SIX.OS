@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { verifyPassword } from '../functions/api/_access'
-import { assertHistoricalSeedFingerprint, bootstrapPilot, cleanupHistoricalSeeds, type LocalSqliteDatabase } from './pilot-bootstrap'
+import { assertHistoricalSeedFingerprint, bootstrapHistoricalPilot, cleanupHistoricalSeeds, type LocalSqliteDatabase } from './pilot-bootstrap'
 import { PILOT_RESOURCE_NAMES, PRODUCTION_DENYLIST, validatePilotTarget } from './pilot-safety'
 import { verifyPilotCleanState } from './pilot-verify-clean'
 
@@ -54,6 +54,12 @@ async function main() {
   assertDenied({ mode: 'remote' })
   assertDenied({ confirmed: false })
   assert.equal(validatePilotTarget(target()).allowed, true, 'local disposable pilot contract should be allowed')
+  assert.equal(validatePilotTarget(target({
+    mode: 'remote',
+    accountId: PILOT_RESOURCE_NAMES.accountId,
+    pagesProjectId: PILOT_RESOURCE_NAMES.pagesProjectId,
+    d1Id: PILOT_RESOURCE_NAMES.d1Id,
+  }), { expectedRemoteD1Id: PILOT_RESOURCE_NAMES.d1Id, allowRemoteWrite: true }).allowed, true, 'only the fully pinned executor opt-in may enable remote write')
 
   const database = createMigratedDatabase()
   assert.ok(count(database, 'organizations') > 0, 'historical organization seed must be reproduced')
@@ -64,18 +70,16 @@ async function main() {
   assert.ok(count(database, 'workflow_boards') > 0, 'historical workflow seed must be reproduced')
 
   assertHistoricalSeedFingerprint(database)
-  cleanupHistoricalSeeds(database)
-  for (const table of ['organizations', 'users', 'access_profiles', 'departments', 'work_types', 'workflow_boards', 'gamification_profiles']) assert.equal(count(database, table), 0, `${table} must be cleaned`)
-  assert.equal(count(database, 'permissions'), 67, 'global permission catalog must survive cleanup')
-  assert.equal(count(database, 'role_definitions'), 5, 'global role catalog must survive cleanup')
-  assert.equal(count(database, 'role_permissions'), 50, 'global role permissions must survive cleanup')
-  assert.equal(count(database, 'd1_migrations'), 50, 'migration ledger must survive cleanup')
-
-  const input = { organizationName: 'Pilot Agency', organizationSlug: 'pilot-agency', adminName: 'Pilot Admin', adminEmail: 'pilot.admin@example.test', adminUsername: 'pilot.admin', password: 'local-pilot-password-123' }
-  const created = await bootstrapPilot(database, input)
+  const input = { organizationName: "Agência d'Água – Pilot", organizationSlug: 'pilot-agency-1', adminName: "Ana d'Ávila — Gestão", adminEmail: 'pilot.admin+ops@example.test', adminUsername: 'pilot-admin_1', password: 'local-pilot-password-123' }
+  const created = await bootstrapHistoricalPilot(database, input)
   assert.ok(created.organizationId.startsWith('org-pilot-'))
   const verified = verifyPilotCleanState(database)
   assert.equal(verified.ok, true, verified.failures.join('; '))
+  const createdOrganization = database.prepare('SELECT name, slug FROM organizations WHERE id = ?').get(created.organizationId) as { name: string; slug: string }
+  const createdAdmin = database.prepare('SELECT name, email, username FROM users WHERE id = ?').get(created.adminUserId) as { name: string; email: string; username: string }
+  assert.deepEqual({ ...createdOrganization }, { name: input.organizationName, slug: input.organizationSlug })
+  assert.deepEqual({ ...createdAdmin }, { name: input.adminName, email: input.adminEmail, username: input.adminUsername })
+  assert.equal(count(database, 'permissions'), 67, 'SQL escaping must not alter the global permission catalog')
 
   const credential = database.prepare('SELECT password_salt AS passwordSalt, password_hash AS passwordHash, iterations FROM user_credentials WHERE user_id = ?').get(created.adminUserId) as { passwordSalt: string; passwordHash: string; iterations: number }
   const authEnvironment = {
@@ -87,15 +91,15 @@ async function main() {
   assert.equal(await verifyPassword(authEnvironment as any, input.adminUsername, 'wrong-password-123'), false, 'login verifier must reject wrong password')
 
   const beforeSecondRun = JSON.stringify(verified.counts)
-  await assert.rejects(() => bootstrapPilot(database, input), /target is not an empty tenant state/)
+  await assert.rejects(() => bootstrapHistoricalPilot(database, input), /historical seed fingerprint mismatch/)
   assert.equal(JSON.stringify(verifyPilotCleanState(database).counts), beforeSecondRun, 'second execution must not write')
   assert.throws(() => cleanupHistoricalSeeds(database), /historical seed fingerprint mismatch/)
   assert.equal(JSON.stringify(verifyPilotCleanState(database).counts), beforeSecondRun, 'cleanup must not write against an initialized tenant')
 
   const failureDatabase = createMigratedDatabase()
-  cleanupHistoricalSeeds(failureDatabase)
-  await assert.rejects(() => bootstrapPilot(failureDatabase, input, { injectFailure: true }), /injected pilot bootstrap failure/)
-  for (const table of ['organizations', 'users', 'user_credentials', 'access_profiles', 'workflow_boards', 'xp_rules']) assert.equal(count(failureDatabase, table), 0, `${table} must roll back after injected failure`)
+  const historicalBeforeFailure = Object.fromEntries(['organizations', 'users', 'user_credentials', 'access_profiles', 'workflow_boards', 'xp_rules', 'employees', 'employee_library_folders'].map((table) => [table, count(failureDatabase, table)]))
+  await assert.rejects(() => bootstrapHistoricalPilot(failureDatabase, input, { injectFailure: true }), /injected pilot bootstrap failure/)
+  for (const [table, expected] of Object.entries(historicalBeforeFailure)) assert.equal(count(failureDatabase, table), expected, `${table} must preserve historical state after injected failure`)
   assert.equal(count(failureDatabase, 'permissions'), 67, 'failure rollback must preserve global catalog')
   assert.equal(count(failureDatabase, 'd1_migrations'), 50, 'failure rollback must preserve migrations')
 

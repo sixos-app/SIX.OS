@@ -11,8 +11,11 @@ import {
 const head = '445d629ceb173eea8413ff37394ba14f3a112b11'
 const intent = (overrides: Partial<Parameters<typeof validateRemoteBootstrapIntent>[0]> = {}) => ({
   accountId: PILOT_IDENTITY.accountId,
+  pagesName: PILOT_IDENTITY.pagesProject,
+  pagesId: PILOT_IDENTITY.pagesProjectId,
   d1Name: PILOT_IDENTITY.d1Name,
   d1Id: PILOT_IDENTITY.d1Id,
+  r2Bucket: PILOT_IDENTITY.r2Bucket,
   branch: PILOT_IDENTITY.branch,
   expectedHead: head,
   remoteHead: head,
@@ -23,7 +26,7 @@ const intent = (overrides: Partial<Parameters<typeof validateRemoteBootstrapInte
 
 assert.equal(validateRemoteBootstrapIntent(intent()).ok, true)
 for (const overrides of [
-  { d1Name: 'six-os' }, { d1Id: 'de5f9b02-a8a3-4602-943f-f61bdb524f74' }, { d1Id: 'wrong' }, { accountId: 'wrong' },
+  { pagesName: 'six-os' }, { pagesId: 'wrong' }, { d1Name: 'six-os' }, { d1Id: 'de5f9b02-a8a3-4602-943f-f61bdb524f74' }, { d1Id: 'wrong' }, { r2Bucket: 'six-os-files' }, { accountId: 'wrong' },
   { branch: 'main' }, { expectedHead: 'bad' }, { remoteHead: 'a'.repeat(40) }, { confirmation: '' },
   { git: { branch: PILOT_IDENTITY.branch, head, porcelain: '?? unsafe' } },
 ]) assert.equal(validateRemoteBootstrapIntent(intent(overrides)).ok, false)

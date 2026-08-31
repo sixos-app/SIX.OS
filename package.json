@@ -16,6 +16,8 @@
     "test:pilot": "tsx scripts/test_pilot_tooling.ts",
     "test:pilot:targeting": "tsx scripts/test_pilot_targeting.ts",
     "test:pilot:remote-safety": "tsx scripts/test_pilot_remote_safety.ts",
+    "test:pilot:remote-bootstrap": "tsx scripts/test_pilot_remote_bootstrap.ts",
+    "test:pilot:remote-verify": "tsx scripts/test_pilot_remote_verify.ts",
     "pilot:preflight": "tsx scripts/pilot-preflight.ts",
     "pilot:bootstrap:remote": "pnpm pilot:preflight --remote && tsx scripts/pilot-remote-bootstrap.ts",
     "pilot:prepare-pages": "tsx scripts/pilot-prepare-pages.ts",
