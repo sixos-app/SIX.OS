@@ -1,48 +1,30 @@
 import type { Bindings } from './api/_access'
 
-const ALLOWED_ORIGINS = [
-  'https://sixos.app',
-  'https://www.sixos.app'
-]
-
-// Extra allowed origins for preview/dev if configured via environment variables
-function getAllowedOrigins(env: Bindings) {
-  const origins = [...ALLOWED_ORIGINS]
-  // Add CF Pages branch preview domains if applicable
-  // Since we don't have access to CF_PAGES_URL safely in all contexts securely without spoofing, 
-  // we rely on an explicit environment whitelist if needed.
-  if ((env as any).EXTRA_CORS_ORIGINS) {
-    origins.push(...(env as any).EXTRA_CORS_ORIGINS.split(',').map((s: string) => s.trim()))
+function refererMatchesOrigin(referer: string, expectedOrigin: string) {
+  try {
+    return new URL(referer).origin === expectedOrigin
+  } catch {
+    return false
   }
-  return origins
 }
 
-export const onRequest: PagesFunction<Bindings> = async ({ request, env, next }) => {
+export const onRequest: PagesFunction<Bindings> = async ({ request, next }) => {
   // CORS & CSRF Origin Check
   const origin = request.headers.get('Origin')
-  const allowedOrigins = getAllowedOrigins(env)
+  const requestOrigin = new URL(request.url).origin
+  const originMatchesRequest = origin === requestOrigin
   
   const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)
   
   if (isStateChanging && request.url.includes('/api/')) {
     // CSRF Protection: Require valid Origin for state-changing API requests
     const referer = request.headers.get('Referer')
-    const requestOrigin = new URL(request.url).origin
-    
-    let originValid = false
-    
-    if (origin) {
-      if (allowedOrigins.includes(origin) || origin === requestOrigin) {
-        originValid = true
-      }
-    } else if (referer) {
-      try {
-        if (new URL(referer).origin === requestOrigin || allowedOrigins.includes(new URL(referer).origin)) {
-          originValid = true
-        }
-      } catch {
-        originValid = false
-      }
+    let originValid: boolean
+
+    if (origin !== null) {
+      originValid = originMatchesRequest
+    } else if (referer !== null) {
+      originValid = refererMatchesOrigin(referer, requestOrigin)
     } else {
       return new Response('CSRF Protection: Missing Origin', { status: 403 })
     }
@@ -54,11 +36,11 @@ export const onRequest: PagesFunction<Bindings> = async ({ request, env, next })
 
   // Preflight
   if (request.method === 'OPTIONS') {
-    if (origin && allowedOrigins.includes(origin)) {
+    if (originMatchesRequest) {
       return new Response(null, {
         status: 204,
         headers: {
-          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Origin': requestOrigin,
           'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, Authorization',
           'Access-Control-Max-Age': '86400',
@@ -75,8 +57,8 @@ export const onRequest: PagesFunction<Bindings> = async ({ request, env, next })
   const secureHeaders = new Headers(response.headers)
   
   // CORS Response Header
-  if (origin && allowedOrigins.includes(origin)) {
-    secureHeaders.set('Access-Control-Allow-Origin', origin)
+  if (originMatchesRequest) {
+    secureHeaders.set('Access-Control-Allow-Origin', requestOrigin)
     secureHeaders.append('Vary', 'Origin')
   }
 
